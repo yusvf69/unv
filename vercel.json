@@ -1,11 +1,17 @@
 {
-  "builds": [
+  "framework": null,
+  "buildCommand": "pnpm --filter @workspace/universe build",
+  "outputDirectory": "artifacts/universe/dist/public",
+  "headers": [
     {
-      "src": "artifacts/universe/package.json",
-      "use": "@vercel/static-build",
-      "config": {
-        "distDir": "dist/public"
-      }
+      "source": "/assets/(.*)",
+      "headers": [
+        { "key": "Content-Type", "value": "application/javascript; charset=utf-8" }
+      ]
     }
+  ],
+  "rewrites": [
+    { "handle": "filesystem" },
+    { "source": "/(.*)", "destination": "/index.html" }
   ]
 }
