@@ -1,0 +1,34 @@
+import { pgTable, serial, text, integer, timestamp, boolean } from "drizzle-orm/pg-core";
+
+export const usersTable = pgTable("users", {
+  id: serial("id").primaryKey(),
+  name: text("name").notNull(),
+  username: text("username").notNull().unique(),
+  email: text("email").notNull().unique(),
+  phone: text("phone"),
+  password: text("password").notNull(),
+  role: text("role").notNull(),
+  groupName: text("group_name"),
+  avatarUrl: text("avatar_url"),
+  department: text("department").notNull(),
+  year: integer("year"),
+  yearInCollege: integer("year_in_college"),
+  specialization: text("specialization"),
+  points: integer("points").notNull().default(0),
+  level: integer("level").notNull().default(1),
+  streak: integer("streak").notNull().default(0),
+  status: text("status").notNull().default("active"),
+  title: text("title"),
+  bio: text("bio"),
+  officeHours: text("office_hours"),
+  researchInterests: text("research_interests").array(),
+  isDean: integer("is_dean").notNull().default(0),
+  weeklyMinutes: integer("weekly_minutes").notNull().default(0),
+  uniqueCode: text("unique_code").notNull().unique(),
+  emailVerified: boolean("email_verified").notNull().default(false),
+  phoneVerified: boolean("phone_verified").notNull().default(false),
+  lastSeen: timestamp("last_seen", { withTimezone: true }).notNull().defaultNow(),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+});
+
+export type User = typeof usersTable.$inferSelect;

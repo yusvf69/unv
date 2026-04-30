@@ -1,0 +1,44 @@
+import { Router, type IRouter } from "express";
+import healthRouter from "./health";
+import { demoSession } from "../lib/session";
+import meRouter from "./me";
+import newsRouter from "./news";
+import staffRouter from "./staff";
+import leaderboardRouter from "./leaderboard";
+import homeRouter from "./home";
+import dashboardRouter from "./dashboard";
+import coursesRouter from "./courses";
+import quizzesRouter from "./quizzes";
+import forumRouter from "./forum";
+import talentsRouter from "./talents";
+import skillsRouter from "./skills";
+import missionsRouter from "./missions";
+import complaintsRouter from "./complaints";
+import aiRouter from "./ai";
+import adminRouter from "./admin";
+import v2Router from "./v2";
+import extrasRouter from "./extras";
+
+const router: IRouter = Router();
+
+router.use(healthRouter);
+router.use(demoSession);
+router.use(meRouter);
+router.use(newsRouter);
+router.use(staffRouter);
+router.use(leaderboardRouter);
+router.use(homeRouter);
+router.use(dashboardRouter);
+router.use(coursesRouter);
+router.use(quizzesRouter);
+router.use(forumRouter);
+router.use(talentsRouter);
+router.use(skillsRouter);
+router.use(missionsRouter);
+router.use(complaintsRouter);
+router.use(aiRouter);
+router.use(adminRouter);
+router.use(v2Router);
+router.use(extrasRouter);
+
+export default router;

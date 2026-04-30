@@ -1,0 +1,14 @@
+{
+  "buildCommand": "pnpm install && pnpm run build",
+  "outputDirectory": "artifacts/universe/dist/public",
+  "rewrites": [
+    {
+      "source": "/api/(.*)",
+      "destination": "api/index"
+    },
+    {
+      "source": "/(.*)",
+      "destination": "/"
+    }
+  ]
+}

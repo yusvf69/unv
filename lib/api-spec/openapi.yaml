@@ -1,0 +1,1118 @@
+openapi: 3.1.0
+info:
+  # Do not change the title, if the title changes, the import paths will be broken
+  title: Api
+  version: 0.1.0
+  description: UniVerse — Smart university platform for the Faculty of Agriculture
+servers:
+  - url: /api
+    description: Base API path
+tags:
+  - name: health
+  - name: home
+  - name: auth
+  - name: news
+  - name: staff
+  - name: leaderboard
+  - name: dashboard
+  - name: courses
+  - name: quizzes
+  - name: forum
+  - name: talents
+  - name: skills
+  - name: missions
+  - name: complaints
+  - name: ai
+  - name: admin
+paths:
+  /healthz:
+    get:
+      operationId: healthCheck
+      tags: [health]
+      summary: Health check
+      responses:
+        "200":
+          description: Healthy
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/HealthStatus"
+
+  /me:
+    get:
+      operationId: getMe
+      tags: [auth]
+      summary: Get the current user (demo session)
+      responses:
+        "200":
+          description: Current user
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/CurrentUser"
+
+  /me/role:
+    post:
+      operationId: switchRole
+      tags: [auth]
+      summary: Switch demo role for the active session
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/SwitchRoleBody"
+      responses:
+        "200":
+          description: Updated current user
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/CurrentUser"
+
+  /home/feed:
+    get:
+      operationId: getHomeFeed
+      tags: [home]
+      summary: Aggregated home page data
+      responses:
+        "200":
+          description: Home feed
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/HomeFeed"
+
+  /news:
+    get:
+      operationId: listNews
+      tags: [news]
+      summary: List news articles
+      responses:
+        "200":
+          description: News list
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/NewsArticle"
+  /news/{id}:
+    get:
+      operationId: getNews
+      tags: [news]
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema: { type: integer }
+      responses:
+        "200":
+          description: News detail
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/NewsArticle"
+        "404":
+          description: Not found
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ErrorResponse" }
+
+  /staff:
+    get:
+      operationId: listStaff
+      tags: [staff]
+      summary: List teaching staff
+      parameters:
+        - in: query
+          name: department
+          required: false
+          schema: { type: string }
+      responses:
+        "200":
+          description: Staff list
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/StaffMember"
+  /staff/{id}:
+    get:
+      operationId: getStaffMember
+      tags: [staff]
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema: { type: integer }
+      responses:
+        "200":
+          description: Staff detail
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/StaffMember"
+        "404":
+          description: Not found
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ErrorResponse" }
+
+  /leaderboard:
+    get:
+      operationId: getLeaderboard
+      tags: [leaderboard]
+      summary: Leaderboard ranked by points for the chosen period
+      parameters:
+        - in: query
+          name: period
+          required: false
+          schema:
+            type: string
+            enum: [daily, weekly, monthly, alltime]
+            default: weekly
+      responses:
+        "200":
+          description: Leaderboard entries (ranked)
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/LeaderboardEntry"
+
+  /dashboard:
+    get:
+      operationId: getDashboard
+      tags: [dashboard]
+      summary: Aggregated student dashboard data
+      responses:
+        "200":
+          description: Dashboard payload
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Dashboard"
+
+  /courses:
+    get:
+      operationId: listCourses
+      tags: [courses]
+      summary: List courses
+      responses:
+        "200":
+          description: Courses
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/Course"
+  /courses/{id}:
+    get:
+      operationId: getCourse
+      tags: [courses]
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema: { type: integer }
+      responses:
+        "200":
+          description: Course detail with materials
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/CourseDetail"
+        "404":
+          description: Not found
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ErrorResponse" }
+
+  /quizzes:
+    get:
+      operationId: listQuizzes
+      tags: [quizzes]
+      summary: List quizzes
+      responses:
+        "200":
+          description: Quizzes
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/QuizSummary"
+  /quizzes/{id}:
+    get:
+      operationId: getQuiz
+      tags: [quizzes]
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema: { type: integer }
+      responses:
+        "200":
+          description: Quiz with questions
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Quiz"
+        "404":
+          description: Not found
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ErrorResponse" }
+  /quizzes/{id}/submit:
+    post:
+      operationId: submitQuiz
+      tags: [quizzes]
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema: { type: integer }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/SubmitQuizBody"
+      responses:
+        "200":
+          description: Quiz attempt result
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/QuizResult"
+
+  /forum/posts:
+    get:
+      operationId: listForumPosts
+      tags: [forum]
+      parameters:
+        - in: query
+          name: category
+          required: false
+          schema: { type: string }
+      responses:
+        "200":
+          description: Forum posts
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/ForumPost"
+    post:
+      operationId: createForumPost
+      tags: [forum]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CreateForumPostBody"
+      responses:
+        "201":
+          description: Created
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ForumPost"
+  /forum/posts/{id}:
+    get:
+      operationId: getForumPost
+      tags: [forum]
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema: { type: integer }
+      responses:
+        "200":
+          description: Forum post detail with replies
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ForumPostDetail"
+        "404":
+          description: Not found
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ErrorResponse" }
+  /forum/posts/{id}/replies:
+    post:
+      operationId: createForumReply
+      tags: [forum]
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema: { type: integer }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CreateForumReplyBody"
+      responses:
+        "201":
+          description: Created
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ForumReply"
+  /forum/posts/{id}/upvote:
+    post:
+      operationId: upvoteForumPost
+      tags: [forum]
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema: { type: integer }
+      responses:
+        "200":
+          description: Updated post
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ForumPost"
+
+  /talents:
+    get:
+      operationId: listTalents
+      tags: [talents]
+      summary: Showcase of student talents
+      responses:
+        "200":
+          description: Talents
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/Talent"
+  /talents/{id}/vote:
+    post:
+      operationId: voteTalent
+      tags: [talents]
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema: { type: integer }
+      responses:
+        "200":
+          description: Updated talent
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Talent"
+
+  /skills:
+    get:
+      operationId: listSkillTracks
+      tags: [skills]
+      summary: List skill development tracks
+      responses:
+        "200":
+          description: Skill tracks
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/SkillTrack"
+  /skills/{id}:
+    get:
+      operationId: getSkillTrack
+      tags: [skills]
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema: { type: integer }
+      responses:
+        "200":
+          description: Skill track detail
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SkillTrackDetail"
+        "404":
+          description: Not found
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ErrorResponse" }
+
+  /missions:
+    get:
+      operationId: listMissions
+      tags: [missions]
+      summary: Today's missions for the current user
+      responses:
+        "200":
+          description: Missions
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/Mission"
+  /missions/{id}/complete:
+    post:
+      operationId: completeMission
+      tags: [missions]
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema: { type: integer }
+      responses:
+        "200":
+          description: Updated mission
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Mission"
+
+  /complaints:
+    get:
+      operationId: listComplaints
+      tags: [complaints]
+      summary: List complaints (current user or admin view)
+      responses:
+        "200":
+          description: Complaints
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/Complaint"
+    post:
+      operationId: createComplaint
+      tags: [complaints]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CreateComplaintBody"
+      responses:
+        "201":
+          description: Created
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Complaint"
+
+  /ai/chat:
+    post:
+      operationId: aiChat
+      tags: [ai]
+      summary: Ask the AI study coach
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/AiChatBody"
+      responses:
+        "200":
+          description: AI reply
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AiChatResponse"
+
+  /admin/overview:
+    get:
+      operationId: getAdminOverview
+      tags: [admin]
+      summary: Admin overview metrics
+      responses:
+        "200":
+          description: Admin overview payload
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AdminOverview"
+  /admin/users:
+    get:
+      operationId: listAdminUsers
+      tags: [admin]
+      summary: List all users
+      parameters:
+        - in: query
+          name: role
+          required: false
+          schema:
+            type: string
+            enum: [student, doctor, ta, admin, super_admin]
+      responses:
+        "200":
+          description: Users
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/AdminUser"
+
+components:
+  schemas:
+    HealthStatus:
+      type: object
+      properties:
+        status: { type: string }
+      required: [status]
+
+    ErrorResponse:
+      type: object
+      properties:
+        error: { type: string }
+      required: [error]
+
+    Role:
+      type: string
+      enum: [student, doctor, ta, admin, super_admin]
+
+    CurrentUser:
+      type: object
+      properties:
+        id: { type: integer }
+        name: { type: string }
+        email: { type: string }
+        role: { $ref: "#/components/schemas/Role" }
+        avatarUrl: { type: ["string", "null"] }
+        department: { type: string }
+        year: { type: ["integer", "null"] }
+        points: { type: integer }
+        level: { type: integer }
+        streak: { type: integer }
+        title: { type: ["string", "null"] }
+      required: [id, name, email, role, department, points, level, streak]
+
+    SwitchRoleBody:
+      type: object
+      properties:
+        role: { $ref: "#/components/schemas/Role" }
+      required: [role]
+
+    NewsArticle:
+      type: object
+      properties:
+        id: { type: integer }
+        title: { type: string }
+        excerpt: { type: string }
+        body: { type: string }
+        category: { type: string }
+        imageUrl: { type: ["string", "null"] }
+        author: { type: string }
+        publishedAt: { type: string, format: date-time }
+      required: [id, title, excerpt, body, category, author, publishedAt]
+
+    StaffMember:
+      type: object
+      properties:
+        id: { type: integer }
+        name: { type: string }
+        title: { type: string }
+        role: { type: string, enum: [dean, doctor, ta] }
+        department: { type: string }
+        bio: { type: string }
+        avatarUrl: { type: ["string", "null"] }
+        email: { type: string }
+        officeHours: { type: ["string", "null"] }
+        researchInterests:
+          type: array
+          items: { type: string }
+      required: [id, name, title, role, department, bio, email, researchInterests]
+
+    LeaderboardEntry:
+      type: object
+      properties:
+        rank: { type: integer }
+        userId: { type: integer }
+        name: { type: string }
+        avatarUrl: { type: ["string", "null"] }
+        department: { type: string }
+        year: { type: ["integer", "null"] }
+        points: { type: integer }
+        level: { type: integer }
+        streak: { type: integer }
+        deltaRank: { type: integer }
+      required: [rank, userId, name, department, points, level, streak, deltaRank]
+
+    HomeFeed:
+      type: object
+      properties:
+        dean:
+          $ref: "#/components/schemas/StaffMember"
+        topStaff:
+          type: array
+          items: { $ref: "#/components/schemas/StaffMember" }
+        latestNews:
+          type: array
+          items: { $ref: "#/components/schemas/NewsArticle" }
+        topStudents:
+          type: array
+          items: { $ref: "#/components/schemas/LeaderboardEntry" }
+        featuredTalents:
+          type: array
+          items: { $ref: "#/components/schemas/Talent" }
+        stats:
+          $ref: "#/components/schemas/CollegeStats"
+      required: [dean, topStaff, latestNews, topStudents, featuredTalents, stats]
+
+    CollegeStats:
+      type: object
+      properties:
+        students: { type: integer }
+        staff: { type: integer }
+        courses: { type: integer }
+        researchProjects: { type: integer }
+      required: [students, staff, courses, researchProjects]
+
+    ScheduleItem:
+      type: object
+      properties:
+        id: { type: integer }
+        courseTitle: { type: string }
+        courseCode: { type: string }
+        instructor: { type: string }
+        room: { type: string }
+        day: { type: string, enum: [sun, mon, tue, wed, thu] }
+        startTime: { type: string }
+        endTime: { type: string }
+        type: { type: string, enum: [lecture, lab, tutorial] }
+      required: [id, courseTitle, courseCode, instructor, room, day, startTime, endTime, type]
+
+    GradeItem:
+      type: object
+      properties:
+        courseId: { type: integer }
+        courseTitle: { type: string }
+        courseCode: { type: string }
+        score: { type: number }
+        outOf: { type: number }
+        letter: { type: string }
+      required: [courseId, courseTitle, courseCode, score, outOf, letter]
+
+    AttendanceItem:
+      type: object
+      properties:
+        courseId: { type: integer }
+        courseTitle: { type: string }
+        attended: { type: integer }
+        total: { type: integer }
+        percentage: { type: number }
+      required: [courseId, courseTitle, attended, total, percentage]
+
+    NotificationItem:
+      type: object
+      properties:
+        id: { type: integer }
+        title: { type: string }
+        body: { type: string }
+        type: { type: string, enum: [info, success, warning, alert] }
+        createdAt: { type: string, format: date-time }
+        read: { type: boolean }
+      required: [id, title, body, type, createdAt, read]
+
+    ActivityPoint:
+      type: object
+      properties:
+        date: { type: string }
+        minutesStudied: { type: integer }
+        pointsEarned: { type: integer }
+      required: [date, minutesStudied, pointsEarned]
+
+    Dashboard:
+      type: object
+      properties:
+        user: { $ref: "#/components/schemas/CurrentUser" }
+        nextLevelPoints: { type: integer }
+        rank: { type: integer }
+        weeklyMinutes: { type: integer }
+        focusGoalMinutes: { type: integer }
+        schedule:
+          type: array
+          items: { $ref: "#/components/schemas/ScheduleItem" }
+        grades:
+          type: array
+          items: { $ref: "#/components/schemas/GradeItem" }
+        attendance:
+          type: array
+          items: { $ref: "#/components/schemas/AttendanceItem" }
+        missions:
+          type: array
+          items: { $ref: "#/components/schemas/Mission" }
+        notifications:
+          type: array
+          items: { $ref: "#/components/schemas/NotificationItem" }
+        activity:
+          type: array
+          items: { $ref: "#/components/schemas/ActivityPoint" }
+        examPrediction:
+          $ref: "#/components/schemas/ExamPrediction"
+      required: [user, nextLevelPoints, rank, weeklyMinutes, focusGoalMinutes, schedule, grades, attendance, missions, notifications, activity, examPrediction]
+
+    ExamPrediction:
+      type: object
+      properties:
+        courseId: { type: integer }
+        courseTitle: { type: string }
+        predictedScore: { type: number }
+        confidence: { type: number }
+        risk: { type: string, enum: [low, medium, high] }
+        recommendations:
+          type: array
+          items: { type: string }
+      required: [courseId, courseTitle, predictedScore, confidence, risk, recommendations]
+
+    Material:
+      type: object
+      properties:
+        id: { type: integer }
+        title: { type: string }
+        kind: { type: string, enum: [video, pdf, slides, link] }
+        url: { type: string }
+        durationMinutes: { type: ["integer", "null"] }
+      required: [id, title, kind, url]
+
+    Course:
+      type: object
+      properties:
+        id: { type: integer }
+        title: { type: string }
+        code: { type: string }
+        description: { type: string }
+        credits: { type: integer }
+        department: { type: string }
+        instructor: { type: string }
+        coverUrl: { type: ["string", "null"] }
+        progress: { type: number }
+        enrolled: { type: integer }
+      required: [id, title, code, description, credits, department, instructor, progress, enrolled]
+
+    CourseDetail:
+      allOf:
+        - $ref: "#/components/schemas/Course"
+        - type: object
+          properties:
+            materials:
+              type: array
+              items: { $ref: "#/components/schemas/Material" }
+            instructorBio: { type: string }
+            syllabus:
+              type: array
+              items: { type: string }
+          required: [materials, instructorBio, syllabus]
+
+    QuizSummary:
+      type: object
+      properties:
+        id: { type: integer }
+        title: { type: string }
+        description: { type: string }
+        courseId: { type: integer }
+        courseTitle: { type: string }
+        durationMinutes: { type: integer }
+        questionCount: { type: integer }
+        totalPoints: { type: integer }
+        difficulty: { type: string, enum: [easy, medium, hard] }
+      required: [id, title, description, courseId, courseTitle, durationMinutes, questionCount, totalPoints, difficulty]
+
+    QuizQuestion:
+      type: object
+      properties:
+        id: { type: integer }
+        text: { type: string }
+        options:
+          type: array
+          items: { type: string }
+        points: { type: integer }
+      required: [id, text, options, points]
+
+    Quiz:
+      allOf:
+        - $ref: "#/components/schemas/QuizSummary"
+        - type: object
+          properties:
+            questions:
+              type: array
+              items: { $ref: "#/components/schemas/QuizQuestion" }
+          required: [questions]
+
+    QuizAnswer:
+      type: object
+      properties:
+        questionId: { type: integer }
+        selectedIndex: { type: integer }
+      required: [questionId, selectedIndex]
+
+    SubmitQuizBody:
+      type: object
+      properties:
+        answers:
+          type: array
+          items: { $ref: "#/components/schemas/QuizAnswer" }
+      required: [answers]
+
+    QuizQuestionResult:
+      type: object
+      properties:
+        questionId: { type: integer }
+        correct: { type: boolean }
+        correctIndex: { type: integer }
+        explanation: { type: string }
+      required: [questionId, correct, correctIndex, explanation]
+
+    QuizResult:
+      type: object
+      properties:
+        quizId: { type: integer }
+        score: { type: integer }
+        totalPoints: { type: integer }
+        correctCount: { type: integer }
+        questionCount: { type: integer }
+        pointsEarned: { type: integer }
+        breakdown:
+          type: array
+          items: { $ref: "#/components/schemas/QuizQuestionResult" }
+      required: [quizId, score, totalPoints, correctCount, questionCount, pointsEarned, breakdown]
+
+    ForumPost:
+      type: object
+      properties:
+        id: { type: integer }
+        title: { type: string }
+        excerpt: { type: string }
+        category: { type: string }
+        author: { $ref: "#/components/schemas/AuthorRef" }
+        upvotes: { type: integer }
+        replyCount: { type: integer }
+        hasBestAnswer: { type: boolean }
+        createdAt: { type: string, format: date-time }
+      required: [id, title, excerpt, category, author, upvotes, replyCount, hasBestAnswer, createdAt]
+
+    AuthorRef:
+      type: object
+      properties:
+        id: { type: integer }
+        name: { type: string }
+        avatarUrl: { type: ["string", "null"] }
+        role: { $ref: "#/components/schemas/Role" }
+      required: [id, name, role]
+
+    ForumReply:
+      type: object
+      properties:
+        id: { type: integer }
+        body: { type: string }
+        author: { $ref: "#/components/schemas/AuthorRef" }
+        upvotes: { type: integer }
+        isBest: { type: boolean }
+        createdAt: { type: string, format: date-time }
+      required: [id, body, author, upvotes, isBest, createdAt]
+
+    ForumPostDetail:
+      allOf:
+        - $ref: "#/components/schemas/ForumPost"
+        - type: object
+          properties:
+            body: { type: string }
+            replies:
+              type: array
+              items: { $ref: "#/components/schemas/ForumReply" }
+          required: [body, replies]
+
+    CreateForumPostBody:
+      type: object
+      properties:
+        title: { type: string }
+        body: { type: string }
+        category: { type: string }
+      required: [title, body, category]
+
+    CreateForumReplyBody:
+      type: object
+      properties:
+        body: { type: string }
+      required: [body]
+
+    Talent:
+      type: object
+      properties:
+        id: { type: integer }
+        title: { type: string }
+        category: { type: string }
+        description: { type: string }
+        mediaUrl: { type: ["string", "null"] }
+        votes: { type: integer }
+        owner: { $ref: "#/components/schemas/AuthorRef" }
+      required: [id, title, category, description, votes, owner]
+
+    SkillTrack:
+      type: object
+      properties:
+        id: { type: integer }
+        title: { type: string }
+        category: { type: string }
+        description: { type: string }
+        lessonsCount: { type: integer }
+        progress: { type: number }
+        coverUrl: { type: ["string", "null"] }
+        difficulty: { type: string, enum: [beginner, intermediate, advanced] }
+      required: [id, title, category, description, lessonsCount, progress, difficulty]
+
+    SkillLesson:
+      type: object
+      properties:
+        id: { type: integer }
+        title: { type: string }
+        durationMinutes: { type: integer }
+        kind: { type: string, enum: [lesson, task, quiz, challenge] }
+        completed: { type: boolean }
+      required: [id, title, durationMinutes, kind, completed]
+
+    SkillTrackDetail:
+      allOf:
+        - $ref: "#/components/schemas/SkillTrack"
+        - type: object
+          properties:
+            lessons:
+              type: array
+              items: { $ref: "#/components/schemas/SkillLesson" }
+          required: [lessons]
+
+    Mission:
+      type: object
+      properties:
+        id: { type: integer }
+        title: { type: string }
+        description: { type: string }
+        points: { type: integer }
+        kind: { type: string, enum: [study, quiz, forum, attendance, focus] }
+        completed: { type: boolean }
+      required: [id, title, description, points, kind, completed]
+
+    Complaint:
+      type: object
+      properties:
+        id: { type: integer }
+        subject: { type: string }
+        body: { type: string }
+        category: { type: string }
+        status: { type: string, enum: [open, in_review, resolved, closed] }
+        response: { type: ["string", "null"] }
+        author: { $ref: "#/components/schemas/AuthorRef" }
+        createdAt: { type: string, format: date-time }
+      required: [id, subject, body, category, status, author, createdAt]
+
+    CreateComplaintBody:
+      type: object
+      properties:
+        subject: { type: string }
+        body: { type: string }
+        category: { type: string }
+      required: [subject, body, category]
+
+    AiChatMessage:
+      type: object
+      properties:
+        role: { type: string, enum: [user, assistant] }
+        content: { type: string }
+      required: [role, content]
+
+    AiChatBody:
+      type: object
+      properties:
+        messages:
+          type: array
+          items: { $ref: "#/components/schemas/AiChatMessage" }
+      required: [messages]
+
+    AiChatResponse:
+      type: object
+      properties:
+        reply: { type: string }
+        suggestions:
+          type: array
+          items: { type: string }
+      required: [reply, suggestions]
+
+    AdminUser:
+      type: object
+      properties:
+        id: { type: integer }
+        name: { type: string }
+        email: { type: string }
+        role: { $ref: "#/components/schemas/Role" }
+        department: { type: string }
+        avatarUrl: { type: ["string", "null"] }
+        status: { type: string, enum: [active, blocked, pending] }
+        points: { type: integer }
+        lastSeen: { type: string, format: date-time }
+      required: [id, name, email, role, department, status, points, lastSeen]
+
+    DepartmentBreakdown:
+      type: object
+      properties:
+        department: { type: string }
+        count: { type: integer }
+      required: [department, count]
+
+    EngagementPoint:
+      type: object
+      properties:
+        date: { type: string }
+        activeUsers: { type: integer }
+        studyMinutes: { type: integer }
+      required: [date, activeUsers, studyMinutes]
+
+    AdminAlert:
+      type: object
+      properties:
+        id: { type: integer }
+        title: { type: string }
+        body: { type: string }
+        severity: { type: string, enum: [info, warning, critical] }
+        kind: { type: string, enum: [complaint, dropout_risk, content_review, system] }
+        createdAt: { type: string, format: date-time }
+      required: [id, title, body, severity, kind, createdAt]
+
+    AdminOverview:
+      type: object
+      properties:
+        totalStudents: { type: integer }
+        totalStaff: { type: integer }
+        activeExams: { type: integer }
+        todayActivity: { type: integer }
+        aiUsageToday: { type: integer }
+        weeklyEngagement:
+          type: array
+          items: { $ref: "#/components/schemas/EngagementPoint" }
+        departmentBreakdown:
+          type: array
+          items: { $ref: "#/components/schemas/DepartmentBreakdown" }
+        pointsDistribution:
+          type: array
+          items:
+            type: object
+            properties:
+              bucket: { type: string }
+              count: { type: integer }
+            required: [bucket, count]
+        alerts:
+          type: array
+          items: { $ref: "#/components/schemas/AdminAlert" }
+      required: [totalStudents, totalStaff, activeExams, todayActivity, aiUsageToday, weeklyEngagement, departmentBreakdown, pointsDistribution, alerts]
