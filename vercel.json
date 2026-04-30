@@ -1,12 +1,8 @@
 {
-  "framework": null,
-  "buildCommand": "pnpm --filter @workspace/universe run build:vercel",
+  "buildCommand": "pnpm run build:vercel",
   "outputDirectory": "public",
   "rewrites": [
-    {
-      "source": "/api/(.*)",
-      "destination": "/api/index"
-    },
+    { "handle": "filesystem" },
     {
       "source": "/(.*)",
       "destination": "/index.html"
