@@ -1,6 +1,6 @@
 {
   "framework": null,
-  "buildCommand": "pnpm --filter @workspace/universe run build && rm -rf public && cp -R artifacts/universe/dist/public public",
+  "buildCommand": "bash scripts/build-vercel.sh",
   "outputDirectory": "public",
   "rewrites": [
     {
