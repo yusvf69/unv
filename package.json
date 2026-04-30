@@ -10,6 +10,12 @@
     "typecheck": "pnpm run typecheck:libs && pnpm -r --filter \"./artifacts/**\" --filter \"./scripts\" --if-present run typecheck"
   },
   "private": true,
+  "dependencies": {
+    "@neondatabase/serverless": "^1.0.0",
+    "drizzle-orm": "^0.38.0",
+    "hono": "^4.0.0",
+    "@workspace/db": "workspace:*"
+  },
   "devDependencies": {
     "@rollup/rollup-darwin-arm64": "^4.60.2",
     "lightningcss": "^1.32.0",
