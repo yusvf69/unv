@@ -2,11 +2,29 @@ import { useQuery, useMutation, useQueryClient, type UseQueryOptions } from "@ta
 
 const API_BASE = "/api";
 
+function getToken(): string | null {
+  if (typeof window === "undefined") return null;
+  return localStorage.getItem("uv_token");
+}
+
+function setToken(token: string) {
+  if (typeof window === "undefined") return;
+  localStorage.setItem("uv_token", token);
+}
+
+function clearToken() {
+  if (typeof window === "undefined") return;
+  localStorage.removeItem("uv_token");
+}
+
 async function request<T>(method: string, path: string, body?: unknown): Promise<T> {
+  const headers: Record<string, string> = { "Content-Type": "application/json" };
+  const token = getToken();
+  if (token) headers["Authorization"] = `Bearer ${token}`;
+
   const res = await fetch(`${API_BASE}${path}`, {
     method,
-    credentials: "include",
-    headers: { "Content-Type": "application/json" },
+    headers,
     body: body !== undefined ? JSON.stringify(body) : undefined,
   });
   if (!res.ok) {
@@ -18,7 +36,13 @@ async function request<T>(method: string, path: string, body?: unknown): Promise
     throw new Error(msg);
   }
   if (res.status === 204) return undefined as T;
-  return (await res.json()) as T;
+  const data = await res.json();
+  if ((data as any).token) setToken((data as any).token);
+  return data as T;
+}
+
+export function logoutClient() {
+  clearToken();
 }
 
 export const api = {
@@ -212,7 +236,10 @@ export function useLogout() {
   const qc = useQueryClient();
   return useMutation({
     mutationFn: () => api.post("/v2/auth/logout"),
-    onSuccess: () => qc.invalidateQueries(),
+    onSuccess: () => {
+      clearToken();
+      qc.invalidateQueries();
+    },
   });
 }
 

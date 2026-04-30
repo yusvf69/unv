@@ -1,5 +1,11 @@
 {
   "framework": null,
-  "buildCommand": "pnpm --filter @workspace/universe build",
-  "outputDirectory": "artifacts/universe/dist/public"
+  "buildCommand": "pnpm install && pnpm --filter @workspace/universe build",
+  "outputDirectory": "artifacts/universe/dist/public",
+  "functions": {
+    "api/[[...route]].ts": {
+      "runtime": "nodejs20.x",
+      "memory": 1024
+    }
+  }
 }
