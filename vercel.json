@@ -1,6 +1,6 @@
 {
   "framework": null,
-  "buildCommand": "bash scripts/build-vercel.sh",
+  "buildCommand": "pnpm --filter @workspace/universe run build:vercel",
   "outputDirectory": "public",
   "rewrites": [
     {
