@@ -1,6 +1,6 @@
 {
   "framework": null,
-  "buildCommand": "cd artifacts/universe && pnpm vite build && cd ../.. && rm -rf public && cp -R artifacts/universe/dist/public public",
+  "buildCommand": "pnpm --filter @workspace/universe run build && rm -rf public && cp -R artifacts/universe/dist/public public",
   "outputDirectory": "public",
   "rewrites": [
     {
