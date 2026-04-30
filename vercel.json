@@ -1,8 +1,5 @@
 {
-  "buildCommand": "pnpm run build",
-  "outputDirectory": "artifacts/universe/dist/public",
-  "rewrites": [
-    { "handle": "filesystem" },
-    { "source": "/(.*)", "destination": "/index.html" }
-  ]
+  "framework": "vite",
+  "buildCommand": "pnpm run build:vercel",
+  "outputDirectory": "public"
 }
