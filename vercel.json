@@ -1,12 +1,5 @@
 {
   "framework": null,
   "buildCommand": "cd artifacts/universe && pnpm vite build --outDir ../../public --emptyOutDir",
-  "outputDirectory": "public",
-  "rewrites": [
-    { "handle": "filesystem" },
-    {
-      "source": "/(.*)",
-      "destination": "/index.html"
-    }
-  ]
+  "outputDirectory": "public"
 }
