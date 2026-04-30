@@ -13,8 +13,6 @@ if (Number.isNaN(port) || port <= 0) {
 
 const basePath = process.env.BASE_PATH || "/";
 
-const isVercel = process.env.VERCEL === '1';
-
 export default defineConfig({
   base: basePath,
   plugins: [
@@ -44,7 +42,7 @@ export default defineConfig({
   },
   root: path.resolve(import.meta.dirname),
   build: {
-    outDir: path.resolve(import.meta.dirname, isVercel ? "../dist_public" : "dist/public"),
+    outDir: path.resolve(import.meta.dirname, "dist/public"),
     emptyOutDir: true,
   },
   server: {

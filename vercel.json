@@ -1,10 +1,11 @@
 {
+  "framework": null,
   "buildCommand": "pnpm run build",
-  "outputDirectory": "dist_public",
+  "outputDirectory": "artifacts/universe/dist/public",
   "rewrites": [
     {
       "source": "/api/(.*)",
-      "destination": "api/index"
+      "destination": "/api/index"
     },
     {
       "source": "/(.*)",
