@@ -1,5 +1,11 @@
 {
-  "framework": null,
-  "buildCommand": "pnpm run build",
-  "outputDirectory": "public"
+  "builds": [
+    {
+      "src": "artifacts/universe/package.json",
+      "use": "@vercel/static-build",
+      "config": {
+        "distDir": "dist/public"
+      }
+    }
+  ]
 }
