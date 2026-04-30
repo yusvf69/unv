@@ -1,5 +1,8 @@
 {
-  "framework": null,
-  "buildCommand": "pnpm -C artifacts/universe exec vite build --outDir ../../public --emptyOutDir",
-  "outputDirectory": "public"
+  "buildCommand": "pnpm run build",
+  "outputDirectory": "artifacts/universe/dist/public",
+  "rewrites": [
+    { "handle": "filesystem" },
+    { "source": "/(.*)", "destination": "/index.html" }
+  ]
 }
