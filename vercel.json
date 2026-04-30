@@ -1,8 +1,5 @@
 {
   "framework": null,
-  "buildCommand": "pnpm --filter @workspace/universe build",
-  "outputDirectory": "artifacts/universe/dist/public",
-  "rewrites": [
-    { "source": "/(.*)", "destination": "/index.html" }
-  ]
+  "buildCommand": "pnpm run build",
+  "outputDirectory": "public"
 }
