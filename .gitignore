@@ -53,3 +53,4 @@ Thumbs.db
 .env.local
 .env.*.local
 dist_public
+public
