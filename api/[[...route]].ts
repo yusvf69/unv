@@ -1,10 +1,6 @@
 import { neon } from "@neondatabase/serverless";
-import { drizzle } from "drizzle-orm/neon-http";
-import * as schema from "@workspace/db/schema";
-import { eq } from "drizzle-orm";
 
 const sql = neon(process.env.DATABASE_URL!);
-const db = drizzle(sql, { schema });
 
 export default async function handler(req: any, res: any) {
   const url = req.url || "";
@@ -18,18 +14,14 @@ export default async function handler(req: any, res: any) {
       if (!currentUserId) {
         return res.status(404).json({ error: "لا يوجد مستخدم" });
       }
-      const [user] = await db.select()
-        .from(schema.usersTable)
-        .where(eq(schema.usersTable.id, currentUserId))
-        .limit(1);
+      const [user] = await sql`
+        SELECT id, name, username, email, role, "avatarUrl", department, year, points, level, streak, title, "uniqueCode"
+        FROM users
+        WHERE id = ${currentUserId}
+        LIMIT 1
+      `;
       if (!user) return res.status(404).json({ error: "لا يوجد مستخدم" });
-      return res.json({
-        id: user.id, name: user.name, username: user.username,
-        email: user.email, role: user.role, avatarUrl: user.avatarUrl,
-        department: user.department, year: user.year, points: user.points,
-        level: user.level, streak: user.streak, title: user.title,
-        uniqueCode: user.uniqueCode,
-      });
+      return res.json(user);
     }
     
     if (url === "/api/health" || url === "/health") {
@@ -38,6 +30,7 @@ export default async function handler(req: any, res: any) {
     
     res.status(404).json({ error: "Not found" });
   } catch (err: any) {
+    console.error("API Error:", err);
     res.status(500).json({ error: err.message });
   }
 }

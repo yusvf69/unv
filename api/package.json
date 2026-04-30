@@ -3,19 +3,7 @@
   "version": "1.0.0",
   "type": "module",
   "dependencies": {
-    "@google/genai": "^1.50.1",
     "@neondatabase/serverless": "^1.0.0",
-    "@types/node": "^25.6.0",
-    "@workspace/api-zod": "workspace:*",
-    "@workspace/db": "workspace:*",
-    "bcryptjs": "^3.0.2",
-    "cookie-parser": "^1.4.7",
-    "cors": "^2",
-    "dotenv": "^17.4.2",
-    "drizzle-orm": "^0.38.0",
-    "express": "^5",
-    "pino": "^9",
-    "pino-http": "^10",
-    "zod": "^3.25.0"
+    "@types/node": "^25.6.0"
   }
 }
