@@ -1,5 +1,5 @@
 {
   "framework": null,
-  "buildCommand": "pnpm run build:vercel",
+  "buildCommand": "pnpm -C artifacts/universe exec vite build --outDir ../../public --emptyOutDir",
   "outputDirectory": "public"
 }
