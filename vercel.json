@@ -2,16 +2,7 @@
   "framework": null,
   "buildCommand": "pnpm --filter @workspace/universe build",
   "outputDirectory": "artifacts/universe/dist/public",
-  "headers": [
-    {
-      "source": "/assets/(.*)",
-      "headers": [
-        { "key": "Content-Type", "value": "application/javascript; charset=utf-8" }
-      ]
-    }
-  ],
   "rewrites": [
-    { "handle": "filesystem" },
     { "source": "/(.*)", "destination": "/index.html" }
   ]
 }
