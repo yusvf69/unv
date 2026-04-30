@@ -1,11 +1,5 @@
 {
-  "builds": [
-    {
-      "src": "artifacts/universe/package.json",
-      "use": "@vercel/static-build",
-      "config": {
-        "distDir": "dist/public"
-      }
-    }
-  ]
+  "framework": null,
+  "buildCommand": "pnpm --filter @workspace/universe build",
+  "outputDirectory": "artifacts/universe/dist/public"
 }

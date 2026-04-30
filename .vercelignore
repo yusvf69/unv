@@ -1,0 +1,16 @@
+api/
+artifacts/api-server/
+scripts/
+lib/
+.agents/
+.claude/
+.local/
+.replit
+.replitignore
+cookie.txt
+DEPLOY.md
+replit.md
+replit.nix
+skills-lock.json
+zipFile.zip
+attached_assets/
