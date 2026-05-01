@@ -4,7 +4,6 @@
   "outputDirectory": "artifacts/universe/dist/public",
   "functions": {
     "api/index.ts": {
-      "runtime": "nodejs18.x",
       "memory": 1024
     }
   }
