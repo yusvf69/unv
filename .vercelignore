@@ -1,11 +1,3 @@
-.agents/
-.claude/
-.local/
-.replit
-.replitignore
-cookie.txt
-DEPLOY.md
-replit.md
-replit.nix
-skills-lock.json
-zipFile.zip
+api/server.ts
+api/.DS_Store
+api/node_modules/
