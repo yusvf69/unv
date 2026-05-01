@@ -162,7 +162,7 @@ async function handleAuth(req: Request, parts: string[]): Promise<Response> {
 
   if (action === "username-available") {
     return handle(async () => {
-      const url = new URL(req.url);
+      const url = new URL(req.url, "http://localhost");
       const username = url.searchParams.get("username");
       if (!username || username.length < 4) return { available: false, reason: username ? "اليوزر لازم يكون 4 حروف على الأقل" : "أدخل يوزر" };
       const [existing] = await sql`SELECT id FROM users WHERE username = ${username} LIMIT 1`;
@@ -345,7 +345,7 @@ async function handleAdminOverview(): Promise<Response> {
 
 async function handleAdminUsers(req: Request): Promise<Response> {
   return handle(async () => {
-    const url = new URL(req.url);
+    const url = new URL(req.url, "http://localhost");
     const role = url.searchParams.get("role") || undefined;
     const rows = role ? await sql`SELECT * FROM users WHERE role = ${role} LIMIT 100` : await sql`SELECT * FROM users LIMIT 100`;
     return rows.map((u: any) => ({
@@ -365,7 +365,7 @@ async function handleAdminProposals(req: Request, parts: string[]): Promise<Resp
 
   if (req.method === "GET") {
     return handle(async () => {
-      const url = new URL(req.url);
+      const url = new URL(req.url, "http://localhost");
       const status = url.searchParams.get("status") || "pending";
       const where = user.role === "super_admin"
         ? sql`status = ${status}`
@@ -924,7 +924,7 @@ async function handleGames(req: Request, parts: string[]): Promise<Response> {
 
   if (parts[2] === "leaderboard") {
     return handle(async () => {
-      const url = new URL(req.url);
+      const url = new URL(req.url, "http://localhost");
       const gameKey = url.searchParams.get("gameKey");
       const rows = gameKey ? await sql`SELECT * FROM game_scores WHERE game_key = ${gameKey} ORDER BY score DESC LIMIT 20` : await sql`SELECT * FROM game_scores ORDER BY score DESC LIMIT 20`;
       const userIds = Array.from(new Set(rows.map((r: any) => r.user_id)));
@@ -997,7 +997,7 @@ async function handleAchievements(req: Request): Promise<Response> {
 async function handleGroupSchedule(req: Request, parts: string[]): Promise<Response> {
   const { userId } = requireAuth(req.headers);
   const user = await getCurrentUser(userId);
-  const url = new URL(req.url);
+  const url = new URL(req.url, "http://localhost");
 
   if (req.method === "GET" && !parts[1].startsWith("admin")) {
     return handle(async () => {
@@ -1033,7 +1033,7 @@ async function handleGroupSchedule(req: Request, parts: string[]): Promise<Respo
 async function handleExamSchedule(req: Request, parts: string[]): Promise<Response> {
   const { userId } = requireAuth(req.headers);
   const user = await getCurrentUser(userId);
-  const url = new URL(req.url);
+  const url = new URL(req.url, "http://localhost");
 
   if (req.method === "GET" && !parts[1].startsWith("admin")) {
     return handle(async () => {
@@ -1805,7 +1805,7 @@ export default async function handler(request: Request): Promise<Response> {
     });
   }
 
-  const url = new URL(request.url);
+  const url = new URL(request.url, "http://localhost");
   const path = url.pathname.replace(/^\/api\/?/, "");
   const parts = path.split("/").filter(Boolean);
 
