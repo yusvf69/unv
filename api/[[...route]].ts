@@ -1891,6 +1891,14 @@ export default async function handler(request: Request): Promise<Response> {
     "GET /healthz": () => handleHealth(),
     "GET /health": () => handleHealth(),
 
+    // Feed alias
+    "GET /feed": () => handleTalentsFeed(request, ["", "talents-feed"]),
+
+    // Auth aliases (legacy routes without /v2/ prefix)
+    "POST /login": () => handleAuth(request, ["", "auth", "login"]),
+    "POST /signup": () => handleAuth(request, ["", "auth", "signup"]),
+    "GET /username-available": () => handleAuth(request, ["", "auth", "username-available"]),
+
     // Auth
     "POST /auth/login": () => handleAuth(request, parts),
     "POST /auth/signup": () => handleAuth(request, parts),
