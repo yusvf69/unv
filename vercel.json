@@ -1,12 +1,10 @@
 {
-  "framework": null,
+  "version": 2,
   "buildCommand": "pnpm install && pnpm --filter @workspace/universe build",
   "outputDirectory": "artifacts/universe/dist/public",
-  "rewrites": [
-    { "source": "/api/(.*)", "destination": "/api/[...path]" }
-  ],
   "functions": {
-    "api/[...path].ts": {
+    "api/index.ts": {
+      "runtime": "nodejs18.x",
       "memory": 1024
     }
   }

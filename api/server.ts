@@ -1,5 +1,5 @@
 import { createServer } from "node:http";
-import handler from "./[...path]";
+import handler from "./index";
 
 const PORT = process.env.PORT || 8080;
 
