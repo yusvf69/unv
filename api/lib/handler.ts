@@ -1,17 +1,27 @@
+const CORS_HEADERS = {
+  "Access-Control-Allow-Origin": "*",
+  "Access-Control-Allow-Methods": "GET, POST, PUT, PATCH, DELETE, OPTIONS",
+  "Access-Control-Allow-Headers": "Content-Type, Authorization, X-Requested-With",
+  "Access-Control-Max-Age": "86400",
+  "Vary": "Origin",
+};
+
 export function jsonResponse(data: any, status = 200): Response {
   return new Response(JSON.stringify(data), {
     status,
     headers: {
       "Content-Type": "application/json",
-      "Access-Control-Allow-Origin": "*",
-      "Access-Control-Allow-Methods": "GET, POST, PUT, PATCH, DELETE, OPTIONS",
-      "Access-Control-Allow-Headers": "Content-Type, Authorization",
+      ...CORS_HEADERS,
     },
   });
 }
 
 export function jsonError(message: string, status = 500): Response {
   return jsonResponse({ error: message }, status);
+}
+
+export function corsResponse(status = 204): Response {
+  return new Response(null, { status, headers: CORS_HEADERS });
 }
 
 export async function handle(fn: () => Promise<any>): Promise<Response> {

@@ -1,5 +1,5 @@
 import { sql } from "./lib/db.js";
-import { handle, jsonResponse, jsonError } from "./lib/handler.js";
+import { handle, jsonResponse, jsonError, corsResponse } from "./lib/handler.js";
 import { getUserId, getCurrentUser, requireAuth, requireRole, ensureSuper, generateToken } from "./lib/auth.js";
 import bcrypt from "bcryptjs";
 
@@ -672,7 +672,26 @@ async function handleAdminQuizzes(req: Request, parts: string[]): Promise<Respon
     });
   }
 
-  if (req.method === "PUT" && parts[3]) {
+  if (req.method === "PUT" && parts[2] === "quiz-questions" && parts[3]) {
+    return handle(async () => {
+      const id = Number(parts[3]);
+      const body = await req.json();
+      const { text, options, correctIndex, points, explanation } = body;
+      const [existing] = await sql`SELECT * FROM quiz_questions WHERE id = ${id}`;
+      if (!existing) throw Object.assign(new Error("السؤال غير موجود"), { status: 404 });
+      await sql`UPDATE quiz_questions SET text = COALESCE(${text}, text), options = COALESCE(${JSON.stringify(options)}, options), correct_index = COALESCE(${correctIndex}, correct_index), points = COALESCE(${points}, points), explanation = COALESCE(${explanation}, explanation) WHERE id = ${id}`;
+      return { ok: true };
+    });
+  }
+
+  if (req.method === "DELETE" && parts[2] === "quiz-questions" && parts[3]) {
+    return handle(async () => {
+      await sql`DELETE FROM quiz_questions WHERE id = ${Number(parts[3])}`;
+      return { ok: true };
+    });
+  }
+
+  if (req.method === "PUT" && parts[2] === "quizzes" && parts[3]) {
     return handle(async () => {
       const id = Number(parts[2]);
       const body = await req.json();
@@ -1426,6 +1445,21 @@ async function handleAdminCrud(req: Request, parts: string[]): Promise<Response>
     });
   }
 
+  // Admin forum moderation
+  if (parts[1] === "forum" && parts[2] === "posts" && req.method === "DELETE") {
+    return handle(async () => {
+      await sql`DELETE FROM forum_posts WHERE id = ${Number(parts[3])}`;
+      return { ok: true };
+    });
+  }
+
+  if (parts[1] === "forum" && parts[2] === "replies" && req.method === "DELETE") {
+    return handle(async () => {
+      await sql`DELETE FROM forum_replies WHERE id = ${Number(parts[3])}`;
+      return { ok: true };
+    });
+  }
+
   return jsonError("Not Found", 404);
 }
 
@@ -1791,154 +1825,306 @@ async function handleAdminCourses(req: Request, parts: string[]): Promise<Respon
   return jsonError("Not Found", 404);
 }
 
+async function handleEvents(request: Request): Promise<Response> {
+  return handle(async () => {
+    const { userId } = requireAuth(request.headers);
+    const me = await getCurrentUser(userId);
+    const rows = await sql`SELECT * FROM events ORDER BY due_at`;
+    const filtered = me && me.role === "student"
+      ? rows.filter((e: any) =>
+          (!e.year_in_college || e.year_in_college === me.year_in_college) &&
+          (!e.group_name || e.group_name === me.group_name))
+      : rows;
+    return filtered.map((e: any) => ({ ...e, dueAt: e.due_at?.toISOString(), createdAt: e.created_at?.toISOString() }));
+  });
+}
+
+async function handleAdminEvents(request: Request, parts: string[]): Promise<Response> {
+  const { userId } = requireAuth(request.headers);
+  const user = await getCurrentUser(userId);
+  requireRole(user, ["admin", "super_admin"]);
+
+  if (request.method === "POST") {
+    return handle(async () => {
+      const body = await request.json();
+      const { title, description, kind, yearInCollege, groupName, dueAt, location } = body;
+      if (!title || !dueAt) throw Object.assign(new Error("العنوان وموعد الحدث مطلوبان"), { status: 400 });
+      const [r] = await sql`
+        INSERT INTO events (title, description, kind, year_in_college, group_name, due_at, location, created_by_id)
+        VALUES (${title}, ${description || ""}, ${kind || "exam"}, ${yearInCollege ? Number(yearInCollege) : null}, ${groupName || null}, ${new Date(dueAt)}, ${location || null}, ${userId})
+        RETURNING *`;
+      // Notify matching students
+      const students = await sql`SELECT * FROM users WHERE role = 'student'`;
+      for (const s of students) {
+        if ((!r.year_in_college || r.year_in_college === s.year_in_college) && (!r.group_name || r.group_name === s.group_name)) {
+          await sql`INSERT INTO notifications (user_id, title, body, type) VALUES (${s.id}, ${`${r.kind === "exam" ? "امتحان جديد" : "موعد نهائي"}: ${r.title}`}, ${`${r.description || ""} — في ${new Date(r.due_at).toLocaleString("ar-EG")}`}, ${r.kind === "exam" ? "warning" : "info"})`;
+        }
+      }
+      return { ...r, dueAt: r.due_at?.toISOString(), createdAt: r.created_at?.toISOString() };
+    });
+  }
+
+  if (request.method === "DELETE" && parts[2]) {
+    return handle(async () => {
+      await sql`DELETE FROM events WHERE id = ${Number(parts[2])}`;
+      return { ok: true };
+    });
+  }
+
+  return jsonError("Not Found", 404);
+}
+
 // --- Main Request Handler ---
 
 export default async function handler(request: Request): Promise<Response> {
-  if (request.method === "OPTIONS") {
-    return new Response(null, {
-      status: 204,
-      headers: {
-        "Access-Control-Allow-Origin": "*",
-        "Access-Control-Allow-Methods": "GET, POST, PUT, PATCH, DELETE, OPTIONS",
-        "Access-Control-Allow-Headers": "Content-Type, Authorization",
-      },
-    });
-  }
+  if (request.method === "OPTIONS") return corsResponse();
 
   const url = new URL(request.url, "http://localhost");
   const path = url.pathname.replace(/^\/api\/?/, "");
   const parts = path.split("/").filter(Boolean);
+  const method = request.method;
+  const routeKey = `${method} /${parts.join("/")}`;
 
-  if (parts.length === 0) return jsonError("Not Found", 404);
-
-  try {
+  // --- ROUTING TABLE ---
+  const routes: Record<string, () => Promise<Response>> = {
     // Health
-    if (parts[0] === "healthz") return handleHealth();
-    if (parts[0] === "health") return handleHealth();
+    "GET /healthz": () => handleHealth(),
+    "GET /health": () => handleHealth(),
 
-    // Auth: /auth/login, /auth/signup, etc.
-    if (parts[0] === "auth" || (parts[0] === "v2" && parts[1] === "auth")) {
-      const authParts = parts[0] === "v2" ? parts : ["", ...parts.slice(1)];
-      return handleAuth(request, authParts);
-    }
+    // Auth
+    "POST /auth/login": () => handleAuth(request, parts),
+    "POST /auth/signup": () => handleAuth(request, parts),
+    "POST /auth/logout": () => handleAuth(request, parts),
+    "POST /auth/demo-login": () => handleAuth(request, parts),
+    "GET /auth/username-available": () => handleAuth(request, parts),
+    "POST /v2/auth/login": () => handleAuth(request, parts),
+    "POST /v2/auth/signup": () => handleAuth(request, parts),
+    "POST /v2/auth/logout": () => handleAuth(request, parts),
+    "POST /v2/auth/demo-login": () => handleAuth(request, parts),
+    "GET /v2/auth/username-available": () => handleAuth(request, parts),
 
     // Me
-    if (parts[0] === "me") {
-      if (request.method === "GET") return handleMe(request);
-      if (request.method === "PATCH") return handleMeProfile(request);
-    }
-    if (parts[0] === "v2" && parts[1] === "me") {
-      if (!parts[2] && request.method === "GET") return handleMe(request);
-      if (parts[2] === "profile" && request.method === "PATCH") return handleMeProfile(request);
-      if (parts[2] === "group" && request.method === "POST") return handleMeGroup(request);
-    }
+    "GET /me": () => handleMe(request),
+    "PATCH /me": () => handleMeProfile(request),
+    "GET /v2/me": () => handleMe(request),
+    "PATCH /v2/me/profile": () => handleMeProfile(request),
+    "POST /v2/me/group": () => handleMeGroup(request),
 
     // Notifications
-    if (parts[0] === "v2" && parts[1] === "notifications") return handleNotifications(request, parts);
-    if (parts[0] === "v2" && parts[1] === "admin" && parts[2] === "notifications" && parts[3] === "system") return handleAdminNotifications(request);
+    "GET /v2/notifications": () => handleNotifications(request, parts),
+    "POST /v2/notifications/mark-all-read": () => handleNotifications(request, parts),
+    "POST /v2/admin/notifications/system": () => handleAdminNotifications(request),
 
-    // Admin overview
-    if (parts[0] === "v2" && parts[1] === "admin" && parts[2] === "overview") return handleAdminOverview();
-
-    // Admin users
-    if (parts[0] === "admin" && parts[1] === "users") return handleAdminUsers(request);
-    if (parts[0] === "v2" && parts[1] === "admin" && parts[2] === "users") return handleAdminUsers(request);
-
-    // Admin proposals
-    if (parts[0] === "v2" && parts[1] === "admin" && parts[2] === "proposals") return handleAdminProposals(request, parts);
+    // Admin
+    "GET /v2/admin/overview": () => handleAdminOverview(),
+    "GET /admin/users": () => handleAdminUsers(request),
+    "GET /v2/admin/users": () => handleAdminUsers(request),
+    "GET /v2/admin/proposals": () => handleAdminProposals(request, parts),
+    "POST /v2/admin/proposals": () => handleAdminProposals(request, parts),
+    "POST /v2/admin/proposals/:id/decide": () => handleAdminProposals(request, parts),
+    "GET /v2/admin/all-quizzes": () => handleAdminQuizzes(request, parts),
+    "GET /v2/admin/all-courses": () => handleAdminCrud(request, parts.slice(1)),
+    "GET /v2/admin/all-materials": () => handleAdminCrud(request, parts.slice(1)),
+    "GET /v2/admin/students": () => handleAdminCrud(request, parts.slice(1)),
+    "GET /v2/admin/staff": () => handleAdminCrud(request, parts.slice(1)),
+    "GET /v2/admin/group-schedule": () => handleGroupSchedule(request, ["admin", ...parts.slice(2)]),
+    "POST /v2/admin/group-schedule": () => handleGroupSchedule(request, ["admin", ...parts.slice(2)]),
+    "GET /v2/admin/exam-schedule": () => handleExamSchedule(request, ["admin", ...parts.slice(2)]),
+    "POST /v2/admin/exam-schedule": () => handleExamSchedule(request, ["admin", ...parts.slice(2)]),
+    "GET /v2/admin/dm/threads": () => handleAdminCrud(request, ["admin", ...parts.slice(2)]),
+    "GET /v2/admin/talents": () => handleAdminCrud(request, parts.slice(1)),
+    "GET /v2/admin/news": () => handleAdminNews(request, parts),
+    "POST /v2/admin/news": () => handleAdminNews(request, parts),
+    "GET /v2/admin/dm/threads/:id": () => handleAdminCrud(request, ["admin", ...parts.slice(2)]),
 
     // Talents
-    if (parts[0] === "talents") return handleTalentsFeed(request, ["", ...parts.slice(1)]);
-    if (parts[0] === "v2" && parts[1] === "talents-feed") return handleTalentsFeed(request, parts.slice(1));
-    if (parts[0] === "v2" && parts[1] === "talents") return handleTalentsFeed(request, parts.slice(1));
+    "GET /talents": () => handleTalentsFeed(request, ["", ...parts.slice(1)]),
+    "GET /v2/talents-feed": () => handleTalentsFeed(request, parts.slice(1)),
+    "GET /v2/talents": () => handleTalentsFeed(request, parts.slice(1)),
+    "POST /v2/talents": () => handleTalentsFeed(request, parts.slice(1)),
+    "POST /v2/talents/:id/like": () => handleTalentsFeed(request, parts.slice(1)),
+    "GET /v2/talents/:id/comments": () => handleTalentsFeed(request, parts.slice(1)),
+    "POST /v2/talents/:id/comments": () => handleTalentsFeed(request, parts.slice(1)),
 
     // Forum
-    if (parts[0] === "forum") return handleForum(request, ["", ...parts.slice(1)]);
-    if (parts[0] === "v2" && parts[1] === "forum") return handleForum(request, parts);
+    "GET /forum": () => handleForum(request, ["", ...parts.slice(1)]),
+    "GET /forum/posts": () => handleForum(request, ["", ...parts.slice(1)]),
+    "POST /forum/posts": () => handleForum(request, ["", ...parts.slice(1)]),
+    "GET /v2/forum/posts": () => handleForum(request, parts),
+    "POST /v2/forum/posts": () => handleForum(request, parts),
+    "POST /v2/forum/posts/:id/upvote": () => handleForum(request, parts),
+    "GET /v2/forum/posts/:id/replies": () => handleForum(request, parts),
+    "POST /v2/forum/posts/:id/replies": () => handleForum(request, parts),
+    "POST /forum/posts/:id/upvote": () => handleForum(request, ["v2", "forum", "posts", parts[2], "upvote"]),
 
     // Quizzes
-    if (parts[0] === "v2" && parts[1] === "quizzes") return handleQuizzes(request, parts);
-
-    // Admin quizzes
-    if (parts[0] === "v2" && parts[1] === "admin" && parts[2] === "quizzes") return handleAdminQuizzes(request, parts);
-    if (parts[0] === "v2" && parts[1] === "admin" && parts[2] === "quiz-attempts") return handle(async () => getAttemptDetail(Number(parts[3])));
+    "GET /v2/quizzes/open": () => handleQuizzes(request, parts),
+    "GET /v2/quizzes/:id/start": () => handleQuizzes(request, parts),
+    "POST /v2/quizzes/:id/submit": () => handleQuizzes(request, parts),
 
     // DM
-    if (parts[0] === "v2" && parts[1] === "dm") return handleDM(request, parts);
-    if (parts[0] === "v2" && parts[1] === "admin" && parts[2] === "dm") return handleAdminCrud(request, ["admin", ...parts.slice(2)]);
+    "GET /v2/dm/threads": () => handleDM(request, parts),
+    "GET /v2/dm/with/:id": () => handleDM(request, parts),
+    "POST /v2/dm/with/:id": () => handleDM(request, parts),
 
     // Follow
-    if (parts[0] === "v2" && (parts[1] === "follow" || parts[1] === "follows")) return handleFollow(request, parts.slice(1));
+    "POST /v2/follow/:id": () => handleFollow(request, parts.slice(1)),
+    "GET /v2/follows/me": () => handleFollow(request, parts.slice(1)),
+    "GET /v2/follows/:id/status": () => handleFollow(request, parts.slice(1)),
 
     // Users
-    if (parts[0] === "v2" && parts[1] === "users") return handleUsers(request, parts);
+    "GET /v2/users/students": () => handleUsers(request, parts),
+    "GET /v2/users/:id": () => handleUsers(request, parts),
 
     // News
-    if (parts[0] === "news" && !parts[1]) return handleNews();
-    if (parts[0] === "news" && parts[1]) return handleNewsById(parts[1]);
+    "GET /news": () => handleNews(),
+    "GET /news/:id": () => handleNewsById(parts[1]),
 
     // Skills
-    if (parts[0] === "v2" && parts[1] === "skills") return handleSkills(request, parts);
+    "GET /v2/skills/tracks": () => handleSkills(request, parts),
+    "POST /v2/skills/lessons/:id/complete": () => handleSkills(request, parts),
 
     // Games
-    if (parts[0] === "v2" && parts[1] === "games") return handleGames(request, parts);
+    "POST /v2/games/score": () => handleGames(request, parts),
+    "GET /v2/games/leaderboard": () => handleGames(request, parts),
 
     // Activity
-    if (parts[0] === "v2" && parts[1] === "activity") return handleActivity(request);
+    "POST /v2/activity/log": () => handleActivity(request),
 
     // Achievements
-    if (parts[0] === "v2" && parts[1] === "achievements") return handleAchievements(request);
+    "GET /v2/achievements": () => handleAchievements(request),
 
-    // Group schedule
-    if (parts[0] === "v2" && parts[1] === "group-schedule") return handleGroupSchedule(request, parts);
-    if (parts[0] === "v2" && parts[1] === "admin" && parts[2] === "group-schedule") return handleGroupSchedule(request, ["admin", ...parts.slice(2)]);
-
-    // Exam schedule
-    if (parts[0] === "v2" && parts[1] === "exam-schedule") return handleExamSchedule(request, parts);
-    if (parts[0] === "v2" && parts[1] === "admin" && parts[2] === "exam-schedule") return handleExamSchedule(request, ["admin", ...parts.slice(2)]);
+    // Schedules
+    "GET /v2/group-schedule": () => handleGroupSchedule(request, parts),
+    "GET /v2/exam-schedule": () => handleExamSchedule(request, parts),
 
     // Courses
-    if (parts[0] === "v2" && parts[1] === "courses") return handleCourses(request, parts);
-    if (parts[0] === "courses" && parts[1]) return handleCourses(request, ["v2", "courses", ...parts.slice(1)]);
+    "GET /courses": () => handleCoursesList(),
+    "GET /courses/:id": () => handleCourseById(parts[1]),
+    "GET /v2/courses": () => handleCoursesList(),
+    "GET /v2/courses/:id": () => handleCourseById(parts[2]),
+    "GET /v2/courses/:id/materials": () => handleCourses(request, parts),
+    "GET /v2/courses/:id/all-files": () => handleCourses(request, parts),
+    "GET /v2/courses/:id/lectures": () => handleCourses(request, parts),
+    "GET /v2/courses/:id/video-progress": () => handleCourses(request, parts),
+    "GET /v2/courses/:id/progress": () => handleCourses(request, parts),
+    "GET /v2/courses/:id/student-summaries": () => handleCourseSummaries(request, parts),
+
+    // Materials
+    "GET /v2/materials/:id/files": () => handleMaterialFiles(request, parts),
 
     // Material files
-    if (parts[0] === "v2" && parts[1] === "materials") return handleMaterialFiles(request, parts);
-    if (parts[0] === "v2" && parts[1] === "material-files") return handleMaterialFileRoutes(request, parts);
-
-    // Staff
-    if (parts[0] === "v2" && parts[1] === "staff" && parts[2] === "doctors") return handleStaffDoctors();
-    if (parts[0] === "v2" && parts[1] === "staff") return handleStaff(request, parts);
-
-    // Courses (public)
-    if (parts[0] === "courses" && !parts[1]) return handleCoursesList();
-    if (parts[0] === "courses" && parts[1]) return handleCourseById(parts[1]);
-    if (parts[0] === "v2" && parts[1] === "courses" && !parts[2]) return handleCoursesList();
-    if (parts[0] === "v2" && parts[1] === "courses" && parts[2]) return handleCourseById(parts[2]);
+    "GET /v2/material-files/:id": () => handleMaterialFileRoutes(request, parts),
+    "POST /v2/material-files/:id/view": () => handleMaterialFileRoutes(request, parts),
+    "POST /v2/material-files/:id/like": () => handleMaterialFileRoutes(request, parts),
+    "GET /v2/material-files/:id/comments": () => handleMaterialFileRoutes(request, parts),
+    "POST /v2/material-files/:id/comments": () => handleMaterialFileRoutes(request, parts),
 
     // Student summaries
-    if (parts[0] === "v2" && parts[1] === "student-summaries") return handleStudentSummaries(request, parts);
-    if (parts[0] === "v2" && parts[1] === "courses" && parts[3] === "student-summaries") return handleCourseSummaries(request, parts);
+    "GET /v2/student-summaries": () => handleStudentSummaries(request, parts),
+    "POST /v2/student-summaries": () => handleStudentSummaries(request, parts),
+    "DELETE /v2/student-summaries/:id": () => handleStudentSummaries(request, parts),
 
-    // Lecture quiz submit
-    if (parts[0] === "v2" && parts[1] === "lecture-quizzes" && parts[3] === "submit") return handleLectureQuizSubmit(request, parts);
-    if (parts[0] === "v2" && parts[1] === "lecture-quizzes" && parts[3] === "attempts") return handleLectureQuizAttempts(request, parts);
+    // Staff
+    "GET /v2/staff/doctors": () => handleStaffDoctors(),
+    "GET /v2/staff": () => handleStaff(request, parts),
+    "POST /v2/staff": () => handleStaff(request, parts),
+    "PATCH /v2/staff/:id": () => handleStaff(request, parts),
 
-    // Video watch
-    if (parts[0] === "v2" && parts[1] === "videos" && parts[3] === "watch") return handleVideoWatch(request, parts);
+    // Lecture quizzes
+    "POST /v2/lecture-quizzes/:id/submit": () => handleLectureQuizSubmit(request, parts),
+    "GET /v2/lecture-quizzes/:id/attempts": () => handleLectureQuizAttempts(request, parts),
 
-    // Admin news
-    if (parts[0] === "v2" && parts[1] === "admin" && parts[2] === "news") return handleAdminNews(request, parts);
+    // Videos
+    "POST /v2/videos/:id/watch": () => handleVideoWatch(request, parts),
+
+    // Events
+    "GET /events": () => handleEvents(request),
+    "POST /admin/events": () => handleAdminEvents(request, parts),
+    "DELETE /admin/events/:id": () => handleAdminEvents(request, parts),
+    "POST /v2/admin/events": () => handleAdminEvents(request, parts.slice(1)),
+    "DELETE /v2/admin/events/:id": () => handleAdminEvents(request, parts.slice(1)),
+
+    // Admin forum moderation
+    "DELETE /admin/forum/posts/:id": () => handleAdminCrud(request, parts),
+    "DELETE /admin/forum/replies/:id": () => handleAdminCrud(request, parts),
+
+    // Admin staff
+    "DELETE /v2/admin/staff/:id": () => handleAdminCrud(request, parts.slice(1)),
+    "POST /v2/admin/staff": () => handleStaff(request, ["v2", ...parts.slice(2)]),
+    "PATCH /v2/admin/staff/:id": () => handleStaff(request, ["v2", ...parts.slice(2)]),
+
+    // Admin talents moderation
+    "DELETE /v2/admin/talents/:id": () => handleAdminCrud(request, parts.slice(1)),
+    "DELETE /v2/admin/talent-comments/:id": () => handleAdminCrud(request, parts.slice(1)),
+    "DELETE /v2/admin/material-comments/:id": () => handleAdminCrud(request, parts.slice(1)),
 
     // Admin courses CRUD
-    if (parts[0] === "v2" && parts[1] === "admin" && parts[2] === "courses") return handleAdminCourses(request, parts);
+    "POST /v2/admin/courses": () => handleAdminCourses(request, parts),
+    "DELETE /v2/admin/courses/:id": () => handleAdminCourses(request, parts),
 
-    // Admin CRUD (catch-all for admin routes)
-    if (parts[0] === "admin") return handleAdminCrud(request, parts);
-    if (parts[0] === "v2" && parts[1] === "admin") return handleAdminCrud(request, parts.slice(1));
+    // Admin quizzes CRUD
+    "POST /v2/admin/quizzes": () => handleAdminQuizzes(request, parts),
+    "PUT /v2/admin/quizzes/:id": () => handleAdminQuizzes(request, parts),
+    "DELETE /v2/admin/quizzes/:id": () => handleAdminQuizzes(request, parts),
+    "GET /v2/admin/quizzes/:id/questions": () => handleAdminQuizzes(request, parts),
+    "POST /v2/admin/quizzes/:id/questions": () => handleAdminQuizzes(request, parts),
+    "PUT /v2/admin/quiz-questions/:id": () => handleAdminQuizzes(request, parts),
+    "DELETE /v2/admin/quiz-questions/:id": () => handleAdminQuizzes(request, parts),
+    "GET /v2/admin/quizzes/:id/attempts": () => handleAdminQuizzes(request, parts),
+    "GET /v2/admin/quizzes/:quizId/attempts/:attemptId": () => handleAdminQuizzes(request, parts),
+    "GET /v2/admin/quiz-attempts/:id": () => handle(async () => getAttemptDetail(Number(parts[2]))),
+    "POST /v2/admin/quizzes/toggle/:id": () => handleAdminQuizzes(request, parts),
 
-    return jsonError(`Route not found: ${path}`, 404);
-  } catch (err: any) {
-    const status = err.status || 500;
-    return jsonError(err.message || "Internal Server Error", status);
+    // Admin materials CRUD
+    "POST /v2/admin/materials": () => handleAdminCrud(request, parts.slice(1)),
+    "PATCH /v2/admin/materials/:id": () => handleAdminCrud(request, parts.slice(1)),
+    "DELETE /v2/admin/materials/:id": () => handleAdminCrud(request, parts.slice(1)),
+    "POST /v2/admin/materials/:id/files": () => handleAdminCrud(request, parts.slice(1)),
+    "DELETE /v2/admin/material-files/:id": () => handleAdminCrud(request, parts.slice(1)),
+
+    // Admin lectures
+    "POST /v2/admin/courses/:id/lectures": () => handleAdminCrud(request, parts.slice(1)),
+    "PATCH /v2/admin/lectures/:id": () => handleAdminCrud(request, parts.slice(1)),
+    "DELETE /v2/admin/lectures/:id": () => handleAdminCrud(request, parts.slice(1)),
+    "POST /v2/admin/lectures/:id/videos": () => handleAdminCrud(request, parts.slice(1)),
+    "DELETE /v2/admin/videos/:id": () => handleAdminCrud(request, parts.slice(1)),
+    "POST /v2/admin/lectures/:id/pdfs": () => handleAdminCrud(request, parts.slice(1)),
+    "DELETE /v2/admin/lecture-pdfs/:id": () => handleAdminCrud(request, parts.slice(1)),
+    "POST /v2/admin/lectures/:id/quizzes": () => handleAdminCrud(request, parts.slice(1)),
+    "DELETE /v2/admin/lecture-quizzes/:id": () => handleAdminCrud(request, parts.slice(1)),
+
+    // Admin users
+    "DELETE /v2/admin/users/:id": () => handleAdminCrud(request, parts.slice(1)),
+    "PATCH /v2/admin/users/:id/grant": () => handleAdminCrud(request, parts.slice(1)),
+    "GET /v2/admin/student/:id/full": () => handleAdminCrud(request, parts.slice(1)),
+
+    // Admin schedule
+    "DELETE /v2/admin/group-schedule/:id": () => handleGroupSchedule(request, ["admin", ...parts.slice(2)]),
+    "DELETE /v2/admin/exam-schedule/:id": () => handleExamSchedule(request, ["admin", ...parts.slice(2)]),
+
+    // Admin news
+    "POST /v2/admin/news/:id/approve": () => handleAdminNews(request, parts),
+    "POST /v2/admin/news/:id/reject": () => handleAdminNews(request, parts),
+    "DELETE /v2/admin/news/:id": () => handleAdminNews(request, parts),
+  };
+
+  // Try exact match first
+  if (routes[routeKey]) return routes[routeKey]();
+
+  // Try pattern matching for routes with :id/:name params
+  for (const [pattern, handler] of Object.entries(routes)) {
+    const patternParts = pattern.replace(/^GET |POST |PUT |PATCH |DELETE /, "").split("/").filter(Boolean);
+    if (patternParts.length !== parts.length) continue;
+    const matches = patternParts.every((p, i) => p.startsWith(":") || p === parts[i]);
+    if (!matches) continue;
+
+    // Verify method matches
+    const patternMethod = pattern.split(" ")[0];
+    if (patternMethod !== method) continue;
+
+    return handler();
   }
+
+  return jsonError(`Route not found: ${method} /${path}`, 404);
 }
