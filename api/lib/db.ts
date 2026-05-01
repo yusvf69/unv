@@ -1,9 +1,25 @@
 import { neon } from "@neondatabase/serverless";
 
-const DATABASE_URL = process.env.DATABASE_URL!;
+const DATABASE_URL = process.env.DATABASE_URL;
 
 if (!DATABASE_URL) {
   throw new Error("DATABASE_URL is not set");
 }
 
-export const sql = neon(DATABASE_URL) as (...args: any[]) => Promise<any[]>;
+let _sql: ReturnType<typeof neon> | null = null;
+
+function getSql() {
+  if (!_sql) {
+    _sql = neon(DATABASE_URL);
+  }
+  return _sql;
+}
+
+export const sql = new Proxy(() => {}, {
+  apply(_, __, args) {
+    return getSql()(args[0], args.slice(1));
+  },
+  get(_, prop) {
+    return getSql()[prop as keyof typeof _sql];
+  },
+}) as (...args: any[]) => Promise<any[]>;
