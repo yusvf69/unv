@@ -2,8 +2,11 @@
   "framework": null,
   "buildCommand": "pnpm install && pnpm --filter @workspace/universe build",
   "outputDirectory": "artifacts/universe/dist/public",
+  "rewrites": [
+    { "source": "/api/(.*)", "destination": "/api/[...path]" }
+  ],
   "functions": {
-    "api/[[...route]].ts": {
+    "api/[...path].ts": {
       "memory": 1024
     }
   }
