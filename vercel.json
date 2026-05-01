@@ -1,10 +1,5 @@
 {
   "version": 2,
   "buildCommand": "pnpm install && pnpm --filter @workspace/universe build",
-  "outputDirectory": "artifacts/universe/dist/public",
-  "functions": {
-    "api/index.ts": {
-      "memory": 1024
-    }
-  }
+  "outputDirectory": "artifacts/universe/dist/public"
 }
