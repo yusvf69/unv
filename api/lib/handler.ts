@@ -26,10 +26,7 @@ export function corsResponse(status = 204): Response {
 
 export async function handle(fn: () => Promise<any>): Promise<Response> {
   try {
-    const timeout = new Promise<never>((_, reject) => {
-      setTimeout(() => reject(Object.assign(new Error("Database connection timeout"), { status: 504 })), 8000);
-    });
-    const data = await Promise.race([fn(), timeout]);
+    const data = await fn();
     return jsonResponse(data);
   } catch (err: any) {
     const status = err.status || 500;
