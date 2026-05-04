@@ -1877,6 +1877,7 @@ async function handleAdminEvents(request: Request, parts: string[]): Promise<Res
 // --- Main Request Handler ---
 
 export default async function handler(request: Request): Promise<Response> {
+  try {
   if (request.method === "OPTIONS") return corsResponse();
 
   const url = new URL(request.url, "http://localhost");
@@ -2135,4 +2136,9 @@ export default async function handler(request: Request): Promise<Response> {
   }
 
   return jsonError(`Route not found: ${method} /${path}`, 404);
+  } catch (err: any) {
+    const status = err.status || 500;
+    const message = err.message || "Internal Server Error";
+    return jsonError(message, status);
+  }
 }

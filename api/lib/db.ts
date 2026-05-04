@@ -1,16 +1,17 @@
 import { neon } from "@neondatabase/serverless";
 
-const DATABASE_URL = process.env.DATABASE_URL;
-
-if (!DATABASE_URL) {
-  throw new Error("DATABASE_URL is not set");
-}
-
 let _sql: ReturnType<typeof neon> | null = null;
 
 function getSql() {
   if (!_sql) {
-    _sql = neon(DATABASE_URL);
+    const url = process.env.DATABASE_URL;
+    if (!url) {
+      throw Object.assign(
+        new Error("DATABASE_URL environment variable is not set"),
+        { status: 500 }
+      );
+    }
+    _sql = neon(url);
   }
   return _sql;
 }
