@@ -20,7 +20,7 @@ function getSql() {
 
 export const sql = new Proxy(() => {}, {
   apply(_, __, args) {
-    return getSql()(args[0], args.slice(1));
+    return getSql()(...args);
   },
   get(_, prop) {
     return getSql()[prop as keyof typeof _sql];
