@@ -1,5 +1,6 @@
 import { useState, useCallback, useEffect } from "react";
 import { useLocation } from "wouter";
+import { useQueryClient } from "@tanstack/react-query";
 import { motion, AnimatePresence } from "framer-motion";
 import { Leaf, Mail, Phone, User, Loader2, CheckCircle2, Shield, GraduationCap, Sprout, Eye, EyeOff, AlertCircle } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -25,6 +26,7 @@ const GROUPS = ["A", "B", "C", "D", "E"];
 export default function Login() {
   const [, setLocation] = useLocation();
   const { toast } = useToast();
+  const queryClient = useQueryClient();
 
   const [mode, setMode] = useState<"signup" | "login">("signup");
   const [name, setName] = useState("");
@@ -56,14 +58,6 @@ export default function Login() {
     }
   }, []);
 
-  useEffect(() => {
-    if (mode !== "signup") return;
-    const timer = setTimeout(() => {
-      if (username.length >= 4) checkUsername(username);
-    }, 500);
-    return () => clearTimeout(timer);
-  }, [username, mode, checkUsername]);
-
   const submitSignup = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!name || !username || !email || !phone || !password) {
@@ -91,6 +85,7 @@ export default function Login() {
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || data.message);
       if (data.token) localStorage.setItem("uv_token", data.token);
+      queryClient.invalidateQueries();
       setDone(true);
       toast({ title: `أهلاً ${name}`, description: "تم إنشاء حسابك بنجاح" });
       setTimeout(() => setLocation("/"), 900);
@@ -113,7 +108,8 @@ export default function Login() {
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || data.message);
-      localStorage.setItem("uv_token", data.token);
+      if (data.token) localStorage.setItem("uv_token", data.token);
+      queryClient.invalidateQueries();
       toast({ title: "تم الدخول بنجاح" });
       setTimeout(() => setLocation("/"), 400);
     } catch (err) {
