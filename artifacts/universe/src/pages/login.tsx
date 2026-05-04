@@ -90,6 +90,7 @@ export default function Login() {
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || data.message);
+      if (data.token) localStorage.setItem("uv_token", data.token);
       setDone(true);
       toast({ title: `أهلاً ${name}`, description: "تم إنشاء حسابك بنجاح" });
       setTimeout(() => setLocation("/"), 900);
@@ -112,6 +113,7 @@ export default function Login() {
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || data.message);
+      localStorage.setItem("uv_token", data.token);
       toast({ title: "تم الدخول بنجاح" });
       setTimeout(() => setLocation("/"), 400);
     } catch (err) {
