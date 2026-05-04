@@ -10,19 +10,16 @@ let _sql: ReturnType<typeof neon> | null = null;
 
 function getSql() {
   if (!_sql) {
-    _sql = neon(DATABASE_URL, { 
-      fetch: (input: RequestInfo | URL, init?: RequestInit) => 
-        fetch(input, { ...init, signal: AbortSignal.timeout(5000) })
-    });
+    _sql = neon(DATABASE_URL);
   }
   return _sql;
 }
 
-export const sql = new Proxy(() => {}, {
-  apply(_, __, args) {
-    return getSql()(...args);
+export const sql = new Proxy((() => {}) as unknown as ReturnType<typeof neon>, {
+  apply(_, __, args: [TemplateStringsArray, ...any[]]) {
+    return (getSql() as any)(...args);
   },
   get(_, prop) {
-    return getSql()[prop as keyof typeof _sql];
+    return (getSql() as any)[prop];
   },
-}) as (...args: any[]) => Promise<any[]>;
+}) as unknown as ReturnType<typeof neon>;
