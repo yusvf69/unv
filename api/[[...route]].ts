@@ -201,6 +201,8 @@ async function handleAuth(req: Request, parts: string[]): Promise<Response> {
 async function handleMe(req: Request): Promise<Response> {
   console.log("🔵 [handleMe] Starting...");
   return handle(async () => {
+    const authHeader = req.headers.get("authorization");
+    console.log("🟡 [handleMe] auth header:", authHeader ? "present" : "missing");
     const { userId } = requireAuth(req.headers);
     console.log("🟡 [handleMe] userId:", userId);
     console.log("🔵 [handleMe] Querying user...");
@@ -1900,6 +1902,7 @@ export default async function handler(request: Request): Promise<Response> {
 
     // Feed alias
     "GET /feed": () => handleTalentsFeed(request, ["", "talents-feed"]),
+    "GET /home/feed": () => handleTalentsFeed(request, ["", "talents-feed"]),
 
     // Auth aliases (legacy routes without /v2/ prefix)
     "POST /login": () => handleAuth(request, ["", "auth", "login"]),

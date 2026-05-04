@@ -29,8 +29,9 @@ export async function handle(fn: () => Promise<any>): Promise<Response> {
     const data = await fn();
     return jsonResponse(data);
   } catch (err: any) {
-    const status = err.status || 500;
-    const message = err.message || "Internal Server Error";
+    console.error("🔴 [handle] Caught error:", err?.message, "| status:", err?.status);
+    const status = err?.status || 500;
+    const message = err?.message || "Internal Server Error";
     return jsonError(message, status);
   }
 }
