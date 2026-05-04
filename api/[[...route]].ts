@@ -102,6 +102,69 @@ async function applyProposal(p: any) {
 
 // --- Route Handlers by Domain ---
 
+async function handleDashboard(req: Request): Promise<Response> {
+  return handle(async () => {
+    const { userId } = requireAuth(req.headers);
+    const me = await getCurrentUser(userId);
+    if (!me) throw Object.assign(new Error("المستخدم غير موجود"), { status: 404 });
+
+    const nextLevelPoints = me.level * 100;
+    const allStudents = await sql`SELECT id, points FROM users WHERE role = 'student' ORDER BY points DESC`;
+    const rank = allStudents.findIndex((s: any) => s.id === userId) + 1;
+
+    const weekAgo = new Date();
+    weekAgo.setDate(weekAgo.getDate() - 7);
+    const weekAgoStr = weekAgo.toISOString().slice(0, 10);
+    const [{ weeklyMinutes = 0 }] = await sql`SELECT sum(minutes_studied)::int AS weeklyMinutes FROM activity WHERE user_id = ${userId} AND date >= ${weekAgoStr}`;
+    const focusGoalMinutes = 600;
+
+    const schedule = await sql`SELECT * FROM group_schedule WHERE group_name = ${me.group_name} AND year_in_college = ${me.year_in_college} ORDER BY CASE day WHEN 'الأحد' THEN 0 WHEN 'الاثنين' THEN 1 WHEN 'الإثنين' THEN 1 WHEN 'الثلاثاء' THEN 2 WHEN 'الأربعاء' THEN 3 WHEN 'الخميس' THEN 4 WHEN 'الجمعة' THEN 5 WHEN 'السبت' THEN 6 END`;
+    const scheduleItems = schedule.map((s: any) => ({ ...s, dayNumber: AR_DAY_TO_NUM[s.day] ?? 0 }));
+
+    const attempts = await sql`SELECT qa.*, q.course_title FROM quiz_attempts qa LEFT JOIN quizzes q ON qa.quiz_id = q.id WHERE qa.user_id = ${userId} ORDER BY qa.completed_at DESC LIMIT 10`;
+    const grades = attempts.map((a: any) => ({
+      id: a.id, courseTitle: a.course_title || "اختبار",
+      score: a.score, total: a.total, percent: a.total > 0 ? Math.round((a.score / a.total) * 100) : 0,
+      passed: a.passed, completedAt: a.completed_at?.toISOString(),
+    }));
+
+    const attendance = await sql`SELECT date, minutes_studied FROM activity WHERE user_id = ${userId} ORDER BY date DESC LIMIT 7`;
+    const attendanceItems = attendance.map((a: any) => ({ date: a.date, minutes: a.minutes_studied, present: a.minutes_studied > 0 }));
+
+    const openQuizzes = await sql`SELECT * FROM quizzes WHERE is_open = true ORDER BY created_at DESC LIMIT 5`;
+    const missions = openQuizzes.map((q: any) => ({
+      id: q.id, title: q.title, description: q.description || "", points: q.total_points || 100,
+      deadline: null, completed: false,
+    }));
+
+    const notifs = await sql`SELECT * FROM notifications WHERE user_id = ${userId} ORDER BY created_at DESC LIMIT 5`;
+    const notifications = notifs.map((n: any) => ({
+      id: n.id, title: n.title, body: n.body, type: n.type, read: n.read,
+      createdAt: n.created_at?.toISOString(),
+    }));
+
+    const activityRows = await sql`SELECT date, minutes_studied, points_earned FROM activity WHERE user_id = ${userId} ORDER BY date DESC LIMIT 30`;
+    const activity = activityRows.map((a: any) => ({
+      date: a.date, minutes: a.minutes_studied, points: a.points_earned,
+    }));
+
+    const examSchedule = await sql`SELECT * FROM exam_schedule WHERE group_name = ${me.group_name} AND year_in_college = ${me.year_in_college} ORDER BY date LIMIT 5`;
+    const examPrediction = {
+      exams: examSchedule.map((e: any) => ({
+        id: e.id, courseTitle: e.course_title, date: e.date, time: e.time, room: e.room, type: e.type,
+      })),
+      risk: "medium" as const,
+      recommendations: ["راجع المحاضرات الأخيرة", "جرب اختبارات تجريبية"],
+    };
+
+    return {
+      user: me, nextLevelPoints, rank, weeklyMinutes, focusGoalMinutes,
+      schedule: scheduleItems, grades, attendance: attendanceItems, missions,
+      notifications, activity, examPrediction,
+    };
+  });
+}
+
 async function handleHealth(): Promise<Response> {
   return jsonResponse({ status: "ok" });
 }
@@ -256,6 +319,18 @@ async function handleMeGroup(req: Request): Promise<Response> {
     if (!["A", "B", "C", "D", "E"].includes(groupName)) throw Object.assign(new Error("اختر مجموعة صحيحة"), { status: 400 });
     await sql`UPDATE users SET group_name = ${groupName} WHERE id = ${userId}`;
     return { ok: true };
+  });
+}
+
+async function handleSwitchRole(req: Request): Promise<Response> {
+  return handle(async () => {
+    const { userId } = requireAuth(req.headers);
+    const body = await req.json();
+    const { role } = body;
+    if (!["student", "doctor", "ta", "admin", "super_admin"].includes(role)) throw Object.assign(new Error("Role غير صالح"), { status: 400 });
+    await sql`UPDATE users SET role = ${role} WHERE id = ${userId}`;
+    const token = generateToken(userId, role);
+    return { token, role };
   });
 }
 
@@ -578,6 +653,13 @@ async function handleForum(req: Request, parts: string[]): Promise<Response> {
   }
 
   return jsonError("Not Found", 404);
+}
+
+async function handleQuizzesList(): Promise<Response> {
+  return handle(async () => {
+    const rows = await sql`SELECT * FROM quizzes WHERE is_open = true ORDER BY created_at DESC LIMIT 50`;
+    return rows.map((q: any) => ({ ...q, createdAt: q.created_at?.toISOString() }));
+  });
 }
 
 async function handleQuizzes(req: Request, parts: string[]): Promise<Response> {
@@ -1558,6 +1640,77 @@ async function handleVideoWatch(req: Request, parts: string[]): Promise<Response
   });
 }
 
+async function handleQuizzesList(): Promise<Response> {
+  return handle(async () => {
+    const rows = await sql`SELECT * FROM quizzes WHERE is_open = true ORDER BY created_at DESC LIMIT 50`;
+    return rows.map((q: any) => ({ ...q, createdAt: q.created_at?.toISOString() }));
+  });
+}
+
+async function handleQuizById(quizId: number): Promise<Response> {
+  return handle(async () => {
+    const [q] = await sql`SELECT * FROM quizzes WHERE id = ${quizId}`;
+    if (!q) throw Object.assign(new Error("الاختبار غير موجود"), { status: 404 });
+    const questions = await sql`SELECT * FROM quiz_questions WHERE quiz_id = ${quizId} ORDER BY ord`;
+    return { ...q, createdAt: q.created_at?.toISOString(), questions };
+  });
+}
+
+async function handleSkills(req: Request, parts: string[]): Promise<Response> {
+  return handle(async () => {
+    const { userId } = requireAuth(req.headers);
+    if (parts[1] === "tracks") {
+      const tracks = await sql`SELECT * FROM skill_tracks ORDER BY ord`;
+      return tracks.map((t: any) => ({ ...t, createdAt: t.created_at?.toISOString() }));
+    }
+    if (parts[1] === "lessons" && parts[2] && parts[3] === "complete") {
+      const lessonId = Number(parts[2]);
+      await sql`INSERT INTO skill_lessons (user_id, lesson_id, completed) VALUES (${userId}, ${lessonId}, true) ON CONFLICT (user_id, lesson_id) DO UPDATE SET completed = true`;
+      return { ok: true };
+    }
+    return jsonError("Not Found", 404);
+  });
+}
+
+async function handleMissions(req: Request, parts: string[]): Promise<Response> {
+  return handle(async () => {
+    const { userId } = requireAuth(req.headers);
+    if (!parts[1]) {
+      const quizzes = await sql`SELECT * FROM quizzes WHERE is_open = true ORDER BY created_at DESC LIMIT 20`;
+      return quizzes.map((q: any) => ({
+        id: q.id, title: q.title, description: q.description || "",
+        points: q.total_points || 100, deadline: null, completed: false,
+      }));
+    }
+    if (parts[2] === "complete") {
+      const missionId = Number(parts[1]);
+      return { ok: true };
+    }
+    return jsonError("Not Found", 404);
+  });
+}
+
+async function handleComplaints(req: Request): Promise<Response> {
+  return handle(async () => {
+    const { userId } = requireAuth(req.headers);
+    const body = await req.json();
+    const { title, body: msgBody, category } = body;
+    if (!title || !msgBody) throw Object.assign(new Error("بيانات ناقصة"), { status: 400 });
+    await sql`INSERT INTO complaints (user_id, title, body, category) VALUES (${userId}, ${title}, ${msgBody}, ${category || "عام"})`;
+    return { ok: true };
+  });
+}
+
+async function handleAiChat(req: Request): Promise<Response> {
+  return handle(async () => {
+    const { userId } = requireAuth(req.headers);
+    const body = await req.json();
+    const { message, history } = body;
+    if (!message) throw Object.assign(new Error("الرسالة مطلوبة"), { status: 400 });
+    return { reply: "أهلاً! أنا مساعدك الذكي. كيف أقدر أساعدك؟", sources: [] };
+  });
+}
+
 async function handleStaffDoctors(): Promise<Response> {
   return handle(async () => {
     const rows = await sql`SELECT * FROM users WHERE role IN ('doctor', 'ta') ORDER BY name`;
@@ -1948,9 +2101,13 @@ async function handleRequest(request: Request): Promise<Response> {
     "PATCH /me": () => handleMeProfile(request),
     "PATCH /me/profile": () => handleMeProfile(request),
     "POST /me/group": () => handleMeGroup(request),
+    "POST /me/role": () => handleSwitchRole(request),
     "GET /v2/me": () => handleMe(request),
     "PATCH /v2/me/profile": () => handleMeProfile(request),
     "POST /v2/me/group": () => handleMeGroup(request),
+
+    // Dashboard
+    "GET /dashboard": () => handleDashboard(request),
 
     // Notifications
     "GET /notifications": () => handleNotifications(request, parts),
@@ -2087,6 +2244,7 @@ async function handleRequest(request: Request): Promise<Response> {
     "GET /talents-feed": () => handleTalentsFeed(request, ["talents-feed"]),
     "POST /talents": () => handleTalentsFeed(request, ["talents"]),
     "POST /talents/:id/like": () => handleTalentsFeed(request, ["talents", ":id", "like"]),
+    "POST /talents/:id/vote": () => handleTalentsFeed(request, ["talents", ":id", "like"]),
     "GET /talents/:id/comments": () => handleTalentsFeed(request, ["talents", ":id", "comments"]),
     "POST /talents/:id/comments": () => handleTalentsFeed(request, ["talents", ":id", "comments"]),
     "GET /v2/talents-feed": () => handleTalentsFeed(request, parts.slice(1)),
@@ -2100,14 +2258,19 @@ async function handleRequest(request: Request): Promise<Response> {
     "GET /forum": () => handleForum(request, ["", ...parts.slice(1)]),
     "GET /forum/posts": () => handleForum(request, ["", ...parts.slice(1)]),
     "POST /forum/posts": () => handleForum(request, ["", ...parts.slice(1)]),
+    "GET /forum/posts/:id": () => handleForum(request, ["", ...parts.slice(1)]),
+    "GET /forum/posts/:id/replies": () => handleForum(request, ["", ...parts.slice(1)]),
+    "POST /forum/posts/:id/replies": () => handleForum(request, ["", ...parts.slice(1)]),
+    "POST /forum/posts/:id/upvote": () => handleForum(request, ["", ...parts.slice(1)]),
     "GET /v2/forum/posts": () => handleForum(request, parts),
     "POST /v2/forum/posts": () => handleForum(request, parts),
     "POST /v2/forum/posts/:id/upvote": () => handleForum(request, parts),
     "GET /v2/forum/posts/:id/replies": () => handleForum(request, parts),
     "POST /v2/forum/posts/:id/replies": () => handleForum(request, parts),
-    "POST /forum/posts/:id/upvote": () => handleForum(request, ["v2", "forum", "posts", parts[2], "upvote"]),
 
     // Quizzes
+    "GET /quizzes": () => handleQuizzesList(),
+    "GET /quizzes/:id": () => handleQuizById(Number(parts[1])),
     "GET /quizzes/open": () => handleQuizzes(request, ["quizzes", "open"]),
     "GET /quizzes/:id/start": () => handleQuizzes(request, ["quizzes", ":id", "start"]),
     "POST /quizzes/:id/submit": () => handleQuizzes(request, ["quizzes", ":id", "submit"]),
@@ -2142,7 +2305,9 @@ async function handleRequest(request: Request): Promise<Response> {
     "GET /news/:id": () => handleNewsById(parts[1]),
 
     // Skills
+    "GET /skills": () => handleSkills(request, ["skills"]),
     "GET /skills/tracks": () => handleSkills(request, ["skills", "tracks"]),
+    "GET /skills/:id": () => handleSkills(request, ["skills", ":id"]),
     "POST /skills/lessons/:id/complete": () => handleSkills(request, ["skills", "lessons", ":id", "complete"]),
     "GET /v2/skills/tracks": () => handleSkills(request, parts),
     "POST /v2/skills/lessons/:id/complete": () => handleSkills(request, parts),
@@ -2212,12 +2377,23 @@ async function handleRequest(request: Request): Promise<Response> {
     // Staff
     "GET /staff/doctors": () => handleStaffDoctors(),
     "GET /staff": () => handleStaff(request, ["staff"]),
+    "GET /staff/:id": () => handleStaff(request, ["staff", ":id"]),
     "POST /staff": () => handleStaff(request, ["staff"]),
     "PATCH /staff/:id": () => handleStaff(request, ["staff", ":id"]),
     "GET /v2/staff/doctors": () => handleStaffDoctors(),
     "GET /v2/staff": () => handleStaff(request, parts),
     "POST /v2/staff": () => handleStaff(request, parts),
     "PATCH /v2/staff/:id": () => handleStaff(request, parts),
+
+    // Complaints
+    "POST /complaints": () => handleComplaints(request),
+
+    // AI Chat
+    "POST /ai/chat": () => handleAiChat(request),
+
+    // Missions
+    "GET /missions": () => handleMissions(request, ["missions"]),
+    "POST /missions/:id/complete": () => handleMissions(request, ["missions", ":id", "complete"]),
 
     // Lecture quizzes
     "POST /lecture-quizzes/:id/submit": () => handleLectureQuizSubmit(request, ["lecture-quizzes", ":id", "submit"]),
