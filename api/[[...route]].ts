@@ -2400,9 +2400,6 @@ async function handleRequest(request: Request): Promise<Response> {
     "PATCH /v2/admin/users/:id/grant": () => handleAdminCrud(request, parts.slice(1)),
     "GET /v2/admin/student/:id/full": () => handleAdminCrud(request, parts.slice(1)),
     "DELETE /v2/admin/material-files/:id": () => handleAdminCrud(request, parts.slice(1)),
-  };
-
-    // Admin news
     "POST /v2/admin/news/:id/approve": () => handleAdminNews(request, parts),
     "POST /v2/admin/news/:id/reject": () => handleAdminNews(request, parts),
     "DELETE /v2/admin/news/:id": () => handleAdminNews(request, parts),
