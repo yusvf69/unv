@@ -1,3 +1,5 @@
 api/server.ts
+api/vercel.ts
 api/.DS_Store
 api/node_modules/
+api/.env

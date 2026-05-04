@@ -3,7 +3,7 @@ import { handle, jsonResponse, jsonError, corsResponse } from "./lib/handler.js"
 import { getUserId, getCurrentUser, requireAuth, requireRole, ensureSuper, generateToken } from "./lib/auth.js";
 import bcrypt from "bcryptjs";
 
-export const config = { runtime: "nodejs", maxDuration: 10 };
+export const config = { runtime: "nodejs22.x", maxDuration: 30 };
 
 // --- Helpers ---
 function generateUniqueCode(): string {
