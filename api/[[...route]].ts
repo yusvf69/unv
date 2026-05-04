@@ -199,9 +199,13 @@ async function handleAuth(req: Request, parts: string[]): Promise<Response> {
 }
 
 async function handleMe(req: Request): Promise<Response> {
+  console.log("🔵 [handleMe] Starting...");
   return handle(async () => {
     const { userId } = requireAuth(req.headers);
+    console.log("🟡 [handleMe] userId:", userId);
+    console.log("🔵 [handleMe] Querying user...");
     const [user] = await sql`SELECT * FROM users WHERE id = ${userId}`;
+    console.log("🟢 [handleMe] User found:", !!user);
     if (!user) throw Object.assign(new Error("لا يوجد مستخدم"), { status: 404 });
     const [{ c: unreadCount }] = await sql`SELECT count(*)::int AS c FROM notifications WHERE user_id = ${userId} AND read = false`;
     const [{ c: unreadDmCount }] = await sql`SELECT count(*)::int AS c FROM dm_messages m JOIN dm_threads t ON m.thread_id = t.id WHERE t.user_a_id = ${userId} OR t.user_b_id = ${userId} AND m.read = false AND m.from_id != ${userId}`;
@@ -1877,6 +1881,8 @@ async function handleAdminEvents(request: Request, parts: string[]): Promise<Res
 // --- Main Request Handler ---
 
 export default async function handler(request: Request): Promise<Response> {
+  console.log("🔵 [handler] Request:", request.method, request.url);
+  
   if (request.method === "OPTIONS") return corsResponse();
 
   const url = new URL(request.url, "http://localhost");
@@ -1884,6 +1890,7 @@ export default async function handler(request: Request): Promise<Response> {
   const parts = path.split("/").filter(Boolean);
   const method = request.method;
   const routeKey = `${method} /${parts.join("/")}`;
+  console.log("🟡 [handler] Path:", path, "Route:", routeKey);
 
   // --- ROUTING TABLE ---
   const routes: Record<string, () => Promise<Response>> = {
@@ -2118,10 +2125,15 @@ export default async function handler(request: Request): Promise<Response> {
   };
 
   // Try exact match first
-  if (routes[routeKey]) return routes[routeKey]();
+  if (routes[routeKey]) {
+    console.log("🟢 [handler] Exact route matched:", routeKey);
+    const response = await routes[routeKey]();
+    console.log("🟢 [handler] Response ready, status:", response.status);
+    return response;
+  }
 
   // Try pattern matching for routes with :id/:name params
-  for (const [pattern, handler] of Object.entries(routes)) {
+  for (const [pattern, handlerFn] of Object.entries(routes)) {
     const patternParts = pattern.replace(/^GET |POST |PUT |PATCH |DELETE /, "").split("/").filter(Boolean);
     if (patternParts.length !== parts.length) continue;
     const matches = patternParts.every((p, i) => p.startsWith(":") || p === parts[i]);
@@ -2131,8 +2143,12 @@ export default async function handler(request: Request): Promise<Response> {
     const patternMethod = pattern.split(" ")[0];
     if (patternMethod !== method) continue;
 
-    return handler();
+    console.log("🟢 [handler] Pattern matched:", pattern);
+    const response = await handlerFn();
+    console.log("🟢 [handler] Response ready, status:", response.status);
+    return response;
   }
 
+  console.log("🔴 [handler] No route found");
   return jsonError(`Route not found: ${method} /${path}`, 404);
 }
