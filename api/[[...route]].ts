@@ -1640,35 +1640,12 @@ async function handleVideoWatch(req: Request, parts: string[]): Promise<Response
   });
 }
 
-async function handleQuizzesList(): Promise<Response> {
-  return handle(async () => {
-    const rows = await sql`SELECT * FROM quizzes WHERE is_open = true ORDER BY created_at DESC LIMIT 50`;
-    return rows.map((q: any) => ({ ...q, createdAt: q.created_at?.toISOString() }));
-  });
-}
-
 async function handleQuizById(quizId: number): Promise<Response> {
   return handle(async () => {
     const [q] = await sql`SELECT * FROM quizzes WHERE id = ${quizId}`;
     if (!q) throw Object.assign(new Error("الاختبار غير موجود"), { status: 404 });
     const questions = await sql`SELECT * FROM quiz_questions WHERE quiz_id = ${quizId} ORDER BY ord`;
     return { ...q, createdAt: q.created_at?.toISOString(), questions };
-  });
-}
-
-async function handleSkills(req: Request, parts: string[]): Promise<Response> {
-  return handle(async () => {
-    const { userId } = requireAuth(req.headers);
-    if (parts[1] === "tracks") {
-      const tracks = await sql`SELECT * FROM skill_tracks ORDER BY ord`;
-      return tracks.map((t: any) => ({ ...t, createdAt: t.created_at?.toISOString() }));
-    }
-    if (parts[1] === "lessons" && parts[2] && parts[3] === "complete") {
-      const lessonId = Number(parts[2]);
-      await sql`INSERT INTO skill_lessons (user_id, lesson_id, completed) VALUES (${userId}, ${lessonId}, true) ON CONFLICT (user_id, lesson_id) DO UPDATE SET completed = true`;
-      return { ok: true };
-    }
-    return jsonError("Not Found", 404);
   });
 }
 
@@ -2415,60 +2392,15 @@ async function handleRequest(request: Request): Promise<Response> {
     // Admin forum moderation
     "DELETE /admin/forum/posts/:id": () => handleAdminCrud(request, parts),
     "DELETE /admin/forum/replies/:id": () => handleAdminCrud(request, parts),
-
-    // Admin staff
     "DELETE /v2/admin/staff/:id": () => handleAdminCrud(request, parts.slice(1)),
-    "POST /v2/admin/staff": () => handleStaff(request, ["v2", ...parts.slice(2)]),
-    "PATCH /v2/admin/staff/:id": () => handleStaff(request, ["v2", ...parts.slice(2)]),
-
-    // Admin talents moderation
     "DELETE /v2/admin/talents/:id": () => handleAdminCrud(request, parts.slice(1)),
     "DELETE /v2/admin/talent-comments/:id": () => handleAdminCrud(request, parts.slice(1)),
     "DELETE /v2/admin/material-comments/:id": () => handleAdminCrud(request, parts.slice(1)),
-
-    // Admin courses CRUD
-    "POST /v2/admin/courses": () => handleAdminCourses(request, parts),
-    "DELETE /v2/admin/courses/:id": () => handleAdminCourses(request, parts),
-
-    // Admin quizzes CRUD
-    "POST /v2/admin/quizzes": () => handleAdminQuizzes(request, parts),
-    "PUT /v2/admin/quizzes/:id": () => handleAdminQuizzes(request, parts),
-    "DELETE /v2/admin/quizzes/:id": () => handleAdminQuizzes(request, parts),
-    "GET /v2/admin/quizzes/:id/questions": () => handleAdminQuizzes(request, parts),
-    "POST /v2/admin/quizzes/:id/questions": () => handleAdminQuizzes(request, parts),
-    "PUT /v2/admin/quiz-questions/:id": () => handleAdminQuizzes(request, parts),
-    "DELETE /v2/admin/quiz-questions/:id": () => handleAdminQuizzes(request, parts),
-    "GET /v2/admin/quizzes/:id/attempts": () => handleAdminQuizzes(request, parts),
-    "GET /v2/admin/quizzes/:quizId/attempts/:attemptId": () => handleAdminQuizzes(request, parts),
-    "GET /v2/admin/quiz-attempts/:id": () => handle(async () => getAttemptDetail(Number(parts[2]))),
-    "POST /v2/admin/quizzes/toggle/:id": () => handleAdminQuizzes(request, parts),
-
-    // Admin materials CRUD
-    "POST /v2/admin/materials": () => handleAdminCrud(request, parts.slice(1)),
-    "PATCH /v2/admin/materials/:id": () => handleAdminCrud(request, parts.slice(1)),
-    "DELETE /v2/admin/materials/:id": () => handleAdminCrud(request, parts.slice(1)),
-    "POST /v2/admin/materials/:id/files": () => handleAdminCrud(request, parts.slice(1)),
-    "DELETE /v2/admin/material-files/:id": () => handleAdminCrud(request, parts.slice(1)),
-
-    // Admin lectures
-    "POST /v2/admin/courses/:id/lectures": () => handleAdminCrud(request, parts.slice(1)),
-    "PATCH /v2/admin/lectures/:id": () => handleAdminCrud(request, parts.slice(1)),
-    "DELETE /v2/admin/lectures/:id": () => handleAdminCrud(request, parts.slice(1)),
-    "POST /v2/admin/lectures/:id/videos": () => handleAdminCrud(request, parts.slice(1)),
-    "DELETE /v2/admin/videos/:id": () => handleAdminCrud(request, parts.slice(1)),
-    "POST /v2/admin/lectures/:id/pdfs": () => handleAdminCrud(request, parts.slice(1)),
-    "DELETE /v2/admin/lecture-pdfs/:id": () => handleAdminCrud(request, parts.slice(1)),
-    "POST /v2/admin/lectures/:id/quizzes": () => handleAdminCrud(request, parts.slice(1)),
-    "DELETE /v2/admin/lecture-quizzes/:id": () => handleAdminCrud(request, parts.slice(1)),
-
-    // Admin users
     "DELETE /v2/admin/users/:id": () => handleAdminCrud(request, parts.slice(1)),
     "PATCH /v2/admin/users/:id/grant": () => handleAdminCrud(request, parts.slice(1)),
     "GET /v2/admin/student/:id/full": () => handleAdminCrud(request, parts.slice(1)),
-
-    // Admin schedule
-    "DELETE /v2/admin/group-schedule/:id": () => handleGroupSchedule(request, ["admin", ...parts.slice(2)]),
-    "DELETE /v2/admin/exam-schedule/:id": () => handleExamSchedule(request, ["admin", ...parts.slice(2)]),
+    "DELETE /v2/admin/material-files/:id": () => handleAdminCrud(request, parts.slice(1)),
+  };
 
     // Admin news
     "POST /v2/admin/news/:id/approve": () => handleAdminNews(request, parts),
