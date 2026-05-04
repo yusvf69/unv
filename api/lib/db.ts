@@ -15,11 +15,11 @@ function getSql() {
   return _sql;
 }
 
-export const sql = new Proxy((() => {}) as unknown as ReturnType<typeof neon>, {
-  apply(_, __, args: [TemplateStringsArray, ...any[]]) {
+export const sql = new Proxy((() => {}) as any, {
+  apply(_: any, __: any, args: any[]) {
     return (getSql() as any)(...args);
   },
-  get(_, prop) {
+  get(_: any, prop: string) {
     return (getSql() as any)[prop];
   },
-}) as unknown as ReturnType<typeof neon>;
+}) as (...args: any[]) => Promise<any[]>;
