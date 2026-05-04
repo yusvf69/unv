@@ -1,28 +1,26 @@
 import { neon } from "@neondatabase/serverless";
 
-const DATABASE_URL = process.env.DATABASE_URL;
-
-if (!DATABASE_URL) {
-  throw new Error("DATABASE_URL is not set");
-}
-
 let _sql: ReturnType<typeof neon> | null = null;
 
 function getSql() {
   if (!_sql) {
-    _sql = neon(DATABASE_URL, { 
-      fetch: (input: RequestInfo | URL, init?: RequestInit) => 
-        fetch(input, { ...init, signal: AbortSignal.timeout(5000) })
-    });
+    const url = process.env.DATABASE_URL;
+    if (!url) {
+      throw Object.assign(
+        new Error("DATABASE_URL environment variable is not set"),
+        { status: 500 }
+      );
+    }
+    _sql = neon(url);
   }
   return _sql;
 }
 
-export const sql = new Proxy(() => {}, {
-  apply(_, __, args) {
-    return getSql()(args[0], args.slice(1));
+export const sql = new Proxy((() => {}) as any, {
+  apply(_: any, __: any, args: any[]) {
+    return (getSql() as any)(...args);
   },
-  get(_, prop) {
-    return getSql()[prop as keyof typeof _sql];
+  get(_: any, prop: string) {
+    return (getSql() as any)[prop];
   },
 }) as (...args: any[]) => Promise<any[]>;

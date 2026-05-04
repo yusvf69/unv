@@ -1877,6 +1877,7 @@ async function handleAdminEvents(request: Request, parts: string[]): Promise<Res
 // --- Main Request Handler ---
 
 export default async function handler(request: Request): Promise<Response> {
+  try {
   if (request.method === "OPTIONS") return corsResponse();
 
   const url = new URL(request.url, "http://localhost");
@@ -1887,9 +1888,15 @@ export default async function handler(request: Request): Promise<Response> {
 
   // --- ROUTING TABLE ---
   const routes: Record<string, () => Promise<Response>> = {
-    // Health
+    // Health & Debug
     "GET /healthz": () => handleHealth(),
     "GET /health": () => handleHealth(),
+    "GET /debug/env": () => Promise.resolve(jsonResponse({
+      DATABASE_URL_SET: !!process.env.DATABASE_URL,
+      DATABASE_URL_LENGTH: process.env.DATABASE_URL?.length ?? 0,
+      DATABASE_URL_PREFIX: process.env.DATABASE_URL?.substring(0, 15) ?? "NOT SET",
+      NODE_ENV: process.env.NODE_ENV ?? "not set",
+    })),
 
     // Feed alias
     "GET /feed": () => handleTalentsFeed(request, ["", "talents-feed"]),
@@ -2135,4 +2142,9 @@ export default async function handler(request: Request): Promise<Response> {
   }
 
   return jsonError(`Route not found: ${method} /${path}`, 404);
+  } catch (err: any) {
+    const status = err.status || 500;
+    const message = err.message || "Internal Server Error";
+    return jsonError(message, status);
+  }
 }
