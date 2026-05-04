@@ -1902,8 +1902,8 @@ async function handleRequest(request: Request): Promise<Response> {
     "GET /health": () => handleHealth(),
 
     // Feed alias
-    "GET /feed": () => handleTalentsFeed(request, ["", "talents-feed"]),
-    "GET /home/feed": () => handleTalentsFeed(request, ["", "talents-feed"]),
+    "GET /feed": () => handleTalentsFeed(request, ["feed"]),
+    "GET /home/feed": () => handleTalentsFeed(request, ["feed"]),
 
     // Auth aliases (legacy routes without /v2/ prefix)
     "POST /login": () => handleAuth(request, ["", "auth", "login"]),
