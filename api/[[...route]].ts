@@ -441,6 +441,7 @@ async function handleAdminProposals(req: Request, parts: string[]): Promise<Resp
 }
 
 async function handleTalentsFeed(req: Request, parts: string[]): Promise<Response> {
+  console.log("🟡 [handleTalentsFeed] method:", req.method, "parts:", JSON.stringify(parts), "parts[1]:", parts[1], "!parts[1]:", !parts[1]);
   if (req.method === "GET" && !parts[1]) {
     return handle(async () => {
       const { userId } = requireAuth(req.headers);
