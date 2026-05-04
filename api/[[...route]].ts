@@ -891,6 +891,26 @@ async function handleUsers(req: Request, parts: string[]): Promise<Response> {
   return jsonError("Not Found", 404);
 }
 
+async function handleHomeFeed(): Promise<Response> {
+  console.log("🔵 [handleHomeFeed] Starting...");
+  try {
+    const [{ students }] = await sql`SELECT count(*)::int AS students FROM users WHERE role = 'student'`;
+    const [{ staff }] = await sql`SELECT count(*)::int AS staff FROM users WHERE role IN ('doctor', 'ta')`;
+    const [{ courses }] = await sql`SELECT count(*)::int AS courses FROM courses`;
+    const [{ researchProjects }] = await sql`SELECT count(*)::int AS "researchProjects" FROM talents WHERE category = 'research'`;
+    const [deanRow] = await sql`SELECT * FROM users WHERE role = 'doctor' AND title LIKE '%عميد%' LIMIT 1`;
+    const news = await sql`SELECT * FROM news WHERE status = 'approved' ORDER BY published_at DESC LIMIT 3`;
+    return jsonResponse({
+      stats: { students: students || 0, staff: staff || 0, courses: courses || 0, researchProjects: researchProjects || 0 },
+      dean: deanRow ? { name: deanRow.name, bio: deanRow.bio || "مرحباً بكم في كلية الزراعة" } : null,
+      latestNews: news.map((n: any) => ({ ...n, createdAt: n.created_at?.toISOString() })),
+    });
+  } catch (err: any) {
+    console.error("🔴 [handleHomeFeed] Error:", err?.message);
+    return jsonError(err?.message || "Internal Server Error", 500);
+  }
+}
+
 async function handleNews(): Promise<Response> {
   return handle(async () => {
     const rows = await sql`SELECT * FROM news WHERE status = 'approved' ORDER BY published_at DESC`;
@@ -1904,7 +1924,7 @@ async function handleRequest(request: Request): Promise<Response> {
 
     // Feed alias
     "GET /feed": () => handleTalentsFeed(request, ["feed"]),
-    "GET /home/feed": () => handleTalentsFeed(request, ["feed"]),
+    "GET /home/feed": () => handleHomeFeed(),
 
     // Auth aliases (legacy routes without /v2/ prefix)
     "POST /login": () => handleAuth(request, ["", "auth", "login"]),
