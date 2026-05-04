@@ -1,8 +1,12 @@
 {
   "version": 2,
+  "installCommand": "pnpm install",
   "buildCommand": "pnpm install && pnpm --filter @workspace/universe build",
   "outputDirectory": "artifacts/universe/dist/public",
   "rewrites": [
-    { "source": "/api/(.*)", "destination": "/api/[[...route]]" }
+    {
+      "source": "/((?!api/).*)",
+      "destination": "/index.html"
+    }
   ]
 }
