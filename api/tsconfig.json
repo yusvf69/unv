@@ -9,5 +9,5 @@
     "noEmit": true
   },
   "include": ["**/*.ts"],
-  "exclude": ["node_modules", "vercel.ts"]
+  "exclude": ["node_modules", "vercel.ts", "server.ts"]
 }
