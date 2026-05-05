@@ -88,10 +88,26 @@ async function handleHealth() {
 
 // Main handler
 export default async function handler(request: Request) {
-  const url = new URL(request.url);
-  const path = url.pathname.replace('/api', '');
+  // Parse the URL properly, handling Vercel's routing
+  let url: URL;
+  try {
+    url = new URL(request.url);
+  } catch {
+    // If request.url is not a full URL, construct one
+    const host = request.headers.get('host') || 'localhost';
+    url = new URL(`https://${host}${request.url}`);
+  }
   
-  console.log('API Request:', path);
+  // Extract the path and handle Vercel's routing parameters
+  let path = url.pathname.replace('/api', '');
+  
+  // Check for Vercel's catch-all routing parameter
+  const routeParam = url.searchParams.get('[...route]');
+  if (routeParam) {
+    path = '/' + routeParam;
+  }
+  
+  console.log('API Request:', path, 'Original URL:', request.url);
   
   try {
     switch (path) {
