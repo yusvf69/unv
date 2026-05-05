@@ -2075,7 +2075,8 @@ async function handleRequest(request: Request): Promise<Response> {
     // Health
     "GET /healthz": () => handleHealth(),
     "GET /health": () => handleHealth(),
-    "GET /ping": () => Promise.resolve(jsonResponse({ status: "ok", message: "pong" })),
+    "GET /ping": () => Promise.resolve(new Response(JSON.stringify({ status: "ok", message: "pong" }), { headers: { "Content-Type": "application/json" } })),
+    "GET /minimal": () => Promise.resolve(new Response("OK", { status: 200 })),
 
     // Feed alias
     "GET /feed": () => handleTalentsFeed(request, ["feed"]),
