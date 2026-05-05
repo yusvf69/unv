@@ -2411,6 +2411,19 @@ async function handleRequest(request: Request): Promise<Response> {
     return response;
   }
 
+  // Compatibility fallback: some clients still hit /v2/* while handlers may
+  // be wired with legacy non-v2 aliases (or vice versa). Retry once without
+  // the leading v2 segment before falling back to pattern matching.
+  if (parts[0] === "v2") {
+    const legacyKey = `${method} /${parts.slice(1).join("/")}`;
+    if (routes[legacyKey]) {
+      console.log("🟢 [handler] v2 fallback matched:", legacyKey, "from", routeKey);
+      const response = await routes[legacyKey]();
+      console.log("🟢 [handler] Response ready, status:", response.status);
+      return response;
+    }
+  }
+
   // Try pattern matching for routes with :id/:name params
   for (const [pattern, handlerFn] of Object.entries(routes)) {
     const patternParts = pattern.replace(/^GET |POST |PUT |PATCH |DELETE /, "").split("/").filter(Boolean);
