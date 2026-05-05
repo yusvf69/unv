@@ -1070,57 +1070,53 @@ async function handleLeaderboard(req: Request): Promise<Response> {
   return handle(async () => {
     const url = new URL(req.url, "http://localhost");
     const period = url.searchParams.get("period") || "weekly";
-    let whereClause: ReturnType<typeof sql>;
-    const now = new Date();
-    if (period === "daily") {
-      const start = new Date(now.getFullYear(), now.getMonth(), now.getDate());
-      whereClause = sql`created_at >= ${start}`;
-    } else if (period === "weekly") {
-      const start = new Date(now);
-      start.setDate(start.getDate() - 7);
-      whereClause = sql`created_at >= ${start}`;
-    } else if (period === "monthly") {
-      const start = new Date(now);
-      start.setMonth(start.getMonth() - 1);
-      whereClause = sql`created_at >= ${start}`;
-    } else {
-      whereClause = sql`1=1`;
+    try {
+      let whereClause: ReturnType<typeof sql>;
+      const now = new Date();
+      if (period === "daily") {
+        const start = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+        whereClause = sql`created_at >= ${start}`;
+      } else if (period === "weekly") {
+        const start = new Date(now);
+        start.setDate(start.getDate() - 7);
+        whereClause = sql`created_at >= ${start}`;
+      } else if (period === "monthly") {
+        const start = new Date(now);
+        start.setMonth(start.getMonth() - 1);
+        whereClause = sql`created_at >= ${start}`;
+      } else {
+        whereClause = sql`1=1`;
+      }
+      const rows = await sql`SELECT user_id, SUM(points) AS points FROM user_activity_log WHERE ${whereClause} GROUP BY user_id ORDER BY points DESC LIMIT 50`;
+      const userIds = rows.map((r: any) => r.user_id);
+      const users = userIds.length ? await sql`SELECT * FROM users WHERE id = ANY(${userIds})` : [];
+      const byId = new Map(users.map((u: any) => [u.id, u]));
+      const allRows = await sql`SELECT user_id, SUM(points) AS points FROM user_activity_log GROUP BY user_id ORDER BY points DESC`;
+      const allTimeRanks = new Map<number, number>();
+      let rank = 0;
+      for (const r of allRows) { rank++; allTimeRanks.set(Number(r.user_id), rank); }
+      const prevWeek = new Date(now);
+      prevWeek.setDate(prevWeek.getDate() - 14);
+      const prevEnd = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);
+      const prevRows = await sql`SELECT user_id, SUM(points) AS points FROM user_activity_log WHERE created_at >= ${prevWeek} AND created_at < ${prevEnd} GROUP BY user_id`;
+      const prevRanks = new Map<number, number>();
+      let prevRank = 0;
+      for (const r of [...prevRows].sort((a: any, b: any) => Number(b.points) - Number(a.points))) { prevRank++; prevRanks.set(Number(r.user_id), prevRank); }
+      return rows.map((r: any, i: number) => {
+        const uid = Number(r.user_id);
+        const u = byId.get(uid);
+        const currentRank = i + 1;
+        const p = prevRanks.get(uid);
+        const delta = p ? p - currentRank : 0;
+        return { rank: currentRank, userId: uid, name: u?.name || "", avatarUrl: u?.avatar_url || null, department: u?.department || "", year: u?.year || null, points: Number(r.points), level: u ? Math.floor(Number(u.points) / 100) + 1 : 1, streak: u?.streak || 0, deltaRank: delta };
+      });
+    } catch (e: any) {
+      if (e.message?.includes("relation") || e.message?.includes("does not exist")) {
+        const users = await sql`SELECT * FROM users ORDER BY points DESC LIMIT 50`;
+        return users.map((u: any, i: number) => ({ rank: i + 1, userId: u.id, name: u.name, avatarUrl: u.avatar_url || null, department: u.department || "", year: u.year || null, points: u.points, level: Math.floor(u.points / 100) + 1, streak: u.streak || 0, deltaRank: 0 }));
+      }
+      throw e;
     }
-    const rows = await sql`SELECT user_id, SUM(points) AS points FROM user_activity_log WHERE ${whereClause} GROUP BY user_id ORDER BY points DESC LIMIT 50`;
-    const userIds = rows.map((r: any) => r.user_id);
-    const users = userIds.length ? await sql`SELECT * FROM users WHERE id = ANY(${userIds})` : [];
-    const byId = new Map(users.map((u: any) => [u.id, u]));
-    const allRows = await sql`SELECT user_id, SUM(points) AS points FROM user_activity_log GROUP BY user_id ORDER BY points DESC`;
-    const allById = new Map(allRows.map((r: any) => [Number(r.user_id), Number(r.points)]));
-    const prevWeek = new Date(now);
-    prevWeek.setDate(prevWeek.getDate() - 14);
-    const prevRows = await sql`SELECT user_id, SUM(points) AS points FROM user_activity_log WHERE created_at >= ${prevWeek} AND created_at < ${new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000)} GROUP BY user_id`;
-    const prevById = new Map(prevRows.map((r: any) => [Number(r.user_id), Number(r.points)]));
-    const allTimeRanks = new Map<number, number>();
-    let rank = 0;
-    for (const r of allRows) { rank++; allTimeRanks.set(Number(r.user_id), rank); }
-    let prevRank = 0;
-    const prevRanks = new Map<number, number>();
-    for (const r of [...prevRows].sort((a: any, b: any) => Number(b.points) - Number(a.points))) { prevRank++; prevRanks.set(Number(r.user_id), prevRank); }
-    return rows.map((r: any, i: number) => {
-      const uid = Number(r.user_id);
-      const u = byId.get(uid);
-      const currentRank = i + 1;
-      const p = prevRanks.get(uid);
-      const delta = p ? p - currentRank : 0;
-      return {
-        rank: currentRank,
-        userId: uid,
-        name: u?.name || "",
-        avatarUrl: u?.avatar_url || null,
-        department: u?.department || "",
-        year: u?.year || null,
-        points: Number(r.points),
-        level: u ? Math.floor(Number(u.points) / 100) + 1 : 1,
-        streak: u?.streak || 0,
-        deltaRank: delta,
-      };
-    });
   });
 }
 
@@ -2278,16 +2274,16 @@ async function handleRequest(request: Request): Promise<Response> {
     "GET /talents": () => handleTalentsFeed(request, ["talents"]),
     "GET /talents-feed": () => handleTalentsFeed(request, ["talents-feed"]),
     "POST /talents": () => handleTalentsFeed(request, ["talents"]),
-    "POST /talents/:id/like": () => handleTalentsFeed(request, ["talents", parts[1], "like"]),
-    "POST /talents/:id/vote": () => handleTalentsFeed(request, ["talents", parts[1], "like"]),
-    "GET /talents/:id/comments": () => handleTalentsFeed(request, ["talents", parts[1], "comments"]),
-    "POST /talents/:id/comments": () => handleTalentsFeed(request, ["talents", parts[1], "comments"]),
+    "POST /talents/:id/like": () => handleTalentsFeed(request, ["talents", "id", parts[1], "like"]),
+    "POST /talents/:id/vote": () => handleTalentsFeed(request, ["talents", "id", parts[1], "like"]),
+    "GET /talents/:id/comments": () => handleTalentsFeed(request, ["talents", "id", parts[1], "comments"]),
+    "POST /talents/:id/comments": () => handleTalentsFeed(request, ["talents", "id", parts[1], "comments"]),
     "GET /v2/talents-feed": () => handleTalentsFeed(request, ["talents"]),
     "GET /v2/talents": () => handleTalentsFeed(request, ["", ...parts.slice(2)]),
     "POST /v2/talents": () => handleTalentsFeed(request, ["talents"]),
-    "POST /v2/talents/:id/like": () => handleTalentsFeed(request, ["talents", parts[2], "like"]),
-    "GET /v2/talents/:id/comments": () => handleTalentsFeed(request, ["talents", parts[2], "comments"]),
-    "POST /v2/talents/:id/comments": () => handleTalentsFeed(request, ["talents", parts[2], "comments"]),
+    "POST /v2/talents/:id/like": () => handleTalentsFeed(request, ["talents", "id", parts[2], "like"]),
+    "GET /v2/talents/:id/comments": () => handleTalentsFeed(request, ["talents", "id", parts[2], "comments"]),
+    "POST /v2/talents/:id/comments": () => handleTalentsFeed(request, ["talents", "id", parts[2], "comments"]),
 
     // Forum
     "GET /forum": () => handleForum(request, ["forum"]),
@@ -2297,11 +2293,11 @@ async function handleRequest(request: Request): Promise<Response> {
     "GET /forum/posts/:id/replies": () => handleForum(request, ["forum", "posts", parts[2], "replies"]),
     "POST /forum/posts/:id/replies": () => handleForum(request, ["forum", "posts", parts[2], "replies"]),
     "POST /forum/posts/:id/upvote": () => handleForum(request, ["forum", "posts", parts[2], "upvote"]),
-    "GET /v2/forum/posts": () => handleForum(request, ["", ...parts.slice(2)]),
-    "POST /v2/forum/posts": () => handleForum(request, ["", ...parts.slice(2)]),
-    "POST /v2/forum/posts/:id/upvote": () => handleForum(request, ["", ...parts.slice(2)]),
-    "GET /v2/forum/posts/:id/replies": () => handleForum(request, ["", ...parts.slice(2)]),
-    "POST /v2/forum/posts/:id/replies": () => handleForum(request, ["", ...parts.slice(2)]),
+    "GET /v2/forum/posts": () => handleForum(request, ["forum", "posts"]),
+    "POST /v2/forum/posts": () => handleForum(request, ["forum", "posts"]),
+    "POST /v2/forum/posts/:id/upvote": () => handleForum(request, ["forum", "posts", parts[2], "upvote"]),
+    "GET /v2/forum/posts/:id/replies": () => handleForum(request, ["forum", "posts", parts[2], "replies"]),
+    "POST /v2/forum/posts/:id/replies": () => handleForum(request, ["forum", "posts", parts[2], "replies"]),
 
     // Quizzes
     "GET /quizzes": () => handleQuizzesList(),
@@ -2322,12 +2318,12 @@ async function handleRequest(request: Request): Promise<Response> {
     "POST /v2/dm/with/:id": () => handleDM(request, ["dm", "with", parts[2]]),
 
     // Follow
-    "POST /follow/:id": () => handleFollow(request, ["follow", ":id"]),
-    "GET /follows/me": () => handleFollow(request, ["follows", "me"]),
-    "GET /follows/:id/status": () => handleFollow(request, ["follows", ":id", "status"]),
-    "POST /v2/follow/:id": () => handleFollow(request, ["follow", parts[2]]),
-    "GET /v2/follows/me": () => handleFollow(request, ["follows", "me"]),
-    "GET /v2/follows/:id/status": () => handleFollow(request, ["follows", parts[2], "status"]),
+    "POST /follow/:id": () => handleFollow(request, ["x", "follow", parts[1]]),
+    "GET /follows/me": () => handleFollow(request, ["x", "follows", "me"]),
+    "GET /follows/:id/status": () => handleFollow(request, ["x", "follows", parts[1], "status"]),
+    "POST /v2/follow/:id": () => handleFollow(request, ["x", "follow", parts[2]]),
+    "GET /v2/follows/me": () => handleFollow(request, ["x", "follows", "me"]),
+    "GET /v2/follows/:id/status": () => handleFollow(request, ["x", "follows", parts[2], "status"]),
 
     // Users
     "GET /users/students": () => handleUsers(request, ["users", "students"]),
