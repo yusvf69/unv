@@ -2040,7 +2040,16 @@ async function handleRequest(request: Request): Promise<Response> {
   if (request.method === "OPTIONS") return corsResponse();
 
   const url = new URL(request.url, "http://localhost");
-  const path = url.pathname.replace(/^\/api\/?/, "");
+  // Strip one or more leading "/api" segments. When the client base URL is
+  // "https://host/api" and paths are "/api/...", Vercel can see "/api/api/...";
+  // a single .replace(/^\/api\/?/, "") then leaves "api/home/..." and routing 404s.
+  let p = url.pathname;
+  while (p.startsWith("/api") || p.startsWith("api/")) {
+    if (p.startsWith("/api")) p = p.slice("/api".length);
+    else if (p.startsWith("api/")) p = p.slice("api/".length);
+    if (p.startsWith("/")) p = p.slice(1);
+  }
+  const path = p;
   const parts = path.split("/").filter(Boolean);
   const method = request.method;
   const routeKey = `${method} /${parts.join("/")}`;
