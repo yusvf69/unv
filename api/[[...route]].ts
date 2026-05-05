@@ -352,10 +352,15 @@ async function handleNotifications(req: Request, parts: string[]): Promise<Respo
 }
 
 async function handleAdminNotifications(req: Request): Promise<Response> {
+  const { userId } = requireAuth(req.headers);
+  const user = await getCurrentUser(userId);
+  requireRole(user, ["admin", "super_admin"]);
+
+  if (req.method !== "POST") {
+    return jsonError("Method not allowed", 405);
+  }
+
   return handle(async () => {
-    const { userId } = requireAuth(req.headers);
-    const user = await getCurrentUser(userId);
-    requireRole(user, ["admin", "super_admin"]);
     const body = await req.json();
     const { title, body: msgBody, type, targetRole, targetGroup, targetYear } = body;
     if (!title || !msgBody) throw Object.assign(new Error("بيانات ناقصة"), { status: 400 });
@@ -1184,18 +1189,30 @@ async function handleGroupSchedule(req: Request, parts: string[]): Promise<Respo
 
   if (req.method === "GET" && !parts[1].startsWith("admin")) {
     return handle(async () => {
-      const group = url.searchParams.get("group") || user?.group_name;
-      const year = Number(url.searchParams.get("year") || user?.year_in_college || 0);
-      if (!group || !year) return [];
-      const rows = await sql`SELECT * FROM group_schedule WHERE group_name = ${group} AND year_in_college = ${year}`;
-      return rows.map((r: any) => ({ ...r, dayNumber: AR_DAY_TO_NUM[r.day] ?? 0 }));
+      try {
+        const group = url.searchParams.get("group") || user?.group_name;
+        const year = Number(url.searchParams.get("year") || user?.year_in_college || 0);
+        if (!group || !year) return [];
+        const rows = await sql`SELECT * FROM group_schedule WHERE group_name = ${group} AND year_in_college = ${year}`;
+        return rows.map((r: any) => ({ ...r, dayNumber: AR_DAY_TO_NUM[r.day] ?? 0 }));
+      } catch (err) {
+        console.error("handleGroupSchedule GET error:", err);
+        return [];
+      }
     });
   }
 
   // Admin routes
   requireRole(user, ["admin", "super_admin"]);
   if (req.method === "GET") {
-    return handle(async () => sql`SELECT * FROM group_schedule ORDER BY year_in_college, group_name, day`);
+    return handle(async () => {
+      try {
+        return await sql`SELECT * FROM group_schedule ORDER BY year_in_college, group_name, day`;
+      } catch (err) {
+        console.error("handleGroupSchedule admin GET error:", err);
+        return [];
+      }
+    });
   }
   if (req.method === "POST") {
     return handle(async () => {
@@ -1220,15 +1237,29 @@ async function handleExamSchedule(req: Request, parts: string[]): Promise<Respon
 
   if (req.method === "GET" && !parts[1].startsWith("admin")) {
     return handle(async () => {
-      const group = url.searchParams.get("group") || user?.group_name;
-      const year = Number(url.searchParams.get("year") || user?.year_in_college || 0);
-      if (!group || !year) return [];
-      return await sql`SELECT * FROM exam_schedule WHERE group_name = ${group} AND year_in_college = ${year} ORDER BY date, time`;
+      try {
+        const group = url.searchParams.get("group") || user?.group_name;
+        const year = Number(url.searchParams.get("year") || user?.year_in_college || 0);
+        if (!group || !year) return [];
+        return await sql`SELECT * FROM exam_schedule WHERE group_name = ${group} AND year_in_college = ${year} ORDER BY date, time`;
+      } catch (err) {
+        console.error("handleExamSchedule GET error:", err);
+        return [];
+      }
     });
   }
 
   requireRole(user, ["admin", "super_admin"]);
-  if (req.method === "GET") return handle(async () => sql`SELECT * FROM exam_schedule ORDER BY year_in_college, group_name, date`);
+  if (req.method === "GET") {
+    return handle(async () => {
+      try {
+        return await sql`SELECT * FROM exam_schedule ORDER BY year_in_college, group_name, date`;
+      } catch (err) {
+        console.error("handleExamSchedule admin GET error:", err);
+        return [];
+      }
+    });
+  }
   if (req.method === "POST") {
     return handle(async () => {
       const body = await req.json();
@@ -2295,9 +2326,9 @@ async function handleRequest(request: Request): Promise<Response> {
     "POST /forum/posts/:id/upvote": () => handleForum(request, ["forum", "posts", parts[2], "upvote"]),
     "GET /v2/forum/posts": () => handleForum(request, ["forum", "posts"]),
     "POST /v2/forum/posts": () => handleForum(request, ["forum", "posts"]),
-    "POST /v2/forum/posts/:id/upvote": () => handleForum(request, ["forum", "posts", parts[2], "upvote"]),
-    "GET /v2/forum/posts/:id/replies": () => handleForum(request, ["forum", "posts", parts[2], "replies"]),
-    "POST /v2/forum/posts/:id/replies": () => handleForum(request, ["forum", "posts", parts[2], "replies"]),
+    "POST /v2/forum/posts/:id/upvote": () => handleForum(request, ["forum", "posts", parts[3], "upvote"]),
+    "GET /v2/forum/posts/:id/replies": () => handleForum(request, ["forum", "posts", parts[3], "replies"]),
+    "POST /v2/forum/posts/:id/replies": () => handleForum(request, ["forum", "posts", parts[3], "replies"]),
 
     // Quizzes
     "GET /quizzes": () => handleQuizzesList(),
@@ -2449,6 +2480,8 @@ async function handleRequest(request: Request): Promise<Response> {
     // Admin forum moderation
     "DELETE /admin/forum/posts/:id": () => handleAdminCrud(request, ["", "admin", "forum", "posts", parts[3]]),
     "DELETE /admin/forum/replies/:id": () => handleAdminCrud(request, ["", "admin", "forum", "replies", parts[3]]),
+    "DELETE /v2/admin/forum/posts/:id": () => handleAdminCrud(request, ["", "admin", "forum", "posts", parts[4]]),
+    "DELETE /v2/admin/forum/replies/:id": () => handleAdminCrud(request, ["", "admin", "forum", "replies", parts[4]]),
   };
 
   // Try exact match first
