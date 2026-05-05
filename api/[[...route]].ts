@@ -1066,6 +1066,64 @@ async function handleGames(req: Request, parts: string[]): Promise<Response> {
   return jsonError("Not Found", 404);
 }
 
+async function handleLeaderboard(req: Request): Promise<Response> {
+  return handle(async () => {
+    const url = new URL(req.url, "http://localhost");
+    const period = url.searchParams.get("period") || "weekly";
+    let whereClause: ReturnType<typeof sql>;
+    const now = new Date();
+    if (period === "daily") {
+      const start = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+      whereClause = sql`created_at >= ${start}`;
+    } else if (period === "weekly") {
+      const start = new Date(now);
+      start.setDate(start.getDate() - 7);
+      whereClause = sql`created_at >= ${start}`;
+    } else if (period === "monthly") {
+      const start = new Date(now);
+      start.setMonth(start.getMonth() - 1);
+      whereClause = sql`created_at >= ${start}`;
+    } else {
+      whereClause = sql`1=1`;
+    }
+    const rows = await sql`SELECT user_id, SUM(points) AS points FROM user_activity_log WHERE ${whereClause} GROUP BY user_id ORDER BY points DESC LIMIT 50`;
+    const userIds = rows.map((r: any) => r.user_id);
+    const users = userIds.length ? await sql`SELECT * FROM users WHERE id = ANY(${userIds})` : [];
+    const byId = new Map(users.map((u: any) => [u.id, u]));
+    const allRows = await sql`SELECT user_id, SUM(points) AS points FROM user_activity_log GROUP BY user_id ORDER BY points DESC`;
+    const allById = new Map(allRows.map((r: any) => [Number(r.user_id), Number(r.points)]));
+    const prevWeek = new Date(now);
+    prevWeek.setDate(prevWeek.getDate() - 14);
+    const prevRows = await sql`SELECT user_id, SUM(points) AS points FROM user_activity_log WHERE created_at >= ${prevWeek} AND created_at < ${new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000)} GROUP BY user_id`;
+    const prevById = new Map(prevRows.map((r: any) => [Number(r.user_id), Number(r.points)]));
+    const allTimeRanks = new Map<number, number>();
+    let rank = 0;
+    for (const r of allRows) { rank++; allTimeRanks.set(Number(r.user_id), rank); }
+    let prevRank = 0;
+    const prevRanks = new Map<number, number>();
+    for (const r of [...prevRows].sort((a: any, b: any) => Number(b.points) - Number(a.points))) { prevRank++; prevRanks.set(Number(r.user_id), prevRank); }
+    return rows.map((r: any, i: number) => {
+      const uid = Number(r.user_id);
+      const u = byId.get(uid);
+      const currentRank = i + 1;
+      const p = prevRanks.get(uid);
+      const delta = p ? p - currentRank : 0;
+      return {
+        rank: currentRank,
+        userId: uid,
+        name: u?.name || "",
+        avatarUrl: u?.avatar_url || null,
+        department: u?.department || "",
+        year: u?.year || null,
+        points: Number(r.points),
+        level: u ? Math.floor(Number(u.points) / 100) + 1 : 1,
+        streak: u?.streak || 0,
+        deltaRank: delta,
+      };
+    });
+  });
+}
+
 async function handleActivity(req: Request): Promise<Response> {
   if (req.method === "POST") {
     return handle(async () => {
@@ -2099,151 +2157,151 @@ async function handleRequest(request: Request): Promise<Response> {
     "GET /admin/users": () => handleAdminUsers(request),
     "GET /admin/proposals": () => handleAdminProposals(request, ["admin", "proposals"]),
     "POST /admin/proposals": () => handleAdminProposals(request, ["admin", "proposals"]),
-    "POST /admin/proposals/:id/decide": () => handleAdminProposals(request, ["admin", "proposals", ":id", "decide"]),
+    "POST /admin/proposals/:id/decide": () => handleAdminProposals(request, ["admin", "proposals", parts[1], "decide"]),
     "GET /admin/all-quizzes": () => handleAdminQuizzes(request, ["admin", "all-quizzes"]),
-    "GET /admin/all-courses": () => handleAdminCrud(request, ["admin", "all-courses"]),
-    "GET /admin/all-materials": () => handleAdminCrud(request, ["admin", "all-materials"]),
-    "GET /admin/students": () => handleAdminCrud(request, ["admin", "students"]),
-    "GET /admin/staff": () => handleAdminCrud(request, ["admin", "staff"]),
-    "GET /admin/group-schedule": () => handleGroupSchedule(request, ["admin", "group-schedule"]),
-    "POST /admin/group-schedule": () => handleGroupSchedule(request, ["admin", "group-schedule"]),
-    "GET /admin/exam-schedule": () => handleExamSchedule(request, ["admin", "exam-schedule"]),
-    "POST /admin/exam-schedule": () => handleExamSchedule(request, ["admin", "exam-schedule"]),
-    "GET /admin/dm/threads": () => handleAdminCrud(request, ["admin", "dm", "threads"]),
-    "GET /admin/talents": () => handleAdminCrud(request, ["admin", "talents"]),
+    "GET /admin/all-courses": () => handleAdminCrud(request, ["", "admin", "all-courses"]),
+    "GET /admin/all-materials": () => handleAdminCrud(request, ["", "admin", "all-materials"]),
+    "GET /admin/students": () => handleAdminCrud(request, ["", "admin", "students"]),
+    "GET /admin/staff": () => handleAdminCrud(request, ["", "admin", "staff"]),
+    "GET /admin/group-schedule": () => handleGroupSchedule(request, ["group-schedule"]),
+    "POST /admin/group-schedule": () => handleGroupSchedule(request, ["group-schedule"]),
+    "GET /admin/exam-schedule": () => handleExamSchedule(request, ["exam-schedule"]),
+    "POST /admin/exam-schedule": () => handleExamSchedule(request, ["exam-schedule"]),
+    "GET /admin/dm/threads": () => handleAdminCrud(request, ["", "admin", "dm", "threads"]),
+    "GET /admin/talents": () => handleAdminCrud(request, ["", "admin", "talents"]),
     "GET /admin/news": () => handleAdminNews(request, ["admin", "news"]),
     "POST /admin/news": () => handleAdminNews(request, ["admin", "news"]),
-    "GET /admin/dm/threads/:id": () => handleAdminCrud(request, ["admin", "dm", "threads", ":id"]),
-    "DELETE /admin/staff/:id": () => handleAdminCrud(request, ["admin", "staff", ":id"]),
+    "GET /admin/dm/threads/:id": () => handleAdminCrud(request, ["", "admin", "dm", "threads", parts[3]]),
+    "DELETE /admin/staff/:id": () => handleAdminCrud(request, ["", "admin", "staff", parts[2]]),
     "POST /admin/staff": () => handleStaff(request, ["admin", "staff"]),
-    "PATCH /admin/staff/:id": () => handleStaff(request, ["admin", "staff", ":id"]),
-    "DELETE /admin/talents/:id": () => handleAdminCrud(request, ["admin", "talents", ":id"]),
-    "DELETE /admin/talent-comments/:id": () => handleAdminCrud(request, ["admin", "talent-comments", ":id"]),
-    "DELETE /admin/material-comments/:id": () => handleAdminCrud(request, ["admin", "material-comments", ":id"]),
+    "PATCH /admin/staff/:id": () => handleStaff(request, ["admin", "staff", parts[2]]),
+    "DELETE /admin/talents/:id": () => handleAdminCrud(request, ["", "admin", "talents", parts[2]]),
+    "DELETE /admin/talent-comments/:id": () => handleAdminCrud(request, ["", "admin", "talent-comments", parts[2]]),
+    "DELETE /admin/material-comments/:id": () => handleAdminCrud(request, ["", "admin", "material-comments", parts[2]]),
     "POST /admin/courses": () => handleAdminCourses(request, ["admin", "courses"]),
-    "DELETE /admin/courses/:id": () => handleAdminCourses(request, ["admin", "courses", ":id"]),
+    "DELETE /admin/courses/:id": () => handleAdminCourses(request, ["admin", "courses", parts[2]]),
     "POST /admin/quizzes": () => handleAdminQuizzes(request, ["admin", "quizzes"]),
-    "PUT /admin/quizzes/:id": () => handleAdminQuizzes(request, ["admin", "quizzes", ":id"]),
-    "DELETE /admin/quizzes/:id": () => handleAdminQuizzes(request, ["admin", "quizzes", ":id"]),
-    "GET /admin/quizzes/:id/questions": () => handleAdminQuizzes(request, ["admin", "quizzes", ":id", "questions"]),
-    "POST /admin/quizzes/:id/questions": () => handleAdminQuizzes(request, ["admin", "quizzes", ":id", "questions"]),
-    "PUT /admin/quiz-questions/:id": () => handleAdminQuizzes(request, ["admin", "quiz-questions", ":id"]),
-    "DELETE /admin/quiz-questions/:id": () => handleAdminQuizzes(request, ["admin", "quiz-questions", ":id"]),
-    "GET /admin/quizzes/:id/attempts": () => handleAdminQuizzes(request, ["admin", "quizzes", ":id", "attempts"]),
-    "GET /admin/quizzes/:quizId/attempts/:attemptId": () => handleAdminQuizzes(request, ["admin", "quizzes", ":quizId", "attempts", ":attemptId"]),
+    "PUT /admin/quizzes/:id": () => handleAdminQuizzes(request, ["admin", "quizzes", parts[2]]),
+    "DELETE /admin/quizzes/:id": () => handleAdminQuizzes(request, ["admin", "quizzes", parts[2]]),
+    "GET /admin/quizzes/:id/questions": () => handleAdminQuizzes(request, ["admin", "quizzes", parts[2], "questions"]),
+    "POST /admin/quizzes/:id/questions": () => handleAdminQuizzes(request, ["admin", "quizzes", parts[2], "questions"]),
+    "PUT /admin/quiz-questions/:id": () => handleAdminQuizzes(request, ["admin", "quiz-questions", parts[2]]),
+    "DELETE /admin/quiz-questions/:id": () => handleAdminQuizzes(request, ["admin", "quiz-questions", parts[2]]),
+    "GET /admin/quizzes/:id/attempts": () => handleAdminQuizzes(request, ["admin", "quizzes", parts[2], "attempts"]),
+    "GET /admin/quizzes/:quizId/attempts/:attemptId": () => handleAdminQuizzes(request, ["admin", "quizzes", parts[2], "attempts", parts[4]]),
     "GET /admin/quiz-attempts/:id": () => handle(async () => getAttemptDetail(Number(parts[2]))),
-    "POST /admin/quizzes/toggle/:id": () => handleAdminQuizzes(request, ["admin", "quizzes", "toggle", ":id"]),
-    "POST /admin/materials": () => handleAdminCrud(request, ["admin", "materials"]),
-    "PATCH /admin/materials/:id": () => handleAdminCrud(request, ["admin", "materials", ":id"]),
-    "DELETE /admin/materials/:id": () => handleAdminCrud(request, ["admin", "materials", ":id"]),
-    "POST /admin/materials/:id/files": () => handleAdminCrud(request, ["admin", "materials", ":id", "files"]),
-    "DELETE /admin/material-files/:id": () => handleAdminCrud(request, ["admin", "material-files", ":id"]),
-    "POST /admin/courses/:id/lectures": () => handleAdminCrud(request, ["admin", "courses", ":id", "lectures"]),
-    "PATCH /admin/lectures/:id": () => handleAdminCrud(request, ["admin", "lectures", ":id"]),
-    "DELETE /admin/lectures/:id": () => handleAdminCrud(request, ["admin", "lectures", ":id"]),
-    "POST /admin/lectures/:id/videos": () => handleAdminCrud(request, ["admin", "lectures", ":id", "videos"]),
-    "DELETE /admin/videos/:id": () => handleAdminCrud(request, ["admin", "videos", ":id"]),
-    "POST /admin/lectures/:id/pdfs": () => handleAdminCrud(request, ["admin", "lectures", ":id", "pdfs"]),
-    "DELETE /admin/lecture-pdfs/:id": () => handleAdminCrud(request, ["admin", "lecture-pdfs", ":id"]),
-    "POST /admin/lectures/:id/quizzes": () => handleAdminCrud(request, ["admin", "lectures", ":id", "quizzes"]),
-    "DELETE /admin/lecture-quizzes/:id": () => handleAdminCrud(request, ["admin", "lecture-quizzes", ":id"]),
-    "DELETE /admin/users/:id": () => handleAdminCrud(request, ["admin", "users", ":id"]),
-    "PATCH /admin/users/:id/grant": () => handleAdminCrud(request, ["admin", "users", ":id", "grant"]),
-    "GET /admin/student/:id/full": () => handleAdminCrud(request, ["admin", "student", ":id", "full"]),
-    "DELETE /admin/group-schedule/:id": () => handleGroupSchedule(request, ["admin", "group-schedule", ":id"]),
-    "DELETE /admin/exam-schedule/:id": () => handleExamSchedule(request, ["admin", "exam-schedule", ":id"]),
-    "POST /admin/news/:id/approve": () => handleAdminNews(request, ["admin", "news", ":id", "approve"]),
-    "POST /admin/news/:id/reject": () => handleAdminNews(request, ["admin", "news", ":id", "reject"]),
-    "DELETE /admin/news/:id": () => handleAdminNews(request, ["admin", "news", ":id"]),
+    "POST /admin/quizzes/toggle/:id": () => handleAdminQuizzes(request, ["admin", "quizzes", "toggle", parts[3]]),
+    "POST /admin/materials": () => handleAdminCrud(request, ["", "admin", "materials"]),
+    "PATCH /admin/materials/:id": () => handleAdminCrud(request, ["", "admin", "materials", parts[2]]),
+    "DELETE /admin/materials/:id": () => handleAdminCrud(request, ["", "admin", "materials", parts[2]]),
+    "POST /admin/materials/:id/files": () => handleAdminCrud(request, ["", "admin", "materials", parts[2], "files"]),
+    "DELETE /admin/material-files/:id": () => handleAdminCrud(request, ["", "admin", "material-files", parts[2]]),
+    "POST /admin/courses/:id/lectures": () => handleAdminCrud(request, ["", "admin", "courses", parts[2], "lectures"]),
+    "PATCH /admin/lectures/:id": () => handleAdminCrud(request, ["", "admin", "lectures", parts[2]]),
+    "DELETE /admin/lectures/:id": () => handleAdminCrud(request, ["", "admin", "lectures", parts[2]]),
+    "POST /admin/lectures/:id/videos": () => handleAdminCrud(request, ["", "admin", "lectures", parts[2], "videos"]),
+    "DELETE /admin/videos/:id": () => handleAdminCrud(request, ["", "admin", "videos", parts[2]]),
+    "POST /admin/lectures/:id/pdfs": () => handleAdminCrud(request, ["", "admin", "lectures", parts[2], "pdfs"]),
+    "DELETE /admin/lecture-pdfs/:id": () => handleAdminCrud(request, ["", "admin", "lecture-pdfs", parts[2]]),
+    "POST /admin/lectures/:id/quizzes": () => handleAdminCrud(request, ["", "admin", "lectures", parts[2], "quizzes"]),
+    "DELETE /admin/lecture-quizzes/:id": () => handleAdminCrud(request, ["", "admin", "lecture-quizzes", parts[2]]),
+    "DELETE /admin/users/:id": () => handleAdminCrud(request, ["", "admin", "users", parts[2]]),
+    "PATCH /admin/users/:id/grant": () => handleAdminCrud(request, ["", "admin", "users", parts[2], "grant"]),
+    "GET /admin/student/:id/full": () => handleAdminCrud(request, ["", "admin", "student", parts[2], "full"]),
+    "DELETE /admin/group-schedule/:id": () => handleGroupSchedule(request, ["group-schedule", parts[2]]),
+    "DELETE /admin/exam-schedule/:id": () => handleExamSchedule(request, ["exam-schedule", parts[2]]),
+    "POST /admin/news/:id/approve": () => handleAdminNews(request, ["admin", "news", parts[2], "approve"]),
+    "POST /admin/news/:id/reject": () => handleAdminNews(request, ["admin", "news", parts[2], "reject"]),
+    "DELETE /admin/news/:id": () => handleAdminNews(request, ["admin", "news", parts[2]]),
     "GET /v2/admin/overview": () => handleAdminOverview(),
     "GET /v2/admin/users": () => handleAdminUsers(request),
-    "GET /v2/admin/proposals": () => handleAdminProposals(request, parts),
-    "POST /v2/admin/proposals": () => handleAdminProposals(request, parts),
-    "POST /v2/admin/proposals/:id/decide": () => handleAdminProposals(request, parts),
-    "GET /v2/admin/all-quizzes": () => handleAdminQuizzes(request, parts),
-    "GET /v2/admin/all-courses": () => handleAdminCrud(request, parts.slice(1)),
-    "GET /v2/admin/all-materials": () => handleAdminCrud(request, parts.slice(1)),
-    "GET /v2/admin/students": () => handleAdminCrud(request, parts.slice(1)),
-    "GET /v2/admin/staff": () => handleAdminCrud(request, parts.slice(1)),
+    "GET /v2/admin/proposals": () => handleAdminProposals(request, ["admin", "proposals"]),
+    "POST /v2/admin/proposals": () => handleAdminProposals(request, ["admin", "proposals"]),
+    "POST /v2/admin/proposals/:id/decide": () => handleAdminProposals(request, ["admin", "proposals", parts[2], "decide"]),
+    "GET /v2/admin/all-quizzes": () => handleAdminQuizzes(request, ["admin", "all-quizzes"]),
+    "GET /v2/admin/all-courses": () => handleAdminCrud(request, ["", "admin", "all-courses"]),
+    "GET /v2/admin/all-materials": () => handleAdminCrud(request, ["", "admin", "all-materials"]),
+    "GET /v2/admin/students": () => handleAdminCrud(request, ["", "admin", "students"]),
+    "GET /v2/admin/staff": () => handleAdminCrud(request, ["", "admin", "staff"]),
     "GET /v2/admin/group-schedule": () => handleGroupSchedule(request, ["admin", ...parts.slice(2)]),
     "POST /v2/admin/group-schedule": () => handleGroupSchedule(request, ["admin", ...parts.slice(2)]),
     "GET /v2/admin/exam-schedule": () => handleExamSchedule(request, ["admin", ...parts.slice(2)]),
     "POST /v2/admin/exam-schedule": () => handleExamSchedule(request, ["admin", ...parts.slice(2)]),
-    "GET /v2/admin/dm/threads": () => handleAdminCrud(request, ["admin", ...parts.slice(2)]),
-    "GET /v2/admin/talents": () => handleAdminCrud(request, parts.slice(1)),
-    "GET /v2/admin/news": () => handleAdminNews(request, parts),
-    "POST /v2/admin/news": () => handleAdminNews(request, parts),
-    "GET /v2/admin/dm/threads/:id": () => handleAdminCrud(request, ["admin", ...parts.slice(2)]),
-    "DELETE /v2/admin/staff/:id": () => handleAdminCrud(request, parts.slice(1)),
-    "POST /v2/admin/staff": () => handleStaff(request, ["v2", ...parts.slice(2)]),
-    "PATCH /v2/admin/staff/:id": () => handleStaff(request, ["v2", ...parts.slice(2)]),
-    "DELETE /v2/admin/talents/:id": () => handleAdminCrud(request, parts.slice(1)),
-    "DELETE /v2/admin/talent-comments/:id": () => handleAdminCrud(request, parts.slice(1)),
-    "DELETE /v2/admin/material-comments/:id": () => handleAdminCrud(request, parts.slice(1)),
-    "POST /v2/admin/courses": () => handleAdminCourses(request, parts),
-    "DELETE /v2/admin/courses/:id": () => handleAdminCourses(request, parts),
-    "POST /v2/admin/quizzes": () => handleAdminQuizzes(request, parts),
-    "PUT /v2/admin/quizzes/:id": () => handleAdminQuizzes(request, parts),
-    "DELETE /v2/admin/quizzes/:id": () => handleAdminQuizzes(request, parts),
-    "GET /v2/admin/quizzes/:id/questions": () => handleAdminQuizzes(request, parts),
-    "POST /v2/admin/quizzes/:id/questions": () => handleAdminQuizzes(request, parts),
-    "PUT /v2/admin/quiz-questions/:id": () => handleAdminQuizzes(request, parts),
-    "DELETE /v2/admin/quiz-questions/:id": () => handleAdminQuizzes(request, parts),
-    "GET /v2/admin/quizzes/:id/attempts": () => handleAdminQuizzes(request, parts),
-    "GET /v2/admin/quizzes/:quizId/attempts/:attemptId": () => handleAdminQuizzes(request, parts),
-    "GET /v2/admin/quiz-attempts/:id": () => handle(async () => getAttemptDetail(Number(parts[2]))),
-    "POST /v2/admin/quizzes/toggle/:id": () => handleAdminQuizzes(request, parts),
-    "POST /v2/admin/materials": () => handleAdminCrud(request, parts.slice(1)),
-    "PATCH /v2/admin/materials/:id": () => handleAdminCrud(request, parts.slice(1)),
-    "DELETE /v2/admin/materials/:id": () => handleAdminCrud(request, parts.slice(1)),
-    "POST /v2/admin/materials/:id/files": () => handleAdminCrud(request, parts.slice(1)),
-    "DELETE /v2/admin/material-files/:id": () => handleAdminCrud(request, parts.slice(1)),
-    "POST /v2/admin/courses/:id/lectures": () => handleAdminCrud(request, parts.slice(1)),
-    "PATCH /v2/admin/lectures/:id": () => handleAdminCrud(request, parts.slice(1)),
-    "DELETE /v2/admin/lectures/:id": () => handleAdminCrud(request, parts.slice(1)),
-    "POST /v2/admin/lectures/:id/videos": () => handleAdminCrud(request, parts.slice(1)),
-    "DELETE /v2/admin/videos/:id": () => handleAdminCrud(request, parts.slice(1)),
-    "POST /v2/admin/lectures/:id/pdfs": () => handleAdminCrud(request, parts.slice(1)),
-    "DELETE /v2/admin/lecture-pdfs/:id": () => handleAdminCrud(request, parts.slice(1)),
-    "POST /v2/admin/lectures/:id/quizzes": () => handleAdminCrud(request, parts.slice(1)),
-    "DELETE /v2/admin/lecture-quizzes/:id": () => handleAdminCrud(request, parts.slice(1)),
-    "DELETE /v2/admin/users/:id": () => handleAdminCrud(request, parts.slice(1)),
-    "PATCH /v2/admin/users/:id/grant": () => handleAdminCrud(request, parts.slice(1)),
-    "GET /v2/admin/student/:id/full": () => handleAdminCrud(request, parts.slice(1)),
+    "GET /v2/admin/dm/threads": () => handleAdminCrud(request, ["", "admin", "dm", "threads"]),
+    "GET /v2/admin/talents": () => handleAdminCrud(request, ["", "admin", "talents"]),
+    "GET /v2/admin/news": () => handleAdminNews(request, ["admin", ...parts.slice(2)]),
+    "POST /v2/admin/news": () => handleAdminNews(request, ["admin", ...parts.slice(2)]),
+    "GET /v2/admin/dm/threads/:id": () => handleAdminCrud(request, ["", "admin", "dm", "threads", parts[3]]),
+    "DELETE /v2/admin/staff/:id": () => handleAdminCrud(request, ["", "admin", "staff", parts[3]]),
+    "POST /v2/admin/staff": () => handleStaff(request, ["admin", "staff"]),
+    "PATCH /v2/admin/staff/:id": () => handleStaff(request, ["admin", "staff", parts[3]]),
+    "DELETE /v2/admin/talents/:id": () => handleAdminCrud(request, ["", "admin", "talents", parts[3]]),
+    "DELETE /v2/admin/talent-comments/:id": () => handleAdminCrud(request, ["", "admin", "talent-comments", parts[3]]),
+    "DELETE /v2/admin/material-comments/:id": () => handleAdminCrud(request, ["", "admin", "material-comments", parts[3]]),
+    "POST /v2/admin/courses": () => handleAdminCourses(request, ["admin", "courses"]),
+    "DELETE /v2/admin/courses/:id": () => handleAdminCourses(request, ["admin", "courses", parts[3]]),
+    "POST /v2/admin/quizzes": () => handleAdminQuizzes(request, ["admin", "quizzes"]),
+    "PUT /v2/admin/quizzes/:id": () => handleAdminQuizzes(request, ["admin", "quizzes", parts[3]]),
+    "DELETE /v2/admin/quizzes/:id": () => handleAdminQuizzes(request, ["admin", "quizzes", parts[3]]),
+    "GET /v2/admin/quizzes/:id/questions": () => handleAdminQuizzes(request, ["admin", "quizzes", parts[3], "questions"]),
+    "POST /v2/admin/quizzes/:id/questions": () => handleAdminQuizzes(request, ["admin", "quizzes", parts[3], "questions"]),
+    "PUT /v2/admin/quiz-questions/:id": () => handleAdminQuizzes(request, ["admin", "quiz-questions", parts[3]]),
+    "DELETE /v2/admin/quiz-questions/:id": () => handleAdminQuizzes(request, ["admin", "quiz-questions", parts[3]]),
+    "GET /v2/admin/quizzes/:id/attempts": () => handleAdminQuizzes(request, ["admin", "quizzes", parts[3], "attempts"]),
+    "GET /v2/admin/quizzes/:quizId/attempts/:attemptId": () => handleAdminQuizzes(request, ["admin", "quizzes", parts[3], "attempts", parts[4]]),
+    "GET /v2/admin/quiz-attempts/:id": () => handle(async () => getAttemptDetail(Number(parts[3]))),
+    "POST /v2/admin/quizzes/toggle/:id": () => handleAdminQuizzes(request, ["admin", "quizzes", "toggle", parts[4]]),
+    "POST /v2/admin/materials": () => handleAdminCrud(request, ["", "admin", "materials"]),
+    "PATCH /v2/admin/materials/:id": () => handleAdminCrud(request, ["", "admin", "materials", parts[3]]),
+    "DELETE /v2/admin/materials/:id": () => handleAdminCrud(request, ["", "admin", "materials", parts[3]]),
+    "POST /v2/admin/materials/:id/files": () => handleAdminCrud(request, ["", "admin", "materials", parts[3], "files"]),
+    "DELETE /v2/admin/material-files/:id": () => handleAdminCrud(request, ["", "admin", "material-files", parts[3]]),
+    "POST /v2/admin/courses/:id/lectures": () => handleAdminCrud(request, ["", "admin", "courses", parts[3], "lectures"]),
+    "PATCH /v2/admin/lectures/:id": () => handleAdminCrud(request, ["", "admin", "lectures", parts[3]]),
+    "DELETE /v2/admin/lectures/:id": () => handleAdminCrud(request, ["", "admin", "lectures", parts[3]]),
+    "POST /v2/admin/lectures/:id/videos": () => handleAdminCrud(request, ["", "admin", "lectures", parts[3], "videos"]),
+    "DELETE /v2/admin/videos/:id": () => handleAdminCrud(request, ["", "admin", "videos", parts[3]]),
+    "POST /v2/admin/lectures/:id/pdfs": () => handleAdminCrud(request, ["", "admin", "lectures", parts[3], "pdfs"]),
+    "DELETE /v2/admin/lecture-pdfs/:id": () => handleAdminCrud(request, ["", "admin", "lecture-pdfs", parts[3]]),
+    "POST /v2/admin/lectures/:id/quizzes": () => handleAdminCrud(request, ["", "admin", "lectures", parts[3], "quizzes"]),
+    "DELETE /v2/admin/lecture-quizzes/:id": () => handleAdminCrud(request, ["", "admin", "lecture-quizzes", parts[3]]),
+    "DELETE /v2/admin/users/:id": () => handleAdminCrud(request, ["", "admin", "users", parts[3]]),
+    "PATCH /v2/admin/users/:id/grant": () => handleAdminCrud(request, ["", "admin", "users", parts[3], "grant"]),
+    "GET /v2/admin/student/:id/full": () => handleAdminCrud(request, ["", "admin", "student", parts[3], "full"]),
     "DELETE /v2/admin/group-schedule/:id": () => handleGroupSchedule(request, ["admin", ...parts.slice(2)]),
     "DELETE /v2/admin/exam-schedule/:id": () => handleExamSchedule(request, ["admin", ...parts.slice(2)]),
-    "POST /v2/admin/news/:id/approve": () => handleAdminNews(request, parts),
-    "POST /v2/admin/news/:id/reject": () => handleAdminNews(request, parts),
-    "DELETE /v2/admin/news/:id": () => handleAdminNews(request, parts),
+    "POST /v2/admin/news/:id/approve": () => handleAdminNews(request, ["admin", "news", parts[3], "approve"]),
+    "POST /v2/admin/news/:id/reject": () => handleAdminNews(request, ["admin", "news", parts[3], "reject"]),
+    "DELETE /v2/admin/news/:id": () => handleAdminNews(request, ["admin", "news", parts[3]]),
 
     // Talents
-    "GET /talents": () => handleTalentsFeed(request, ["", ...parts.slice(1)]),
+    "GET /talents": () => handleTalentsFeed(request, ["talents"]),
     "GET /talents-feed": () => handleTalentsFeed(request, ["talents-feed"]),
     "POST /talents": () => handleTalentsFeed(request, ["talents"]),
-    "POST /talents/:id/like": () => handleTalentsFeed(request, ["talents", ":id", "like"]),
-    "POST /talents/:id/vote": () => handleTalentsFeed(request, ["talents", ":id", "like"]),
-    "GET /talents/:id/comments": () => handleTalentsFeed(request, ["talents", ":id", "comments"]),
-    "POST /talents/:id/comments": () => handleTalentsFeed(request, ["talents", ":id", "comments"]),
-    "GET /v2/talents-feed": () => handleTalentsFeed(request, parts.slice(1)),
-    "GET /v2/talents": () => handleTalentsFeed(request, parts.slice(1)),
-    "POST /v2/talents": () => handleTalentsFeed(request, parts.slice(1)),
-    "POST /v2/talents/:id/like": () => handleTalentsFeed(request, parts.slice(1)),
-    "GET /v2/talents/:id/comments": () => handleTalentsFeed(request, parts.slice(1)),
-    "POST /v2/talents/:id/comments": () => handleTalentsFeed(request, parts.slice(1)),
+    "POST /talents/:id/like": () => handleTalentsFeed(request, ["talents", parts[1], "like"]),
+    "POST /talents/:id/vote": () => handleTalentsFeed(request, ["talents", parts[1], "like"]),
+    "GET /talents/:id/comments": () => handleTalentsFeed(request, ["talents", parts[1], "comments"]),
+    "POST /talents/:id/comments": () => handleTalentsFeed(request, ["talents", parts[1], "comments"]),
+    "GET /v2/talents-feed": () => handleTalentsFeed(request, ["talents"]),
+    "GET /v2/talents": () => handleTalentsFeed(request, ["", ...parts.slice(2)]),
+    "POST /v2/talents": () => handleTalentsFeed(request, ["talents"]),
+    "POST /v2/talents/:id/like": () => handleTalentsFeed(request, ["talents", parts[2], "like"]),
+    "GET /v2/talents/:id/comments": () => handleTalentsFeed(request, ["talents", parts[2], "comments"]),
+    "POST /v2/talents/:id/comments": () => handleTalentsFeed(request, ["talents", parts[2], "comments"]),
 
     // Forum
-    "GET /forum": () => handleForum(request, ["", ...parts.slice(1)]),
-    "GET /forum/posts": () => handleForum(request, ["", ...parts.slice(1)]),
-    "POST /forum/posts": () => handleForum(request, ["", ...parts.slice(1)]),
-    "GET /forum/posts/:id": () => handleForum(request, ["", ...parts.slice(1)]),
-    "GET /forum/posts/:id/replies": () => handleForum(request, ["", ...parts.slice(1)]),
-    "POST /forum/posts/:id/replies": () => handleForum(request, ["", ...parts.slice(1)]),
-    "POST /forum/posts/:id/upvote": () => handleForum(request, ["", ...parts.slice(1)]),
-    "GET /v2/forum/posts": () => handleForum(request, parts),
-    "POST /v2/forum/posts": () => handleForum(request, parts),
-    "POST /v2/forum/posts/:id/upvote": () => handleForum(request, parts),
-    "GET /v2/forum/posts/:id/replies": () => handleForum(request, parts),
-    "POST /v2/forum/posts/:id/replies": () => handleForum(request, parts),
+    "GET /forum": () => handleForum(request, ["forum"]),
+    "GET /forum/posts": () => handleForum(request, ["forum", "posts"]),
+    "POST /forum/posts": () => handleForum(request, ["forum", "posts"]),
+    "GET /forum/posts/:id": () => handleForum(request, ["forum", "posts", parts[2]]),
+    "GET /forum/posts/:id/replies": () => handleForum(request, ["forum", "posts", parts[2], "replies"]),
+    "POST /forum/posts/:id/replies": () => handleForum(request, ["forum", "posts", parts[2], "replies"]),
+    "POST /forum/posts/:id/upvote": () => handleForum(request, ["forum", "posts", parts[2], "upvote"]),
+    "GET /v2/forum/posts": () => handleForum(request, ["", ...parts.slice(2)]),
+    "POST /v2/forum/posts": () => handleForum(request, ["", ...parts.slice(2)]),
+    "POST /v2/forum/posts/:id/upvote": () => handleForum(request, ["", ...parts.slice(2)]),
+    "GET /v2/forum/posts/:id/replies": () => handleForum(request, ["", ...parts.slice(2)]),
+    "POST /v2/forum/posts/:id/replies": () => handleForum(request, ["", ...parts.slice(2)]),
 
     // Quizzes
     "GET /quizzes": () => handleQuizzesList(),
@@ -2251,31 +2309,31 @@ async function handleRequest(request: Request): Promise<Response> {
     "GET /quizzes/open": () => handleQuizzes(request, ["quizzes", "open"]),
     "GET /quizzes/:id/start": () => handleQuizzes(request, ["quizzes", ":id", "start"]),
     "POST /quizzes/:id/submit": () => handleQuizzes(request, ["quizzes", ":id", "submit"]),
-    "GET /v2/quizzes/open": () => handleQuizzes(request, parts),
-    "GET /v2/quizzes/:id/start": () => handleQuizzes(request, parts),
-    "POST /v2/quizzes/:id/submit": () => handleQuizzes(request, parts),
+    "GET /v2/quizzes/open": () => handleQuizzes(request, ["quizzes", "open"]),
+    "GET /v2/quizzes/:id/start": () => handleQuizzes(request, ["quizzes", parts[2], "start"]),
+    "POST /v2/quizzes/:id/submit": () => handleQuizzes(request, ["quizzes", parts[2], "submit"]),
 
     // DM
     "GET /dm/threads": () => handleDM(request, ["dm", "threads"]),
-    "GET /dm/with/:id": () => handleDM(request, ["dm", "with", ":id"]),
-    "POST /dm/with/:id": () => handleDM(request, ["dm", "with", ":id"]),
-    "GET /v2/dm/threads": () => handleDM(request, parts),
-    "GET /v2/dm/with/:id": () => handleDM(request, parts),
-    "POST /v2/dm/with/:id": () => handleDM(request, parts),
+    "GET /dm/with/:id": () => handleDM(request, ["dm", "with", parts[2]]),
+    "POST /dm/with/:id": () => handleDM(request, ["dm", "with", parts[2]]),
+    "GET /v2/dm/threads": () => handleDM(request, ["dm", "threads"]),
+    "GET /v2/dm/with/:id": () => handleDM(request, ["dm", "with", parts[2]]),
+    "POST /v2/dm/with/:id": () => handleDM(request, ["dm", "with", parts[2]]),
 
     // Follow
     "POST /follow/:id": () => handleFollow(request, ["follow", ":id"]),
     "GET /follows/me": () => handleFollow(request, ["follows", "me"]),
     "GET /follows/:id/status": () => handleFollow(request, ["follows", ":id", "status"]),
-    "POST /v2/follow/:id": () => handleFollow(request, parts.slice(1)),
-    "GET /v2/follows/me": () => handleFollow(request, parts.slice(1)),
-    "GET /v2/follows/:id/status": () => handleFollow(request, parts.slice(1)),
+    "POST /v2/follow/:id": () => handleFollow(request, ["follow", parts[2]]),
+    "GET /v2/follows/me": () => handleFollow(request, ["follows", "me"]),
+    "GET /v2/follows/:id/status": () => handleFollow(request, ["follows", parts[2], "status"]),
 
     // Users
     "GET /users/students": () => handleUsers(request, ["users", "students"]),
-    "GET /users/:id": () => handleUsers(request, ["users", ":id"]),
-    "GET /v2/users/students": () => handleUsers(request, parts),
-    "GET /v2/users/:id": () => handleUsers(request, parts),
+    "GET /users/:id": () => handleUsers(request, ["users", parts[1]]),
+    "GET /v2/users/students": () => handleUsers(request, ["users", "students"]),
+    "GET /v2/users/:id": () => handleUsers(request, ["users", parts[2]]),
 
     // News
     "GET /news": () => handleNews(),
@@ -2286,14 +2344,17 @@ async function handleRequest(request: Request): Promise<Response> {
     "GET /skills/tracks": () => handleSkills(request, ["skills", "tracks"]),
     "GET /skills/:id": () => handleSkills(request, ["skills", ":id"]),
     "POST /skills/lessons/:id/complete": () => handleSkills(request, ["skills", "lessons", ":id", "complete"]),
-    "GET /v2/skills/tracks": () => handleSkills(request, parts),
-    "POST /v2/skills/lessons/:id/complete": () => handleSkills(request, parts),
+    "GET /v2/skills/tracks": () => handleSkills(request, ["skills", "tracks"]),
+    "POST /v2/skills/lessons/:id/complete": () => handleSkills(request, ["skills", "lessons", parts[2], "complete"]),
 
     // Games
     "POST /games/score": () => handleGames(request, ["games", "score"]),
     "GET /games/leaderboard": () => handleGames(request, ["games", "leaderboard"]),
-    "POST /v2/games/score": () => handleGames(request, parts),
-    "GET /v2/games/leaderboard": () => handleGames(request, parts),
+    "POST /v2/games/score": () => handleGames(request, ["games", "score"]),
+    "GET /v2/games/leaderboard": () => handleGames(request, ["games", "leaderboard"]),
+
+    // Leaderboard (generated API client)
+    "GET /leaderboard": () => handleLeaderboard(request),
 
     // Activity
     "POST /activity/log": () => handleActivity(request),
@@ -2306,8 +2367,8 @@ async function handleRequest(request: Request): Promise<Response> {
     // Schedules
     "GET /group-schedule": () => handleGroupSchedule(request, ["group-schedule"]),
     "GET /exam-schedule": () => handleExamSchedule(request, ["exam-schedule"]),
-    "GET /v2/group-schedule": () => handleGroupSchedule(request, parts),
-    "GET /v2/exam-schedule": () => handleExamSchedule(request, parts),
+    "GET /v2/group-schedule": () => handleGroupSchedule(request, ["group-schedule"]),
+    "GET /v2/exam-schedule": () => handleExamSchedule(request, ["exam-schedule"]),
 
     // Courses
     "GET /courses": () => handleCoursesList(),
@@ -2320,16 +2381,16 @@ async function handleRequest(request: Request): Promise<Response> {
     "GET /courses/:id/student-summaries": () => handleCourseSummaries(request, ["courses", ":id", "student-summaries"]),
     "GET /v2/courses": () => handleCoursesList(),
     "GET /v2/courses/:id": () => handleCourseById(parts[2]),
-    "GET /v2/courses/:id/materials": () => handleCourses(request, parts),
-    "GET /v2/courses/:id/all-files": () => handleCourses(request, parts),
-    "GET /v2/courses/:id/lectures": () => handleCourses(request, parts),
-    "GET /v2/courses/:id/video-progress": () => handleCourses(request, parts),
-    "GET /v2/courses/:id/progress": () => handleCourses(request, parts),
-    "GET /v2/courses/:id/student-summaries": () => handleCourseSummaries(request, parts),
+    "GET /v2/courses/:id/materials": () => handleCourses(request, ["courses", parts[2], "materials"]),
+    "GET /v2/courses/:id/all-files": () => handleCourses(request, ["courses", parts[2], "all-files"]),
+    "GET /v2/courses/:id/lectures": () => handleCourses(request, ["courses", parts[2], "lectures"]),
+    "GET /v2/courses/:id/video-progress": () => handleCourses(request, ["courses", parts[2], "video-progress"]),
+    "GET /v2/courses/:id/progress": () => handleCourses(request, ["courses", parts[2], "progress"]),
+    "GET /v2/courses/:id/student-summaries": () => handleCourseSummaries(request, ["courses", parts[2], "student-summaries"]),
 
     // Materials
     "GET /materials/:id/files": () => handleMaterialFiles(request, ["materials", ":id", "files"]),
-    "GET /v2/materials/:id/files": () => handleMaterialFiles(request, parts),
+    "GET /v2/materials/:id/files": () => handleMaterialFiles(request, ["materials", parts[2], "files"]),
 
     // Material files
     "GET /material-files/:id": () => handleMaterialFileRoutes(request, ["material-files", ":id"]),
@@ -2337,11 +2398,11 @@ async function handleRequest(request: Request): Promise<Response> {
     "POST /material-files/:id/like": () => handleMaterialFileRoutes(request, ["material-files", ":id", "like"]),
     "GET /material-files/:id/comments": () => handleMaterialFileRoutes(request, ["material-files", ":id", "comments"]),
     "POST /material-files/:id/comments": () => handleMaterialFileRoutes(request, ["material-files", ":id", "comments"]),
-    "GET /v2/material-files/:id": () => handleMaterialFileRoutes(request, parts),
-    "POST /v2/material-files/:id/view": () => handleMaterialFileRoutes(request, parts),
-    "POST /v2/material-files/:id/like": () => handleMaterialFileRoutes(request, parts),
-    "GET /v2/material-files/:id/comments": () => handleMaterialFileRoutes(request, parts),
-    "POST /v2/material-files/:id/comments": () => handleMaterialFileRoutes(request, parts),
+    "GET /v2/material-files/:id": () => handleMaterialFileRoutes(request, ["material-files", parts[2]]),
+    "POST /v2/material-files/:id/view": () => handleMaterialFileRoutes(request, ["material-files", parts[2], "view"]),
+    "POST /v2/material-files/:id/like": () => handleMaterialFileRoutes(request, ["material-files", parts[2], "like"]),
+    "GET /v2/material-files/:id/comments": () => handleMaterialFileRoutes(request, ["material-files", parts[2], "comments"]),
+    "POST /v2/material-files/:id/comments": () => handleMaterialFileRoutes(request, ["material-files", parts[2], "comments"]),
 
     // Student summaries
     "GET /student-summaries": () => handleStudentSummaries(request, ["student-summaries"]),
@@ -2384,25 +2445,14 @@ async function handleRequest(request: Request): Promise<Response> {
 
     // Events
     "GET /events": () => handleEvents(request),
-    "POST /admin/events": () => handleAdminEvents(request, parts),
-    "DELETE /admin/events/:id": () => handleAdminEvents(request, parts),
-    "POST /v2/admin/events": () => handleAdminEvents(request, parts.slice(1)),
-    "DELETE /v2/admin/events/:id": () => handleAdminEvents(request, parts.slice(1)),
+    "POST /admin/events": () => handleAdminEvents(request, ["admin", "events"]),
+    "DELETE /admin/events/:id": () => handleAdminEvents(request, ["admin", "events", parts[2]]),
+    "POST /v2/admin/events": () => handleAdminEvents(request, ["admin", "events"]),
+    "DELETE /v2/admin/events/:id": () => handleAdminEvents(request, ["admin", "events", parts[3]]),
 
     // Admin forum moderation
-    "DELETE /admin/forum/posts/:id": () => handleAdminCrud(request, parts),
-    "DELETE /admin/forum/replies/:id": () => handleAdminCrud(request, parts),
-    "DELETE /v2/admin/staff/:id": () => handleAdminCrud(request, parts.slice(1)),
-    "DELETE /v2/admin/talents/:id": () => handleAdminCrud(request, parts.slice(1)),
-    "DELETE /v2/admin/talent-comments/:id": () => handleAdminCrud(request, parts.slice(1)),
-    "DELETE /v2/admin/material-comments/:id": () => handleAdminCrud(request, parts.slice(1)),
-    "DELETE /v2/admin/users/:id": () => handleAdminCrud(request, parts.slice(1)),
-    "PATCH /v2/admin/users/:id/grant": () => handleAdminCrud(request, parts.slice(1)),
-    "GET /v2/admin/student/:id/full": () => handleAdminCrud(request, parts.slice(1)),
-    "DELETE /v2/admin/material-files/:id": () => handleAdminCrud(request, parts.slice(1)),
-    "POST /v2/admin/news/:id/approve": () => handleAdminNews(request, parts),
-    "POST /v2/admin/news/:id/reject": () => handleAdminNews(request, parts),
-    "DELETE /v2/admin/news/:id": () => handleAdminNews(request, parts),
+    "DELETE /admin/forum/posts/:id": () => handleAdminCrud(request, ["", "admin", "forum", "posts", parts[3]]),
+    "DELETE /admin/forum/replies/:id": () => handleAdminCrud(request, ["", "admin", "forum", "replies", parts[3]]),
   };
 
   // Try exact match first
