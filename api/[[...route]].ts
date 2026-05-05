@@ -2040,10 +2040,26 @@ async function handleRequest(request: Request): Promise<Response> {
   if (request.method === "OPTIONS") return corsResponse();
 
   const url = new URL(request.url, "http://localhost");
+  // Vercel `api/[[...route]].ts` may call the function with pathname only `/api`
+  // and put the real segments in `?[...route]=v2/me` (or `home/feed`, etc.).
+  // If we only strip `/api` we get an empty path and every route 404s.
+  let pathname = url.pathname;
+  const catchAllFromQuery =
+    url.searchParams.get("[...route]") ?? url.searchParams.get("route");
+  if (catchAllFromQuery && (pathname === "/api" || pathname === "/api/")) {
+    const seg = (() => {
+      try {
+        return decodeURIComponent(catchAllFromQuery);
+      } catch {
+        return catchAllFromQuery;
+      }
+    })().replace(/^\/+/, "");
+    pathname = seg ? `/api/${seg}` : "/api";
+  }
   // Strip one or more leading "/api" segments. When the client base URL is
   // "https://host/api" and paths are "/api/...", Vercel can see "/api/api/...";
   // a single .replace(/^\/api\/?/, "") then leaves "api/home/..." and routing 404s.
-  let p = url.pathname;
+  let p = pathname;
   while (p.startsWith("/api") || p.startsWith("api/")) {
     if (p.startsWith("/api")) p = p.slice("/api".length);
     else if (p.startsWith("api/")) p = p.slice("api/".length);
