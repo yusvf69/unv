@@ -2392,17 +2392,6 @@ async function handleRequest(request: Request): Promise<Response> {
     // Admin forum moderation
     "DELETE /admin/forum/posts/:id": () => handleAdminCrud(request, parts),
     "DELETE /admin/forum/replies/:id": () => handleAdminCrud(request, parts),
-    "DELETE /v2/admin/staff/:id": () => handleAdminCrud(request, parts.slice(1)),
-    "DELETE /v2/admin/talents/:id": () => handleAdminCrud(request, parts.slice(1)),
-    "DELETE /v2/admin/talent-comments/:id": () => handleAdminCrud(request, parts.slice(1)),
-    "DELETE /v2/admin/material-comments/:id": () => handleAdminCrud(request, parts.slice(1)),
-    "DELETE /v2/admin/users/:id": () => handleAdminCrud(request, parts.slice(1)),
-    "PATCH /v2/admin/users/:id/grant": () => handleAdminCrud(request, parts.slice(1)),
-    "GET /v2/admin/student/:id/full": () => handleAdminCrud(request, parts.slice(1)),
-    "DELETE /v2/admin/material-files/:id": () => handleAdminCrud(request, parts.slice(1)),
-    "POST /v2/admin/news/:id/approve": () => handleAdminNews(request, parts),
-    "POST /v2/admin/news/:id/reject": () => handleAdminNews(request, parts),
-    "DELETE /v2/admin/news/:id": () => handleAdminNews(request, parts),
   };
 
   // Try exact match first
