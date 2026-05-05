@@ -2481,40 +2481,47 @@ async function handleRequest(request: Request): Promise<Response> {
 }
 
 export default async function handler(req: IncomingMessage, res: ServerResponse) {
-  const body = await new Promise<string>((resolve) => {
-    let data = "";
-    req.on("data", (chunk) => (data += chunk));
-    req.on("end", () => resolve(data));
-  });
+  try {
+    const body = await new Promise<string>((resolve) => {
+      let data = "";
+      req.on("data", (chunk) => (data += chunk));
+      req.on("end", () => resolve(data));
+    });
 
-  const protocol = (req.headers["x-forwarded-proto"] as string) || "https";
-  const host = (req.headers.host as string) || "localhost";
-  const url = new URL(`${protocol}://${host}${req.url}`);
+    const protocol = (req.headers["x-forwarded-proto"] as string) || "https";
+    const host = (req.headers.host as string) || "localhost";
+    const url = new URL(`${protocol}://${host}${req.url}`);
 
-  const headers = new Headers();
-  for (const [key, value] of Object.entries(req.headers)) {
-    if (value !== undefined) {
-      headers.set(key, Array.isArray(value) ? value.join(", ") : String(value));
+    const headers = new Headers();
+    for (const [key, value] of Object.entries(req.headers)) {
+      if (value !== undefined) {
+        headers.set(key, Array.isArray(value) ? value.join(", ") : String(value));
+      }
     }
-  }
 
-  const request = new Request(url.toString(), {
-    method: req.method,
-    headers,
-    body: body || undefined,
-  });
+    const request = new Request(url.toString(), {
+      method: req.method,
+      headers,
+      body: body || undefined,
+    });
 
-  const response = await handleRequest(request);
+    const response = await handleRequest(request);
 
-  res.writeHead(response.status, Object.fromEntries(response.headers.entries()));
+    res.writeHead(response.status, Object.fromEntries(response.headers.entries()));
 
-  if (response.body) {
-    const reader = response.body.getReader();
-    while (true) {
-      const { done, value } = await reader.read();
-      if (done) break;
-      res.write(value);
+    if (response.body) {
+      const reader = response.body.getReader();
+      while (true) {
+        const { done, value } = await reader.read();
+        if (done) break;
+        res.write(value);
+      }
     }
+    res.end();
+  } catch (err: any) {
+    const status = err.status || 500;
+    const message = err.message || "Internal Server Error";
+    res.writeHead(status, { "Content-Type": "application/json" });
+    res.end(JSON.stringify({ error: message }));
   }
-  res.end();
 }
