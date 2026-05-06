@@ -446,12 +446,12 @@ async function handleAdminUsers(req: Request): Promise<Response> {
 }
 
 async function handleAdminProposals(req: Request, parts: string[]): Promise<Response> {
-  return handle(async () => {
-    const { userId } = requireAuth(req.headers);
-    const user = await getCurrentUser(userId);
-    requireRole(user, ["admin", "super_admin"]);
+  const { userId } = requireAuth(req.headers);
+  const user = await getCurrentUser(userId);
+  requireRole(user, ["admin", "super_admin"]);
 
-    if (req.method === "GET") {
+  if (req.method === "GET") {
+    return handle(async () => {
       try {
         const url = new URL(req.url, "http://localhost");
         const status = url.searchParams.get("status") || "pending";
@@ -470,7 +470,8 @@ async function handleAdminProposals(req: Request, parts: string[]): Promise<Resp
         console.error("handleAdminProposals GET error:", err);
         return [];
       }
-    }
+    });
+  }
 
   if (req.method === "POST" && !parts[3]) {
     return handle(async () => {
