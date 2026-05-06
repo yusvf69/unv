@@ -863,7 +863,7 @@ async function handleDM(req: Request, parts: string[]): Promise<Response> {
         const other = byId.get(otherId);
         const msgs = allMsgs.filter((m: any) => m.thread_id === t.id).sort((a: any, b: any) => +new Date(b.created_at) - +new Date(a.created_at));
         const last = msgs[0];
-        const unread = msgs.filter((m: any) => m.from_id !== userId && !m.read).length;
+        const unread = msgs.filter((m: any) => m.from_id !== userId && !(m.is_read || m.read_at)).length;
         return {
           threadId: t.id, other: other ? { id: other.id, name: other.name, avatarUrl: other.avatar_url, groupName: other.group_name } : null,
           lastMessage: last ? { body: last.body, createdAt: last.created_at?.toISOString(), fromMe: last.from_id === userId } : null,
@@ -878,11 +878,11 @@ async function handleDM(req: Request, parts: string[]): Promise<Response> {
     if (req.method === "GET") {
       return handle(async () => {
         const threadId = await ensureThread(userId, otherId);
-        const msgs = await sql`SELECT * FROM dm_messages WHERE thread_id = ${threadId} ORDER BY created_at`;
+        const msgs = await sql`SELECT id, thread_id, from_id, body, created_at FROM dm_messages WHERE thread_id = ${threadId} ORDER BY created_at`;
         try {
           await sql`UPDATE dm_messages SET is_read = true WHERE thread_id = ${threadId} AND from_id != ${userId}`;
         } catch {
-          await sql`UPDATE dm_messages SET read = true WHERE thread_id = ${threadId} AND from_id != ${userId}`;
+          await sql`UPDATE dm_messages SET read_at = now() WHERE thread_id = ${threadId} AND from_id != ${userId} AND read_at IS NULL`;
         }
         const [otherUser] = await sql`SELECT id, name, avatar_url, group_name, specialization FROM users WHERE id = ${otherId}`;
         return {
@@ -897,9 +897,13 @@ async function handleDM(req: Request, parts: string[]): Promise<Response> {
         if (!body.body || !body.body.trim()) throw Object.assign(new Error("اكتب رسالة"), { status: 400 });
         const threadId = await ensureThread(userId, otherId);
         const [msg] = await sql`INSERT INTO dm_messages (thread_id, from_id, body) VALUES (${threadId}, ${userId}, ${body.body.trim()}) RETURNING *`;
-        await sql`UPDATE dm_threads SET last_message_at = ${new Date()} WHERE id = ${threadId}`;
+        await sql`UPDATE dm_threads SET last_message_at = now() WHERE id = ${threadId}`;
         const [meUser] = await sql`SELECT name FROM users WHERE id = ${userId}`;
-        await sql`INSERT INTO notifications (user_id, title, body, type) VALUES (${otherId}, ${`رسالة من ${meUser?.name || "أحدهم"}`}, ${body.body.trim().slice(0, 100)}, 'info')`;
+        try {
+          await sql`INSERT INTO notifications (user_id, title, body, type) VALUES (${otherId}, ${`رسالة من ${meUser?.name || "أحدهم"}`}, ${body.body.trim().slice(0, 100)}, 'info')`;
+        } catch {
+          // notifications table may not exist
+        }
         return { ...msg, createdAt: msg.created_at?.toISOString() };
       });
     }
@@ -921,8 +925,12 @@ async function handleFollow(req: Request, parts: string[]): Promise<Response> {
         return { following: false };
       }
       await sql`INSERT INTO user_follows (follower_id, following_id) VALUES (${userId}, ${targetId})`;
-      const [meUser] = await sql`SELECT * FROM users WHERE id = ${userId}`;
-      await sql`INSERT INTO notifications (user_id, title, body, type) VALUES (${targetId}, 'متابعة جديدة', ${`${meUser?.name || "أحدهم"} بدأ متابعتك`}, 'info')`;
+      try {
+        const [meUser] = await sql`SELECT name FROM users WHERE id = ${userId}`;
+        await sql`INSERT INTO notifications (user_id, title, body, type) VALUES (${targetId}, 'متابعة جديدة', ${`${meUser?.name || "أحدهم"} بدأ متابعتك`}, 'info')`;
+      } catch {
+        // notifications table may not exist
+      }
       return { following: true };
     });
   }
