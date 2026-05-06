@@ -1320,7 +1320,7 @@ async function handleCourses(req: Request, parts: string[]): Promise<Response> {
       return lectures.map((l: any) => ({
         id: l.id, courseId: l.course_id, title: l.title, type: l.type, ord: l.ord,
         videos: vids.filter((v: any) => v.lecture_id === l.id).map((v: any) => ({ id: v.id, lectureId: v.lecture_id, title: v.title, youtubeUrl: v.youtube_url, youtubeId: v.youtube_id, ord: v.ord })),
-        quizzes: quizzes.filter((q: any) => q.lecture_id === l.id).map((q: any) => ({ id: q.id, lectureId: q.lecture_id, title: q.title, questions: quizQs.filter((qq: any) => qq.quiz_id === q.id).map((qq: any) => ({ id: qq.id, quizId: qq.quiz_id, text: qq.text, options: typeof qq.options === "string" ? JSON.parse(qq.options) : qq.options, correctIndex: qq.correct_index, points: qq.points, ord: qq.ord })) })),
+        quizzes: quizzes.filter((q: any) => q.lecture_id === l.id).map((q: any) => ({ id: q.id, lectureId: q.lecture_id, title: q.title, questions: quizQs.filter((qq: any) => qq.quiz_id === q.id).map((qq: any) => ({ id: qq.id, quizId: qq.quiz_id, text: qq.text, options: typeof qq.options === "string" ? JSON.parse(qq.options) : (Array.isArray(qq.options) ? qq.options : []), correctIndex: qq.correct_index, points: qq.points, ord: qq.ord })) })),
         pdfs: pdfs.filter((p: any) => p.lecture_id === l.id).map((p: any) => ({ id: p.id, lectureId: p.lecture_id, name: p.name, url: p.url, sizeBytes: p.size_bytes, materialFileId: p.material_file_id })),
       }));
     });
@@ -1616,6 +1616,26 @@ async function handleAdminCrud(req: Request, parts: string[]): Promise<Response>
 
   if (parts[2] === "lecture-quizzes" && req.method === "DELETE") {
     return handle(async () => { await sql`DELETE FROM lecture_quizzes WHERE id = ${Number(parts[3])}`; return { ok: true }; });
+  }
+
+  if (parts[2] === "lecture-quizzes" && parts[4] === "questions" && req.method === "POST") {
+    return handle(async () => {
+      const quizId = Number(parts[3]);
+      const body = await req.json();
+      const { text, options, correctIndex, points } = body;
+      if (!text || !options || typeof correctIndex !== "number") throw Object.assign(new Error("بيانات السؤال ناقصة"), { status: 400 });
+      const [maxOrd] = await sql`SELECT MAX(ord) AS max FROM lecture_quiz_questions WHERE quiz_id = ${quizId}`;
+      const [qq] = await sql`INSERT INTO lecture_quiz_questions (quiz_id, text, options, correct_index, points, ord) VALUES (${quizId}, ${text}, ${JSON.stringify(options)}, ${correctIndex}, ${points ?? 10}, ${(maxOrd?.max ?? 0) + 1}) RETURNING *`;
+      return qq;
+    });
+  }
+
+  if (parts[2] === "lecture-quizzes" && parts[4] === "questions" && req.method === "GET") {
+    return handle(async () => sql`SELECT * FROM lecture_quiz_questions WHERE quiz_id = ${Number(parts[3])} ORDER BY ord`);
+  }
+
+  if (parts[2] === "lecture-quiz-questions" && req.method === "DELETE") {
+    return handle(async () => { await sql`DELETE FROM lecture_quiz_questions WHERE id = ${Number(parts[3])}`; return { ok: true }; });
   }
 
   // Admin materials CRUD
@@ -2366,6 +2386,9 @@ async function handleRequest(request: Request): Promise<Response> {
     "DELETE /v2/admin/lecture-pdfs/:id": () => handleAdminCrud(request, ["", "admin", "lecture-pdfs", parts[3]]),
     "POST /v2/admin/lectures/:id/quizzes": () => handleAdminCrud(request, ["", "admin", "lectures", parts[3], "quizzes"]),
     "DELETE /v2/admin/lecture-quizzes/:id": () => handleAdminCrud(request, ["", "admin", "lecture-quizzes", parts[3]]),
+    "POST /v2/admin/lecture-quizzes/:id/questions": () => handleAdminCrud(request, ["", "admin", "lecture-quizzes", parts[3], "questions"]),
+    "GET /v2/admin/lecture-quizzes/:id/questions": () => handleAdminCrud(request, ["", "admin", "lecture-quizzes", parts[3], "questions"]),
+    "DELETE /v2/admin/lecture-quiz-questions/:id": () => handleAdminCrud(request, ["", "admin", "lecture-quiz-questions", parts[3]]),
     "DELETE /v2/admin/users/:id": () => handleAdminCrud(request, ["", "admin", "users", parts[3]]),
     "PATCH /v2/admin/users/:id/grant": () => handleAdminCrud(request, ["", "admin", "users", parts[3], "grant"]),
     "GET /v2/admin/student/:id/full": () => handleAdminCrud(request, ["", "admin", "student", parts[3], "full"]),

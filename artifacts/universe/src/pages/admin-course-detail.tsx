@@ -21,8 +21,10 @@ import {
   useDeleteLecturePdf,
   useCreateLectureQuiz,
   useAddQuizQuestion,
+  useAddLectureQuizQuestion,
   useDeleteLectureQuiz,
   useDeleteQuizQuestion,
+  useDeleteLectureQuizQuestion,
   useMarkVideoWatched,
   useSubmitLectureQuiz,
   useCourseProgress,
@@ -179,8 +181,8 @@ function LectureCard({ lecture, isSuper, videoProgress }: { lecture: LectureFull
   const deletePdf = useDeleteLecturePdf();
   const createQuiz = useCreateLectureQuiz();
   const deleteQuiz = useDeleteLectureQuiz();
-  const addQuestion = useAddQuizQuestion();
-  const deleteQuestion = useDeleteQuizQuestion();
+  const addQuestion = useAddLectureQuizQuestion();
+  const deleteQuestion = useDeleteLectureQuizQuestion();
   const markWatched = useMarkVideoWatched();
   const { toast } = useToast();
 

@@ -835,6 +835,21 @@ export function useDeleteLectureQuiz() {
     onSuccess: () => qc.invalidateQueries({ queryKey: ["v2", "course-lectures"] }),
   });
 }
+export function useAddLectureQuizQuestion() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: ({ quizId, text, options, correctIndex, points }: { quizId: number; text: string; options: string[]; correctIndex: number; points?: number }) =>
+      api.post(`/v2/admin/lecture-quizzes/${quizId}/questions`, { text, options, correctIndex, points }),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ["v2", "course-lectures"] }),
+  });
+}
+export function useDeleteLectureQuizQuestion() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (id: number) => api.del(`/v2/admin/lecture-quiz-questions/${id}`),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ["v2", "course-lectures"] }),
+  });
+}
 export function useDeleteQuizQuestion() {
   const qc = useQueryClient();
   return useMutation({
