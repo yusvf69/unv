@@ -1320,7 +1320,7 @@ async function handleCourses(req: Request, parts: string[]): Promise<Response> {
       return lectures.map((l: any) => ({
         id: l.id, courseId: l.course_id, title: l.title, type: l.type, ord: l.ord,
         videos: vids.filter((v: any) => v.lecture_id === l.id).map((v: any) => ({ id: v.id, lectureId: v.lecture_id, title: v.title, youtubeUrl: v.youtube_url, youtubeId: v.youtube_id, ord: v.ord })),
-        quizzes: quizzes.filter((q: any) => q.lecture_id === l.id).map((q: any) => ({ id: q.id, lectureId: q.lecture_id, title: q.title, questions: quizQs.filter((qq: any) => qq.quiz_id === q.id).map((qq: any) => ({ id: qq.id, quizId: qq.quiz_id, text: qq.text, options: typeof qq.options === "string" ? JSON.parse(qq.options) : (Array.isArray(qq.options) ? qq.options : []), correctIndex: qq.correct_index, points: qq.points, ord: qq.ord })) })),
+        quizzes: quizzes.filter((q: any) => q.lecture_id === l.id).map((q: any) => ({ id: q.id, lectureId: q.lecture_id, title: q.title, questions: quizQs.filter((qq: any) => qq.quiz_id === q.id).map((qq: any) => ({ id: qq.id, quizId: qq.quiz_id, text: qq.text, options: Array.isArray(qq.options) ? qq.options : (typeof qq.options === "string" ? JSON.parse(qq.options) : []), correctIndex: qq.correct_index, points: qq.points, ord: qq.ord })) })),
         pdfs: pdfs.filter((p: any) => p.lecture_id === l.id).map((p: any) => ({ id: p.id, lectureId: p.lecture_id, name: p.name, url: p.url, sizeBytes: p.size_bytes, materialFileId: p.material_file_id })),
       }));
     });
@@ -1607,7 +1607,7 @@ async function handleAdminCrud(req: Request, parts: string[]): Promise<Response>
       const [q] = await sql`INSERT INTO lecture_quizzes (lecture_id, title) VALUES (${lectureId}, ${title}) RETURNING *`;
       if (questions?.length) {
         for (const qq of questions) {
-          await sql`INSERT INTO lecture_quiz_questions (quiz_id, text, options, correct_index, points, ord) VALUES (${q.id}, ${qq.text}, ${JSON.stringify(qq.options)}, ${qq.correctIndex}, ${qq.points ?? 1}, ${qq.ord ?? 0})`;
+          await sql`INSERT INTO lecture_quiz_questions (quiz_id, text, options, correct_index, points, ord) VALUES (${q.id}, ${qq.text}, ${qq.options}, ${qq.correctIndex}, ${qq.points ?? 1}, ${qq.ord ?? 0})`;
         }
       }
       return { ...q, questions: questions || [] };
@@ -1621,7 +1621,7 @@ async function handleAdminCrud(req: Request, parts: string[]): Promise<Response>
   if (parts[2] === "lecture-quizzes" && parts[4] === "questions" && req.method === "POST") {
     return handle(async () => {
       try {
-        await sql`CREATE TABLE IF NOT EXISTS lecture_quiz_questions (id SERIAL PRIMARY KEY, quiz_id INT, text TEXT, options JSONB, correct_index INT, points INT, ord INT)`;
+        await sql`CREATE TABLE IF NOT EXISTS lecture_quiz_questions (id SERIAL PRIMARY KEY, quiz_id INT, text TEXT, options TEXT[], correct_index INT, points INT, ord INT)`;
       } catch {}
       const quizId = Number(parts[3]);
       const body = await req.json();
@@ -1633,7 +1633,7 @@ async function handleAdminCrud(req: Request, parts: string[]): Promise<Response>
         ord = (r?.n ?? 0) + 1;
       } catch {}
       try {
-        const [qq] = await sql`INSERT INTO lecture_quiz_questions (quiz_id, text, options, correct_index, points, ord) VALUES (${quizId}, ${text}, ${JSON.stringify(options)}, ${correctIndex}, ${points ?? 10}, ${ord}) RETURNING *`;
+        const [qq] = await sql`INSERT INTO lecture_quiz_questions (quiz_id, text, options, correct_index, points, ord) VALUES (${quizId}, ${text}, ${options}, ${correctIndex}, ${points ?? 10}, ${ord}) RETURNING *`;
         return qq;
       } catch (err: any) {
         console.error("🔴 lecture_quiz_questions INSERT error:", err?.message);
