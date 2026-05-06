@@ -1748,12 +1748,14 @@ async function handleLectureQuizSubmit(req: Request, parts: string[]): Promise<R
     const questions = await sql`SELECT * FROM lecture_quiz_questions WHERE quiz_id = ${quizId}`;
     let score = 0, total = 0;
     const details: any[] = [];
+    const ansArr: string[] = [];
     for (const qq of questions) {
       total += qq.points;
       const a = answers.find((x: any) => x.questionId === qq.id);
       const chosen = a?.chosenIndex ?? -1;
       const correct = chosen === qq.correct_index;
       if (correct) score += qq.points;
+      ansArr.push(`${qq.id}:${chosen}`);
       details.push({
         questionId: qq.id, text: qq.text, options: qq.options,
         correctIndex: qq.correct_index, points: qq.points,
@@ -1762,9 +1764,18 @@ async function handleLectureQuizSubmit(req: Request, parts: string[]): Promise<R
     }
     const existing = await sql`SELECT * FROM lecture_quiz_attempts WHERE user_id = ${userId} AND quiz_id = ${quizId}`;
     if (existing.length) {
-      await sql`UPDATE lecture_quiz_attempts SET score = ${score}, total = ${total}, answers = ${answers.map((a: any) => `${a.questionId}:${a.chosenIndex}`).join(",")}, completed_at = ${new Date()} WHERE id = ${existing[0].id}`;
+      await sql`UPDATE lecture_quiz_attempts SET score = ${score}, total = ${total}, answers = ${ansArr}, completed_at = ${new Date()} WHERE id = ${existing[0].id}`;
     } else {
-      await sql`INSERT INTO lecture_quiz_attempts (user_id, quiz_id, score, total, answers) VALUES (${userId}, ${quizId}, ${score}, ${total}, ${answers.map((a: any) => `${a.questionId}:${a.chosenIndex}`).join(",")})`;
+      try {
+        await sql`INSERT INTO lecture_quiz_attempts (user_id, quiz_id, score, total, answers) VALUES (${userId}, ${quizId}, ${score}, ${total}, ${ansArr})`;
+      } catch (e: any) {
+        if (e?.message?.includes("relation") || e?.message?.includes("does not exist")) {
+          await sql`CREATE TABLE IF NOT EXISTS lecture_quiz_attempts (id SERIAL PRIMARY KEY, user_id INT, quiz_id INT, score INT, total INT, answers text[], completed_at TIMESTAMP DEFAULT now())`;
+          await sql`INSERT INTO lecture_quiz_attempts (user_id, quiz_id, score, total, answers) VALUES (${userId}, ${quizId}, ${score}, ${total}, ${ansArr})`;
+        } else {
+          throw e;
+        }
+      }
     }
     await sql`UPDATE users SET points = points + ${score} WHERE id = ${userId}`;
     return { score, total, passed: score / total >= 0.5, details };
