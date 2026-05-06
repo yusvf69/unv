@@ -446,27 +446,31 @@ async function handleAdminUsers(req: Request): Promise<Response> {
 }
 
 async function handleAdminProposals(req: Request, parts: string[]): Promise<Response> {
-  const { userId } = requireAuth(req.headers);
-  const user = await getCurrentUser(userId);
-  requireRole(user, ["admin", "super_admin"]);
+  return handle(async () => {
+    const { userId } = requireAuth(req.headers);
+    const user = await getCurrentUser(userId);
+    requireRole(user, ["admin", "super_admin"]);
 
-  if (req.method === "GET") {
-    return handle(async () => {
-      const url = new URL(req.url, "http://localhost");
-      const status = url.searchParams.get("status") || "pending";
-      const where = user.role === "super_admin"
-        ? sql`status = ${status}`
-        : sql`proposer_id = ${userId} AND status = ${status}`;
-      const rows = await sql`SELECT * FROM admin_proposals WHERE ${where} ORDER BY created_at DESC`;
-      const proposerIds = rows.map((r: any) => r.proposer_id);
-      const proposers = proposerIds.length ? await sql`SELECT * FROM users WHERE id = ANY(${proposerIds})` : [];
-      const byId = new Map(proposers.map((p: any) => [p.id, p]));
-      return rows.map((r: any) => ({
-        ...r, createdAt: r.created_at?.toISOString(), decidedAt: r.decided_at?.toISOString() ?? null,
-        proposerName: byId.get(r.proposer_id)?.name, proposerRole: byId.get(r.proposer_id)?.role,
-      }));
-    });
-  }
+    if (req.method === "GET") {
+      try {
+        const url = new URL(req.url, "http://localhost");
+        const status = url.searchParams.get("status") || "pending";
+        const where = user.role === "super_admin"
+          ? sql`status = ${status}`
+          : sql`proposer_id = ${userId} AND status = ${status}`;
+        const rows = await sql`SELECT * FROM admin_proposals WHERE ${where} ORDER BY created_at DESC`;
+        const proposerIds = rows.map((r: any) => r.proposer_id);
+        const proposers = proposerIds.length ? await sql`SELECT * FROM users WHERE id = ANY(${proposerIds})` : [];
+        const byId = new Map(proposers.map((p: any) => [p.id, p]));
+        return rows.map((r: any) => ({
+          ...r, createdAt: r.created_at?.toISOString(), decidedAt: r.decided_at?.toISOString() ?? null,
+          proposerName: byId.get(r.proposer_id)?.name, proposerRole: byId.get(r.proposer_id)?.role,
+        }));
+      } catch (err) {
+        console.error("handleAdminProposals GET error:", err);
+        return [];
+      }
+    }
 
   if (req.method === "POST" && !parts[3]) {
     return handle(async () => {
@@ -1440,44 +1444,53 @@ async function handleAdminCrud(req: Request, parts: string[]): Promise<Response>
 
   // Admin DM threads
   if (parts[2] === "dm") {
-    requireRole(user, ["super_admin"]);
     if (parts[3] === "threads" && !parts[4]) {
       return handle(async () => {
-        const threads = await sql`SELECT * FROM dm_threads ORDER BY last_message_at DESC`;
-        if (!threads.length) return [];
-        const allUserIds = new Set<number>();
-        threads.forEach((t: any) => { allUserIds.add(t.user_a_id); allUserIds.add(t.user_b_id); });
-        const users = await sql`SELECT * FROM users WHERE id = ANY(${Array.from(allUserIds)})`;
-        const byId = new Map(users.map((u: any) => [u.id, u]));
-        const lastMsgs = await sql`SELECT * FROM dm_messages WHERE thread_id = ANY(${threads.map((t: any) => t.id)})`;
-        return threads.map((t: any) => {
-          const userA = byId.get(t.user_a_id);
-          const userB = byId.get(t.user_b_id);
-          const msgs = lastMsgs.filter((m: any) => m.thread_id === t.id).sort((a: any, b: any) => +new Date(b.created_at) - +new Date(a.created_at));
-          const last = msgs[0];
-          return {
-            threadId: t.id, userA: userA ? { id: userA.id, name: userA.name, avatarUrl: userA.avatar_url, role: userA.role } : null,
-            userB: userB ? { id: userB.id, name: userB.name, avatarUrl: userB.avatar_url, role: userB.role } : null,
-            lastMessage: last ? { body: last.body, createdAt: last.created_at?.toISOString(), fromId: last.from_id } : null,
-            totalMessages: msgs.length, lastMessageAt: t.last_message_at?.toISOString(),
-          };
-        });
+        try {
+          const threads = await sql`SELECT * FROM dm_threads ORDER BY last_message_at DESC`;
+          if (!threads.length) return [];
+          const allUserIds = new Set<number>();
+          threads.forEach((t: any) => { allUserIds.add(t.user_a_id); allUserIds.add(t.user_b_id); });
+          const users = await sql`SELECT * FROM users WHERE id = ANY(${Array.from(allUserIds)})`;
+          const byId = new Map(users.map((u: any) => [u.id, u]));
+          const lastMsgs = await sql`SELECT * FROM dm_messages WHERE thread_id = ANY(${threads.map((t: any) => t.id)})`;
+          return threads.map((t: any) => {
+            const userA = byId.get(t.user_a_id);
+            const userB = byId.get(t.user_b_id);
+            const msgs = lastMsgs.filter((m: any) => m.thread_id === t.id).sort((a: any, b: any) => +new Date(b.created_at) - +new Date(a.created_at));
+            const last = msgs[0];
+            return {
+              threadId: t.id, userA: userA ? { id: userA.id, name: userA.name, avatarUrl: userA.avatar_url, role: userA.role } : null,
+              userB: userB ? { id: userB.id, name: userB.name, avatarUrl: userB.avatar_url, role: userB.role } : null,
+              lastMessage: last ? { body: last.body, createdAt: last.created_at?.toISOString(), fromId: last.from_id } : null,
+              totalMessages: msgs.length, lastMessageAt: t.last_message_at?.toISOString(),
+            };
+          });
+        } catch (err) {
+          console.error("handleAdminCrud dm threads error:", err);
+          return [];
+        }
       });
     }
     if (parts[3] === "threads" && parts[4]) {
       return handle(async () => {
-        const threadId = Number(parts[4]);
-        const [thread] = await sql`SELECT * FROM dm_threads WHERE id = ${threadId}`;
-        if (!thread) throw Object.assign(new Error("المحادثة غير موجودة"), { status: 404 });
-        const msgs = await sql`SELECT * FROM dm_messages WHERE thread_id = ${threadId} ORDER BY created_at`;
-        const allUserIds = new Set<number>([thread.user_a_id, thread.user_b_id, ...msgs.map((m: any) => m.from_id)]);
-        const users = await sql`SELECT * FROM users WHERE id = ANY(${Array.from(allUserIds)})`;
-        const byId = new Map(users.map((u: any) => [u.id, u]));
-        return {
-          threadId: thread.id, userA: byId.get(thread.user_a_id) ? { id: byId.get(thread.user_a_id).id, name: byId.get(thread.user_a_id).name, avatarUrl: byId.get(thread.user_a_id).avatar_url, role: byId.get(thread.user_a_id).role } : null,
-          userB: byId.get(thread.user_b_id) ? { id: byId.get(thread.user_b_id).id, name: byId.get(thread.user_b_id).name, avatarUrl: byId.get(thread.user_b_id).avatar_url, role: byId.get(thread.user_b_id).role } : null,
-          messages: msgs.map((m: any) => ({ ...m, createdAt: m.created_at?.toISOString(), fromName: byId.get(m.from_id)?.name || "مستخدم محذوف", fromAvatar: byId.get(m.from_id)?.avatar_url })),
-        };
+        try {
+          const threadId = Number(parts[4]);
+          const [thread] = await sql`SELECT * FROM dm_threads WHERE id = ${threadId}`;
+          if (!thread) throw Object.assign(new Error("المحادثة غير موجودة"), { status: 404 });
+          const msgs = await sql`SELECT * FROM dm_messages WHERE thread_id = ${threadId} ORDER BY created_at`;
+          const allUserIds = new Set<number>([thread.user_a_id, thread.user_b_id, ...msgs.map((m: any) => m.from_id)]);
+          const users = await sql`SELECT * FROM users WHERE id = ANY(${Array.from(allUserIds)})`;
+          const byId = new Map(users.map((u: any) => [u.id, u]));
+          return {
+            threadId: thread.id, userA: byId.get(thread.user_a_id) ? { id: byId.get(thread.user_a_id).id, name: byId.get(thread.user_a_id).name, avatarUrl: byId.get(thread.user_a_id).avatar_url, role: byId.get(thread.user_a_id).role } : null,
+            userB: byId.get(thread.user_b_id) ? { id: byId.get(thread.user_b_id).id, name: byId.get(thread.user_b_id).name, avatarUrl: byId.get(thread.user_b_id).avatar_url, role: byId.get(thread.user_b_id).role } : null,
+            messages: msgs.map((m: any) => ({ ...m, createdAt: m.created_at?.toISOString(), fromName: byId.get(m.from_id)?.name || "مستخدم محذوف", fromAvatar: byId.get(m.from_id)?.avatar_url })),
+          };
+        } catch (err) {
+          console.error("handleAdminCrud dm thread detail error:", err);
+          return { threadId: Number(parts[4]), messages: [], userA: null, userB: null };
+        }
       });
     }
   }
@@ -2414,19 +2427,19 @@ async function handleRequest(request: Request): Promise<Response> {
     // Courses
     "GET /courses": () => handleCoursesList(),
     "GET /courses/:id": () => handleCourseById(parts[1]),
-    "GET /courses/:id/materials": () => handleCourses(request, ["courses", ":id", "materials"]),
-    "GET /courses/:id/all-files": () => handleCourses(request, ["courses", ":id", "all-files"]),
-    "GET /courses/:id/lectures": () => handleCourses(request, ["courses", ":id", "lectures"]),
-    "GET /courses/:id/video-progress": () => handleCourses(request, ["courses", ":id", "video-progress"]),
-    "GET /courses/:id/progress": () => handleCourses(request, ["courses", ":id", "progress"]),
-    "GET /courses/:id/student-summaries": () => handleCourseSummaries(request, ["courses", ":id", "student-summaries"]),
+    "GET /courses/:id/materials": () => handleCourses(request, ["", "courses", parts[1], "materials"]),
+    "GET /courses/:id/all-files": () => handleCourses(request, ["", "courses", parts[1], "all-files"]),
+    "GET /courses/:id/lectures": () => handleCourses(request, ["", "courses", parts[1], "lectures"]),
+    "GET /courses/:id/video-progress": () => handleCourses(request, ["", "courses", parts[1], "video-progress"]),
+    "GET /courses/:id/progress": () => handleCourses(request, ["", "courses", parts[1], "progress"]),
+    "GET /courses/:id/student-summaries": () => handleCourseSummaries(request, ["courses", parts[1], "student-summaries"]),
     "GET /v2/courses": () => handleCoursesList(),
     "GET /v2/courses/:id": () => handleCourseById(parts[2]),
-    "GET /v2/courses/:id/materials": () => handleCourses(request, ["courses", parts[2], "materials"]),
-    "GET /v2/courses/:id/all-files": () => handleCourses(request, ["courses", parts[2], "all-files"]),
-    "GET /v2/courses/:id/lectures": () => handleCourses(request, ["courses", parts[2], "lectures"]),
-    "GET /v2/courses/:id/video-progress": () => handleCourses(request, ["courses", parts[2], "video-progress"]),
-    "GET /v2/courses/:id/progress": () => handleCourses(request, ["courses", parts[2], "progress"]),
+    "GET /v2/courses/:id/materials": () => handleCourses(request, ["", "courses", parts[2], "materials"]),
+    "GET /v2/courses/:id/all-files": () => handleCourses(request, ["", "courses", parts[2], "all-files"]),
+    "GET /v2/courses/:id/lectures": () => handleCourses(request, ["", "courses", parts[2], "lectures"]),
+    "GET /v2/courses/:id/video-progress": () => handleCourses(request, ["", "courses", parts[2], "video-progress"]),
+    "GET /v2/courses/:id/progress": () => handleCourses(request, ["", "courses", parts[2], "progress"]),
     "GET /v2/courses/:id/student-summaries": () => handleCourseSummaries(request, ["courses", parts[2], "student-summaries"]),
 
     // Materials
