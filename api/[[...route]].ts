@@ -1620,18 +1620,25 @@ async function handleAdminCrud(req: Request, parts: string[]): Promise<Response>
 
   if (parts[2] === "lecture-quizzes" && parts[4] === "questions" && req.method === "POST") {
     return handle(async () => {
+      try {
+        await sql`CREATE TABLE IF NOT EXISTS lecture_quiz_questions (id SERIAL PRIMARY KEY, quiz_id INT, text TEXT, options JSONB, correct_index INT, points INT, ord INT)`;
+      } catch {}
       const quizId = Number(parts[3]);
       const body = await req.json();
       const { text, options, correctIndex, points } = body;
       if (!text || !options || typeof correctIndex !== "number") throw Object.assign(new Error("بيانات السؤال ناقصة"), { status: 400 });
-      let maxOrd;
+      let ord = 1;
       try {
-        [maxOrd] = await sql`SELECT MAX(ord) AS max FROM lecture_quiz_questions WHERE quiz_id = ${quizId}`;
-      } catch {
-        maxOrd = { max: 0 };
+        const [r] = await sql`SELECT COALESCE(MAX(ord), 0) AS n FROM lecture_quiz_questions WHERE quiz_id = ${quizId}`;
+        ord = (r?.n ?? 0) + 1;
+      } catch {}
+      try {
+        const [qq] = await sql`INSERT INTO lecture_quiz_questions (quiz_id, text, options, correct_index, points, ord) VALUES (${quizId}, ${text}, ${JSON.stringify(options)}, ${correctIndex}, ${points ?? 10}, ${ord}) RETURNING *`;
+        return qq;
+      } catch (err: any) {
+        console.error("🔴 lecture_quiz_questions INSERT error:", err?.message);
+        throw Object.assign(new Error(err?.message || "فشل إضافة السؤال"), { status: 500 });
       }
-      const [qq] = await sql`INSERT INTO lecture_quiz_questions (quiz_id, text, options, correct_index, points, ord) VALUES (${quizId}, ${text}, ${JSON.stringify(options)}, ${correctIndex}, ${points ?? 10}, ${(maxOrd?.max ?? 0) + 1}) RETURNING *`;
-      return qq;
     });
   }
 
