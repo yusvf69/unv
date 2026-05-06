@@ -3,12 +3,13 @@ import { useParams, useLocation } from "wouter";
 import { motion } from "framer-motion";
 import {
   ArrowLeft, BookOpen, Video, FileText,
-  HelpCircle, Play, CheckCircle, Loader2, Download, Eye,
+  HelpCircle, Play, CheckCircle, Loader2, Download, Eye, Send,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
   Dialog, DialogContent, DialogHeader, DialogTitle,
 } from "@/components/ui/dialog";
+import { useToast } from "@/hooks/use-toast";
 import {
   useCourseLectures,
   useMarkVideoWatched,
@@ -99,27 +100,51 @@ function PdfViewer({ pdf }: { pdf: { name: string; url: string } }) {
 
 function QuizTaking({ quiz, questions }: { quiz: any; questions: any[] }) {
   const submit = useSubmitLectureQuiz();
+  const { toast } = useToast();
   const [answers, setAnswers] = useState<Record<number, number>>({});
-  const [result, setResult] = useState<{ score: number; total: number; passed: boolean } | null>(null);
+  const [result, setResult] = useState<{ score: number; total: number; passed: boolean; details: any[] } | null>(null);
 
   const handleSubmit = async () => {
     const ansArr = questions.map((q) => ({ questionId: q.id, chosenIndex: answers[q.id] ?? -1 }));
     try {
       const res = await submit.mutateAsync({ quizId: quiz.id, answers: ansArr });
-      setResult(res as { score: number; total: number; passed: boolean });
-    } catch {}
+      setResult(res as { score: number; total: number; passed: boolean; details: any[] });
+    } catch (e) {
+      toast({ title: "خطأ", description: (e as Error).message, variant: "destructive" });
+    }
   };
 
   if (result) {
     return (
-      <div className="p-6 text-center">
-        <div className={`text-4xl font-bold ${result.passed ? "text-green-600" : "text-destructive"}`}>
-          {result.score}/{result.total}
+      <div className="space-y-4">
+        <div className="text-center p-4">
+          <div className={`text-4xl font-bold ${result.passed ? "text-green-600" : "text-destructive"}`}>
+            {result.score}/{result.total}
+          </div>
+          <div className="text-sm text-muted-foreground mt-2">
+            {result.passed ? "✅ ممتاز! نجحت في الاختبار" : "❌ حاول مرة أخرى"}
+          </div>
+          <Button onClick={() => setResult(null)} className="mt-3" variant="outline">حاول مرة أخرى</Button>
         </div>
-        <div className="text-sm text-muted-foreground mt-2">
-          {result.passed ? "✅ ممتاز! نجحت في الاختبار" : "❌ حاول مرة أخرى"}
-        </div>
-        <Button onClick={() => setResult(null)} className="mt-4">حاول مرة أخرى</Button>
+        {result.details.map((d, qi) => (
+          <div key={d.questionId} className={`p-3 rounded-xl border ${d.correct ? "bg-green-50 border-green-200" : "bg-red-50 border-red-200"}`}>
+            <div className="flex items-center gap-2 mb-1">
+              <span className={`text-xs font-bold px-2 py-0.5 rounded-full ${d.correct ? "bg-green-200 text-green-800" : "bg-red-200 text-red-800"}`}>
+                {d.correct ? "✅ صح" : "❌ غلط"}
+              </span>
+              <span className="font-bold text-sm">{qi + 1}. {d.text}</span>
+            </div>
+            <div className="text-xs text-muted-foreground mt-1">
+              إجابتك: <span className={d.correct ? "text-green-700" : "text-red-700"}>{d.options[d.userChosen] || "لم تجب"}</span>
+              {!d.correct && (
+                <span className="text-green-700 ms-3">الإجابة الصحيحة: {d.options[d.correctIndex]}</span>
+              )}
+            </div>
+            {d.explanation && (
+              <div className="text-xs bg-white/60 rounded-lg p-2 mt-2 border">💡 {d.explanation}</div>
+            )}
+          </div>
+        ))}
       </div>
     );
   }
@@ -140,7 +165,7 @@ function QuizTaking({ quiz, questions }: { quiz: any; questions: any[] }) {
         </div>
       ))}
       <Button onClick={handleSubmit} disabled={Object.keys(answers).length < questions.length || submit.isPending} className="w-full">
-        {submit.isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : "إرسال الإجابات"}
+        {submit.isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : <><Send className="me-2 h-4 w-4" /> إرسال الإجابات</>}
       </Button>
     </div>
   );

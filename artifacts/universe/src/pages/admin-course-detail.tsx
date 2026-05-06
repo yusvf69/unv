@@ -4,6 +4,7 @@ import { motion } from "framer-motion";
 import {
   ArrowLeft, Plus, Trash2, BookOpen, Video, FileText,
   HelpCircle, Send, Play, CheckCircle, Loader2, Upload,
+  Users, Eye, XCircle,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -30,6 +31,7 @@ import {
   useCourseProgress,
   useCourseVideoProgress,
   useMeV2,
+  useLectureQuizAttempts,
   LectureFull,
   LectureVideo,
 } from "@/lib/api";
@@ -126,13 +128,13 @@ function QuizTaking({ quiz, questions }: { quiz: any; questions: any[] }) {
   const submit = useSubmitLectureQuiz();
   const { toast } = useToast();
   const [answers, setAnswers] = useState<Record<number, number>>({});
-  const [result, setResult] = useState<{ score: number; total: number; passed: boolean } | null>(null);
+  const [result, setResult] = useState<{ score: number; total: number; passed: boolean; details: any[] } | null>(null);
 
   const handleSubmit = async () => {
     const ansArr = questions.map((q) => ({ questionId: q.id, chosenIndex: answers[q.id] ?? -1 }));
     try {
       const res = await submit.mutateAsync({ quizId: quiz.id, answers: ansArr });
-      setResult(res as { score: number; total: number; passed: boolean });
+      setResult(res as { score: number; total: number; passed: boolean; details: any[] });
     } catch (e) {
       toast({ title: "خطأ", description: (e as Error).message, variant: "destructive" });
     }
@@ -140,13 +142,35 @@ function QuizTaking({ quiz, questions }: { quiz: any; questions: any[] }) {
 
   if (result) {
     return (
-      <div className="p-6 text-center">
-        <div className={`text-4xl font-bold ${result.passed ? "text-green-600" : "text-destructive"}`}>
-          {result.score}/{result.total}
+      <div className="space-y-4">
+        <div className="text-center p-4">
+          <div className={`text-4xl font-bold ${result.passed ? "text-green-600" : "text-destructive"}`}>
+            {result.score}/{result.total}
+          </div>
+          <div className="text-sm text-muted-foreground mt-2">
+            {result.passed ? "✅ ممتاز! نجحت في الاختبار" : "❌ حاول مرة أخرى"}
+          </div>
+          <Button onClick={() => setResult(null)} className="mt-3" variant="outline">حاول مرة أخرى</Button>
         </div>
-        <div className="text-sm text-muted-foreground mt-2">
-          {result.passed ? "✅ ممتاز! نجحت في الاختبار" : "❌ حاول مرة أخرى"}
-        </div>
+        {result.details.map((d, qi) => (
+          <div key={d.questionId} className={`p-3 rounded-xl border ${d.correct ? "bg-green-50 border-green-200" : "bg-red-50 border-red-200"}`}>
+            <div className="flex items-center gap-2 mb-1">
+              <span className={`text-xs font-bold px-2 py-0.5 rounded-full ${d.correct ? "bg-green-200 text-green-800" : "bg-red-200 text-red-800"}`}>
+                {d.correct ? "✅ صح" : "❌ غلط"}
+              </span>
+              <span className="font-bold text-sm">{qi + 1}. {d.text}</span>
+            </div>
+            <div className="text-xs text-muted-foreground mt-1">
+              إجابتك: <span className={d.correct ? "text-green-700" : "text-red-700"}>{d.options[d.userChosen] || "لم تجب"}</span>
+              {!d.correct && (
+                <span className="text-green-700 ms-3">الإجابة الصحيحة: {d.options[d.correctIndex]}</span>
+              )}
+            </div>
+            {d.explanation && (
+              <div className="text-xs bg-white/60 rounded-lg p-2 mt-2 border">💡 {d.explanation}</div>
+            )}
+          </div>
+        ))}
       </div>
     );
   }
@@ -377,13 +401,18 @@ function LectureCard({ lecture, isSuper, videoProgress }: { lecture: LectureFull
           <h4 className="text-sm font-bold flex items-center gap-1"><HelpCircle className="h-4 w-4" /> الاختبارات ({lecture.quizzes.length})</h4>
           {isSuper && <Button size="sm" variant="outline" onClick={() => setQuizDialog(true)}><Plus className="h-3.5 w-3.5 me-1" /> اختبار</Button>}
         </div>
-        {lecture.quizzes.map((q) => (
+        {lecture.quizzes.map((q) => {
+          const { data: attempts = [] } = useLectureQuizAttempts(q.id);
+          return (
           <div key={q.id} className="p-3 border rounded-xl space-y-2">
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-2">
                 <HelpCircle className="h-4 w-4 text-primary" />
                 <span className="font-bold text-sm">{q.title}</span>
                 <span className="text-xs text-muted-foreground">({q.questions.length} سؤال)</span>
+                {attempts.length > 0 && (
+                  <span className="text-xs bg-primary/10 text-primary px-2 py-0.5 rounded-full">{attempts.length} محاولة</span>
+                )}
               </div>
               <div className="flex items-center gap-1">
                 <Button size="sm" variant="outline" onClick={() => setQuizTakeDialog(q.id)}>حل</Button>
@@ -408,8 +437,28 @@ function LectureCard({ lecture, isSuper, videoProgress }: { lecture: LectureFull
                 </button>
               </div>
             ))}
+            {attempts.length > 0 && (
+              <div className="mt-2 space-y-1">
+                <div className="text-xs font-bold text-muted-foreground">المحاولات:</div>
+                {attempts.slice(0, 5).map((a: any, i: number) => (
+                  <div key={a.id || i} className="text-xs bg-muted/30 rounded-lg p-2 flex items-center justify-between">
+                    <div className="flex items-center gap-2">
+                      {a.userAvatar ? (
+                        <img src={a.userAvatar} alt="" className="h-5 w-5 rounded-full" />
+                      ) : (
+                        <div className="h-5 w-5 rounded-full bg-primary/20 flex items-center justify-center text-[10px] font-bold">{a.userName?.[0] || "?"}</div>
+                      )}
+                      <span>{a.userName || "طالب"}</span>
+                      {a.userGroup && <span className="text-[10px] bg-muted px-1.5 py-0.5 rounded">{a.userGroup}</span>}
+                    </div>
+                    <span className={`font-bold ${((a.score / a.total) >= 0.5) ? "text-green-600" : "text-destructive"}`}>{a.score}/{a.total}</span>
+                  </div>
+                ))}
+              </div>
+            )}
           </div>
-        ))}
+          );
+        })}
       </div>
 
       {/* Add Video Dialog */}
