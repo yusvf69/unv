@@ -1192,7 +1192,7 @@ async function handleGroupSchedule(req: Request, parts: string[]): Promise<Respo
   const user = await getCurrentUser(userId);
   const url = new URL(req.url, "http://localhost");
 
-  if (req.method === "GET" && !parts[1].startsWith("admin")) {
+  if (req.method === "GET" && !parts[1]?.startsWith("admin")) {
     return handle(async () => {
       try {
         const group = url.searchParams.get("group") || user?.group_name;
@@ -1240,7 +1240,7 @@ async function handleExamSchedule(req: Request, parts: string[]): Promise<Respon
   const user = await getCurrentUser(userId);
   const url = new URL(req.url, "http://localhost");
 
-  if (req.method === "GET" && !parts[1].startsWith("admin")) {
+  if (req.method === "GET" && !parts[1]?.startsWith("admin")) {
     return handle(async () => {
       try {
         const group = url.searchParams.get("group") || user?.group_name;
@@ -1798,6 +1798,22 @@ async function handleStaffDoctors(): Promise<Response> {
 }
 
 async function handleStaff(req: Request, parts: string[]): Promise<Response> {
+  if (req.method === "GET" && parts[1] && !isNaN(Number(parts[1]))) {
+    return handle(async () => {
+      const id = Number(parts[1]);
+      const [u] = await sql`SELECT * FROM users WHERE id = ${id} AND role IN ('doctor', 'ta', 'admin', 'super_admin')`;
+      if (!u) throw Object.assign(new Error("عضو الهيئة غير موجود"), { status: 404 });
+      return {
+        ...u,
+        lastSeen: u.last_seen?.toISOString(),
+        createdAt: u.created_at?.toISOString(),
+        researchInterests: u.research_interests ?? [],
+        officeHours: u.office_hours ?? null,
+        bio: u.bio ?? null,
+      };
+    });
+  }
+
   if (req.method === "GET") {
     return handle(async () => {
       try {
@@ -2362,8 +2378,8 @@ async function handleRequest(request: Request): Promise<Response> {
     "GET /quizzes": () => handleQuizzesList(),
     "GET /quizzes/:id": () => handleQuizById(Number(parts[1])),
     "GET /quizzes/open": () => handleQuizzes(request, ["quizzes", "open"]),
-    "GET /quizzes/:id/start": () => handleQuizzes(request, ["quizzes", ":id", "start"]),
-    "POST /quizzes/:id/submit": () => handleQuizzes(request, ["quizzes", ":id", "submit"]),
+    "GET /quizzes/:id/start": () => handleQuizzes(request, ["quizzes", parts[1], "start"]),
+    "POST /quizzes/:id/submit": () => handleQuizzes(request, ["quizzes", parts[1], "submit"]),
     "GET /v2/quizzes/open": () => handleQuizzes(request, ["quizzes", "open"]),
     "GET /v2/quizzes/:id/start": () => handleQuizzes(request, ["quizzes", parts[2], "start"]),
     "POST /v2/quizzes/:id/submit": () => handleQuizzes(request, ["quizzes", parts[2], "submit"]),
@@ -2397,8 +2413,8 @@ async function handleRequest(request: Request): Promise<Response> {
     // Skills
     "GET /skills": () => handleSkills(request, ["skills"]),
     "GET /skills/tracks": () => handleSkills(request, ["skills", "tracks"]),
-    "GET /skills/:id": () => handleSkills(request, ["skills", ":id"]),
-    "POST /skills/lessons/:id/complete": () => handleSkills(request, ["skills", "lessons", ":id", "complete"]),
+    "GET /skills/:id": () => handleSkills(request, ["skills", parts[1]]),
+    "POST /skills/lessons/:id/complete": () => handleSkills(request, ["skills", "lessons", parts[2], "complete"]),
     "GET /v2/skills/tracks": () => handleSkills(request, ["skills", "tracks"]),
     "POST /v2/skills/lessons/:id/complete": () => handleSkills(request, ["skills", "lessons", parts[2], "complete"]),
 
@@ -2444,15 +2460,15 @@ async function handleRequest(request: Request): Promise<Response> {
     "GET /v2/courses/:id/student-summaries": () => handleCourseSummaries(request, ["courses", parts[2], "student-summaries"]),
 
     // Materials
-    "GET /materials/:id/files": () => handleMaterialFiles(request, ["materials", ":id", "files"]),
+    "GET /materials/:id/files": () => handleMaterialFiles(request, ["materials", parts[1], "files"]),
     "GET /v2/materials/:id/files": () => handleMaterialFiles(request, ["materials", parts[2], "files"]),
 
     // Material files
-    "GET /material-files/:id": () => handleMaterialFileRoutes(request, ["material-files", ":id"]),
-    "POST /material-files/:id/view": () => handleMaterialFileRoutes(request, ["material-files", ":id", "view"]),
-    "POST /material-files/:id/like": () => handleMaterialFileRoutes(request, ["material-files", ":id", "like"]),
-    "GET /material-files/:id/comments": () => handleMaterialFileRoutes(request, ["material-files", ":id", "comments"]),
-    "POST /material-files/:id/comments": () => handleMaterialFileRoutes(request, ["material-files", ":id", "comments"]),
+    "GET /material-files/:id": () => handleMaterialFileRoutes(request, ["material-files", parts[1]]),
+    "POST /material-files/:id/view": () => handleMaterialFileRoutes(request, ["material-files", parts[1], "view"]),
+    "POST /material-files/:id/like": () => handleMaterialFileRoutes(request, ["material-files", parts[1], "like"]),
+    "GET /material-files/:id/comments": () => handleMaterialFileRoutes(request, ["material-files", parts[1], "comments"]),
+    "POST /material-files/:id/comments": () => handleMaterialFileRoutes(request, ["material-files", parts[1], "comments"]),
     "GET /v2/material-files/:id": () => handleMaterialFileRoutes(request, ["material-files", parts[2]]),
     "POST /v2/material-files/:id/view": () => handleMaterialFileRoutes(request, ["material-files", parts[2], "view"]),
     "POST /v2/material-files/:id/like": () => handleMaterialFileRoutes(request, ["material-files", parts[2], "like"]),
@@ -2462,7 +2478,7 @@ async function handleRequest(request: Request): Promise<Response> {
     // Student summaries
     "GET /student-summaries": () => handleStudentSummaries(request, ["student-summaries"]),
     "POST /student-summaries": () => handleStudentSummaries(request, ["student-summaries"]),
-    "DELETE /student-summaries/:id": () => handleStudentSummaries(request, ["student-summaries", ":id"]),
+    "DELETE /student-summaries/:id": () => handleStudentSummaries(request, ["student-summaries", parts[1]]),
     "GET /v2/student-summaries": () => handleStudentSummaries(request, parts),
     "POST /v2/student-summaries": () => handleStudentSummaries(request, parts),
     "DELETE /v2/student-summaries/:id": () => handleStudentSummaries(request, parts),
@@ -2470,9 +2486,9 @@ async function handleRequest(request: Request): Promise<Response> {
     // Staff
     "GET /staff/doctors": () => handleStaffDoctors(),
     "GET /staff": () => handleStaff(request, ["staff"]),
-    "GET /staff/:id": () => handleStaff(request, ["staff", ":id"]),
+    "GET /staff/:id": () => handleStaff(request, ["staff", parts[1]]),
     "POST /staff": () => handleStaff(request, ["staff"]),
-    "PATCH /staff/:id": () => handleStaff(request, ["staff", ":id"]),
+    "PATCH /staff/:id": () => handleStaff(request, ["staff", parts[1]]),
     "GET /v2/staff/doctors": () => handleStaffDoctors(),
     "GET /v2/staff": () => handleStaff(request, parts),
     "POST /v2/staff": () => handleStaff(request, parts),
@@ -2486,16 +2502,16 @@ async function handleRequest(request: Request): Promise<Response> {
 
     // Missions
     "GET /missions": () => handleMissions(request, ["missions"]),
-    "POST /missions/:id/complete": () => handleMissions(request, ["missions", ":id", "complete"]),
+    "POST /missions/:id/complete": () => handleMissions(request, ["missions", parts[1], "complete"]),
 
     // Lecture quizzes
-    "POST /lecture-quizzes/:id/submit": () => handleLectureQuizSubmit(request, ["lecture-quizzes", ":id", "submit"]),
-    "GET /lecture-quizzes/:id/attempts": () => handleLectureQuizAttempts(request, ["lecture-quizzes", ":id", "attempts"]),
+    "POST /lecture-quizzes/:id/submit": () => handleLectureQuizSubmit(request, ["lecture-quizzes", parts[1], "submit"]),
+    "GET /lecture-quizzes/:id/attempts": () => handleLectureQuizAttempts(request, ["lecture-quizzes", parts[1], "attempts"]),
     "POST /v2/lecture-quizzes/:id/submit": () => handleLectureQuizSubmit(request, parts),
     "GET /v2/lecture-quizzes/:id/attempts": () => handleLectureQuizAttempts(request, parts),
 
     // Videos
-    "POST /videos/:id/watch": () => handleVideoWatch(request, ["videos", ":id", "watch"]),
+    "POST /videos/:id/watch": () => handleVideoWatch(request, ["videos", parts[1], "watch"]),
     "POST /v2/videos/:id/watch": () => handleVideoWatch(request, parts),
 
     // Events
