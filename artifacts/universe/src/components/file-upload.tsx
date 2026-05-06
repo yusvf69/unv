@@ -1,6 +1,8 @@
 import { useRef, useState } from "react";
 import { Upload, X, Loader2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { getDocument, GlobalWorkerOptions } from "pdfjs-dist";
+import { PDFDocument } from "pdf-lib";
 
 interface FileMeta { name: string; type: string; size: number }
 interface Props {
@@ -31,12 +33,17 @@ export default function FileUpload({
     setBusy(true);
     try {
       const meta: FileMeta = { name: file.name, type: file.type, size: file.size };
-      // For images, attempt to compress via canvas for size
+      
+      if (file.type === "application/pdf" || file.name.toLowerCase().endsWith(".pdf")) {
+        const compressedUrl = await compressPdf(file, maxSizeKb);
+        onChange(compressedUrl, { ...meta, size: Math.ceil((compressedUrl.length * 3) / 4) });
+        return;
+      }
+
       if (imageOnly && file.type.startsWith("image/")) {
         const dataUrl = await compressImage(file, 1200, 1200, 0.82);
         const sizeKb = Math.ceil((dataUrl.length * 3) / 4 / 1024);
         if (sizeKb > maxSizeKb) {
-          // try harder
           const smaller = await compressImage(file, 800, 800, 0.7);
           onChange(smaller, meta);
         } else {
@@ -97,7 +104,7 @@ export default function FileUpload({
         >
           {busy ? <Loader2 className="h-6 w-6 animate-spin" /> : <Upload className="h-6 w-6" />}
           <span className="text-sm">{label}</span>
-          <span className="text-xs text-muted-foreground">حد أقصى {maxSizeKb} كيلوبايت</span>
+          <span className="text-xs text-muted-foreground">يتم ضغط PDF تلقائياً</span>
         </Button>
       )}
       {err && <p className="text-xs text-destructive mt-2">{err}</p>}
@@ -133,4 +140,61 @@ async function compressImage(file: File, maxW: number, maxH: number, quality: nu
   if (!ctx) return dataUrl;
   ctx.drawImage(img, 0, 0, width, height);
   return canvas.toDataURL("image/jpeg", quality);
+}
+
+async function compressPdf(file: File, targetMaxKb: number): Promise<string> {
+  const arrayBuffer = await file.arrayBuffer();
+
+  GlobalWorkerOptions.workerSrc = `https://unpkg.com/pdfjs-dist@4.4.168/build/pdf.worker.min.mjs`;
+  const pdfDoc = await getDocument({ data: arrayBuffer }).promise;
+  const numPages = pdfDoc.numPages;
+
+  const newPdf = await PDFDocument.create();
+  
+  let quality = 0.5;
+  let scale = 1.5;
+  let result: Uint8Array | null = null;
+
+  for (let attempt = 0; attempt < 3; attempt++) {
+    const tempPdf = await PDFDocument.create();
+    
+    for (let i = 1; i <= numPages; i++) {
+      const page = await pdfDoc.getPage(i);
+      const viewport = page.getViewport({ scale });
+      
+      const canvas = document.createElement("canvas");
+      canvas.width = viewport.width;
+      canvas.height = viewport.height;
+      const ctx = canvas.getContext("2d");
+      if (!ctx) continue;
+      
+      await page.render({ canvasContext: ctx, viewport }).promise;
+      
+      const jpegDataUrl = canvas.toDataURL("image/jpeg", quality);
+      const jpegBase64 = jpegDataUrl.split(",")[1];
+      const jpegBytes = Uint8Array.from(atob(jpegBase64), c => c.charCodeAt(0));
+      
+      const jpegImage = await tempPdf.embedJpg(jpegBytes);
+      const newPage = tempPdf.addPage([viewport.width, viewport.height]);
+      newPage.drawImage(jpegImage, {
+        x: 0,
+        y: 0,
+        width: viewport.width,
+        height: viewport.height,
+      });
+    }
+
+    result = await tempPdf.save();
+    const sizeKb = result.length / 1024;
+    
+    if (sizeKb <= targetMaxKb) break;
+    
+    quality = Math.max(0.2, quality - 0.15);
+    scale = Math.max(0.8, scale - 0.4);
+  }
+
+  if (!result) throw new Error("فشل ضغط الملف");
+
+  const base64 = btoa(String.fromCharCode(...result));
+  return `data:application/pdf;base64,${base64}`;
 }
