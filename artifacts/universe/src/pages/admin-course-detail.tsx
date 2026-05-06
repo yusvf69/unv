@@ -83,7 +83,8 @@ function PdfViewer({ pdf, isSuper, onDelete }: { pdf: { name: string; url: strin
   );
 }
 
-function extractYoutubeId(url: string): string | null {
+function extractYoutubeId(url: string | null | undefined): string | null {
+  if (!url) return null;
   const m = url.match(/(?:youtu\.be\/|youtube\.com(?:\/embed\/|\/v\/|\/watch\?v=|\/watch\?.+&v=))([^&?\s]+)/);
   return m ? m[1] : null;
 }
