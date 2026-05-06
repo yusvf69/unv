@@ -8,6 +8,7 @@ import { Textarea } from "@/components/ui/textarea";
 import {
   Dialog,
   DialogContent,
+  DialogDescription,
   DialogFooter,
   DialogHeader,
   DialogTitle,
@@ -182,6 +183,7 @@ export default function AdminStaff() {
         <DialogContent className="max-w-lg">
           <DialogHeader>
             <DialogTitle>إضافة عضو هيئة تدريس</DialogTitle>
+            <DialogDescription>أضف دكتور أو معيد أو إداري جديد</DialogDescription>
           </DialogHeader>
           <div className="space-y-3 max-h-[70vh] overflow-y-auto pe-2">
             <div>

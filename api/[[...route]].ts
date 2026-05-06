@@ -1784,47 +1784,53 @@ async function handleStaffDoctors(): Promise<Response> {
 }
 
 async function handleStaff(req: Request, parts: string[]): Promise<Response> {
-  const { userId } = requireAuth(req.headers);
-  const user = await getCurrentUser(userId);
-
   if (req.method === "GET") {
     return handle(async () => {
-      const rows = await sql`SELECT * FROM users WHERE role IN ('doctor', 'ta', 'admin', 'super_admin') ORDER BY role, name`;
-      return rows.map((u: any) => ({
-        ...u, lastSeen: u.last_seen?.toISOString(), createdAt: u.created_at?.toISOString(),
-      }));
+      try {
+        requireAuth(req.headers);
+        const rows = await sql`SELECT * FROM users WHERE role IN ('doctor', 'ta', 'admin', 'super_admin') ORDER BY role, name`;
+        return rows.map((u: any) => ({
+          ...u, lastSeen: u.last_seen?.toISOString(), createdAt: u.created_at?.toISOString(),
+        }));
+      } catch (err) {
+        console.error("handleStaff GET error:", err);
+        throw err;
+      }
     });
   }
 
   if (req.method === "POST") {
-    requireRole(user, ["admin", "super_admin"]);
     return handle(async () => {
+      const { userId } = requireAuth(req.headers);
+      const user = await getCurrentUser(userId);
+      requireRole(user, ["admin", "super_admin"]);
       const body = await req.json();
-      const { name, email, phone, role, department, title, avatarUrl, bio, officeHours, researchInterests, username, password } = body;
+      const { name, email, phone, role, department, title, avatarUrl, bio, username, password } = body;
       if (!name || !email || !role) throw Object.assign(new Error("الاسم والبريد والدور مطلوب"), { status: 400 });
       const hashedPassword = password ? await bcrypt.hash(password, 10) : null;
       const [u] = await sql`
-        INSERT INTO users (name, email, phone, role, department, title, avatar_url, bio, office_hours, research_interests, username, password)
-        VALUES (${name}, ${email}, ${phone || null}, ${role}, ${department || null}, ${title || null}, ${avatarUrl || null}, ${bio || null}, ${officeHours || null}, ${researchInterests ? JSON.stringify(researchInterests) : null}, ${username || null}, ${hashedPassword})
+        INSERT INTO users (name, email, phone, role, department, title, avatar_url, bio, username, password)
+        VALUES (${name}, ${email}, ${phone || null}, ${role}, ${department || null}, ${title || null}, ${avatarUrl || null}, ${bio || null}, ${username || null}, ${hashedPassword})
         RETURNING *`;
       return { ...u, lastSeen: u.last_seen?.toISOString(), createdAt: u.created_at?.toISOString() };
     });
   }
 
   if (req.method === "PATCH" && parts[2]) {
-    requireRole(user, ["admin", "super_admin"]);
     return handle(async () => {
+      const { userId } = requireAuth(req.headers);
+      const user = await getCurrentUser(userId);
+      requireRole(user, ["admin", "super_admin"]);
       const id = Number(parts[2]);
       const body = await req.json();
-      const { name, phone, department, title, avatarUrl, bio, officeHours, researchInterests } = body;
+      const { name, phone, department, title, avatarUrl, bio, username } = body;
       if (name !== undefined) await sql`UPDATE users SET name = ${name} WHERE id = ${id}`;
       if (phone !== undefined) await sql`UPDATE users SET phone = ${phone} WHERE id = ${id}`;
       if (department !== undefined) await sql`UPDATE users SET department = ${department} WHERE id = ${id}`;
       if (title !== undefined) await sql`UPDATE users SET title = ${title} WHERE id = ${id}`;
       if (avatarUrl !== undefined) await sql`UPDATE users SET avatar_url = ${avatarUrl} WHERE id = ${id}`;
       if (bio !== undefined) await sql`UPDATE users SET bio = ${bio} WHERE id = ${id}`;
-      if (officeHours !== undefined) await sql`UPDATE users SET office_hours = ${officeHours} WHERE id = ${id}`;
-      if (researchInterests !== undefined) await sql`UPDATE users SET research_interests = ${JSON.stringify(researchInterests)} WHERE id = ${id}`;
+      if (username !== undefined) await sql`UPDATE users SET username = ${username} WHERE id = ${id}`;
       const [updated] = await sql`SELECT * FROM users WHERE id = ${id}`;
       return { ...updated, lastSeen: updated.last_seen?.toISOString(), createdAt: updated.created_at?.toISOString() };
     });
