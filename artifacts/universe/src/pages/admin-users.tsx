@@ -16,6 +16,7 @@ import { Button } from "@/components/ui/button";
 import { useToast } from "@/hooks/use-toast";
 import { Sheet, SheetContent, SheetHeader, SheetTitle } from "@/components/ui/sheet";
 import { useGetMe } from "@workspace/api-client-react";
+import { api } from "@/lib/api";
 
 const AVAILABLE_TITLES = [
   "طالب متميز",
@@ -63,10 +64,8 @@ export default function AdminUsers() {
   const fetchUsers = async () => {
     setLoading(true);
     try {
-      const url = role !== "all" ? `/api/admin/users?role=${role}` : "/api/admin/users";
-      const res = await fetch(url);
-      const data = await res.json();
-      if (!res.ok) throw new Error(data.error);
+      const url = role !== "all" ? `/admin/users?role=${role}` : "/admin/users";
+      const data = await api.get<any[]>(url);
       setUsers(data);
     } catch (err) {
       toast({ title: "خطأ", description: (err as Error).message, variant: "destructive" });
@@ -86,9 +85,7 @@ export default function AdminUsers() {
     }
     if (!confirm(`هل أنت متأكد من حذف ${userName}؟`)) return;
     try {
-      const res = await fetch(`/api/v2/admin/users/${userId}`, { method: "DELETE" });
-      const data = await res.json();
-      if (!res.ok) throw new Error(data.error);
+      await api.del(`/v2/admin/users/${userId}`);
       toast({ title: "تم حذف المستخدم" });
       setUsers((prev) => prev.filter((u) => u.id !== userId));
     } catch (err) {
@@ -111,13 +108,7 @@ export default function AdminUsers() {
       const body: { points?: number; title?: string } = {};
       if (grantPoints !== 0) body.points = grantPoints;
       if (selectedTitle) body.title = selectedTitle;
-      const res = await fetch(`/api/v2/admin/users/${selectedUser.id}/grant`, {
-        method: "PATCH",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(body),
-      });
-      const data = await res.json();
-      if (!res.ok) throw new Error(data.error);
+      const data = await api.patch<any>(`/v2/admin/users/${selectedUser.id}/grant`, body);
       toast({ title: "تم المنح بنجاح", description: `النقاط الجديدة: ${data.points}` });
       setGrantPoints(0);
       setSelectedTitle("");
