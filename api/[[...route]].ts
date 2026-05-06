@@ -1906,9 +1906,9 @@ async function handleCourseById(id: string): Promise<Response> {
 }
 
 async function handleMaterialFileRoutes(req: Request, parts: string[]): Promise<Response> {
-  if (req.method === "GET" && parts[2] && !parts[3]) {
+  if (req.method === "GET" && parts[1] && !parts[2]) {
     return handle(async () => {
-      const [f] = await sql`SELECT * FROM material_files WHERE id = ${Number(parts[2])}`;
+      const [f] = await sql`SELECT * FROM material_files WHERE id = ${Number(parts[1])}`;
       if (!f) throw Object.assign(new Error("File not found"), { status: 404 });
       const { userId } = requireAuth(req.headers);
       const [me] = await sql`SELECT * FROM users WHERE id = ${userId}`;
@@ -1922,10 +1922,10 @@ async function handleMaterialFileRoutes(req: Request, parts: string[]): Promise<
     });
   }
 
-  if (parts[3] === "view") {
+  if (parts[2] === "view") {
     return handle(async () => {
       const { userId } = requireAuth(req.headers);
-      const id = Number(parts[2]);
+      const id = Number(parts[1]);
       const existing = await sql`SELECT * FROM material_file_views WHERE file_id = ${id} AND user_id = ${userId}`;
       if (existing.length) return { counted: false };
       await sql`INSERT INTO material_file_views (file_id, user_id) VALUES (${id}, ${userId})`;
@@ -1934,10 +1934,10 @@ async function handleMaterialFileRoutes(req: Request, parts: string[]): Promise<
     });
   }
 
-  if (parts[3] === "like") {
+  if (parts[2] === "like") {
     return handle(async () => {
       const { userId } = requireAuth(req.headers);
-      const id = Number(parts[2]);
+      const id = Number(parts[1]);
       const existing = await sql`SELECT * FROM material_file_likes WHERE file_id = ${id} AND user_id = ${userId}`;
       if (existing.length) {
         await sql`DELETE FROM material_file_likes WHERE file_id = ${id} AND user_id = ${userId}`;
@@ -1950,10 +1950,10 @@ async function handleMaterialFileRoutes(req: Request, parts: string[]): Promise<
     });
   }
 
-  if (parts[3] === "comments") {
+  if (parts[2] === "comments") {
     if (req.method === "GET") {
       return handle(async () => {
-        const id = Number(parts[2]);
+        const id = Number(parts[1]);
         const rows = await sql`SELECT * FROM material_file_comments WHERE file_id = ${id} ORDER BY created_at DESC`;
         const authorIds = Array.from(new Set(rows.map((r: any) => r.author_id)));
         const users = authorIds.length ? await sql`SELECT * FROM users WHERE id = ANY(${authorIds})` : [];
@@ -1968,7 +1968,7 @@ async function handleMaterialFileRoutes(req: Request, parts: string[]): Promise<
     if (req.method === "POST") {
       return handle(async () => {
         const { userId } = requireAuth(req.headers);
-        const id = Number(parts[2]);
+        const id = Number(parts[1]);
         const body = await req.json();
         if (!body.body) throw Object.assign(new Error("نص التعليق مطلوب"), { status: 400 });
         const [c] = await sql`INSERT INTO material_file_comments (file_id, author_id, body) VALUES (${id}, ${userId}, ${body.body}) RETURNING *`;
