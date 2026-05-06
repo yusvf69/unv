@@ -2002,6 +2002,9 @@ async function handleStudentSummaries(req: Request, parts: string[]): Promise<Re
   if (req.method === "POST") {
     return handle(async () => {
       const body = await req.json();
+      if (typeof body.url === "string" && (body.url.length * 3 / 4) > 4 * 1024 * 1024) {
+        throw Object.assign(new Error("حجم الملف كبير جداً. جرب ملف أصغر من 3MB أو اضغطه أكثر"), { status: 400 });
+      }
       const { name, kind, url, sizeBytes, courseId } = body;
       if (!name || !url || !courseId) throw Object.assign(new Error("بيانات ناقصة"), { status: 400 });
       const [me] = await sql`SELECT * FROM users WHERE id = ${userId}`;

@@ -193,12 +193,12 @@ export default function StudentSummariesPage() {
               <Input value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} placeholder="مثال: ملخص الفصل الأول" />
             </div>
             <div>
-              <Label className="text-xs">الملف (PDF بدون حد أقصى للحجم)</Label>
+              <Label className="text-xs">الملف (يتم ضغط PDF تلقائياً)</Label>
               <FileUpload
                 value={form.url || null}
                 onChange={(d, meta) => setForm({ ...form, url: d || "", kind: meta?.type?.includes("pdf") ? "pdf" : "file", sizeBytes: meta?.size || 0 })}
                 accept="application/pdf,.pdf,.doc,.docx,.ppt,.pptx,image/*"
-                maxSizeKb={10240}
+                maxSizeKb={6000}
                 imageOnly={false}
               />
             </div>
