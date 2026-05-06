@@ -673,7 +673,7 @@ async function handleQuizzesList(): Promise<Response> {
 }
 
 async function handleQuizzes(req: Request, parts: string[]): Promise<Response> {
-  if (parts[2] === "open") {
+  if (parts[1] === "open") {
     return handle(async () => {
       const { userId } = requireAuth(req.headers);
       const me = await getCurrentUser(userId);
@@ -688,10 +688,10 @@ async function handleQuizzes(req: Request, parts: string[]): Promise<Response> {
     });
   }
 
-  if (parts[2] && parts[3] === "start") {
+  if (parts[2] === "start") {
     return handle(async () => {
       requireAuth(req.headers);
-      const id = Number(parts[2]);
+      const id = Number(parts[1]);
       const [q] = await sql`SELECT * FROM quizzes WHERE id = ${id}`;
       if (!q) throw Object.assign(new Error("الاختبار غير موجود"), { status: 404 });
       if (!q.is_open) throw Object.assign(new Error("هذا الاختبار مغلق حالياً"), { status: 403 });
@@ -706,10 +706,10 @@ async function handleQuizzes(req: Request, parts: string[]): Promise<Response> {
     });
   }
 
-  if (parts[2] && parts[3] === "submit") {
+  if (parts[2] === "submit") {
     return handle(async () => {
       const { userId } = requireAuth(req.headers);
-      const id = Number(parts[2]);
+      const id = Number(parts[1]);
       const body = await req.json();
       const { answers, durationSec } = body;
       const [q] = await sql`SELECT * FROM quizzes WHERE id = ${id}`;
