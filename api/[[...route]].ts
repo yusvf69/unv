@@ -1809,9 +1809,16 @@ async function handleStaff(req: Request, parts: string[]): Promise<Response> {
       if (!name || !email || !role) throw Object.assign(new Error("الاسم والبريد والدور مطلوب"), { status: 400 });
       const hashedPassword = password ? await bcrypt.hash(password, 10) : null;
       const defaultUsername = (username || name).toLowerCase().replace(/[^a-z0-9]/g, "").slice(0, 30) || `user_${Date.now()}`;
+      let uniqueCode = generateUniqueCode();
+      let codeExists = true;
+      while (codeExists) {
+        const [existing] = await sql`SELECT id FROM users WHERE unique_code = ${uniqueCode} LIMIT 1`;
+        if (!existing) codeExists = false;
+        else uniqueCode = generateUniqueCode();
+      }
       const [u] = await sql`
-        INSERT INTO users (name, email, phone, role, department, title, avatar_url, bio, username, password)
-        VALUES (${name}, ${email}, ${phone || null}, ${role}, ${department || null}, ${title || null}, ${avatarUrl || null}, ${bio || null}, ${defaultUsername}, ${hashedPassword})
+        INSERT INTO users (name, email, phone, role, department, title, avatar_url, bio, username, password, unique_code, email_verified, phone_verified)
+        VALUES (${name}, ${email}, ${phone || null}, ${role}, ${department || null}, ${title || null}, ${avatarUrl || null}, ${bio || null}, ${defaultUsername}, ${hashedPassword}, ${uniqueCode}, true, true)
         RETURNING *`;
       return { ...u, lastSeen: u.last_seen?.toISOString(), createdAt: u.created_at?.toISOString() };
     });
