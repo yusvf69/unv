@@ -1120,7 +1120,7 @@ async function handleLeaderboard(req: Request): Promise<Response> {
       }
       const rows = await sql`SELECT user_id, SUM(points) AS points FROM user_activity_log WHERE ${whereClause} GROUP BY user_id ORDER BY points DESC LIMIT 50`;
       const userIds = rows.map((r: any) => r.user_id);
-      const users = userIds.length ? await sql`SELECT * FROM users WHERE id = ANY(${userIds})` : [];
+      const users = userIds.length ? await sql`SELECT * FROM users WHERE id = ANY(${userIds}) AND role = 'student'` : [];
       const byId = new Map(users.map((u: any) => [u.id, u]));
       const allRows = await sql`SELECT user_id, SUM(points) AS points FROM user_activity_log GROUP BY user_id ORDER BY points DESC`;
       const allTimeRanks = new Map<number, number>();
@@ -1133,7 +1133,8 @@ async function handleLeaderboard(req: Request): Promise<Response> {
       const prevRanks = new Map<number, number>();
       let prevRank = 0;
       for (const r of [...prevRows].sort((a: any, b: any) => Number(b.points) - Number(a.points))) { prevRank++; prevRanks.set(Number(r.user_id), prevRank); }
-      return rows.map((r: any, i: number) => {
+      const studentOnly = rows.filter((r: any) => byId.has(Number(r.user_id)));
+      return studentOnly.map((r: any, i: number) => {
         const uid = Number(r.user_id);
         const u = byId.get(uid);
         const currentRank = i + 1;
@@ -1143,7 +1144,7 @@ async function handleLeaderboard(req: Request): Promise<Response> {
       });
     } catch (e: any) {
       if (e.message?.includes("relation") || e.message?.includes("does not exist")) {
-        const users = await sql`SELECT * FROM users ORDER BY points DESC LIMIT 50`;
+        const users = await sql`SELECT * FROM users WHERE role = 'student' ORDER BY points DESC LIMIT 50`;
         return users.map((u: any, i: number) => ({ rank: i + 1, userId: u.id, name: u.name, avatarUrl: u.avatar_url || null, department: u.department || "", year: u.year || null, points: u.points, level: Math.floor(u.points / 100) + 1, streak: u.streak || 0, deltaRank: 0 }));
       }
       throw e;
