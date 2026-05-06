@@ -1058,7 +1058,7 @@ async function handleSkills(req: Request, parts: string[]): Promise<Response> {
 }
 
 async function handleGames(req: Request, parts: string[]): Promise<Response> {
-  if (parts[2] === "score" && req.method === "POST") {
+  if (parts[1] === "score" && req.method === "POST") {
     return handle(async () => {
       const { userId } = requireAuth(req.headers);
       const body = await req.json();
@@ -1070,7 +1070,7 @@ async function handleGames(req: Request, parts: string[]): Promise<Response> {
     });
   }
 
-  if (parts[2] === "leaderboard") {
+  if (parts[1] === "leaderboard") {
     return handle(async () => {
       const url = new URL(req.url, "http://localhost");
       const gameKey = url.searchParams.get("gameKey");
