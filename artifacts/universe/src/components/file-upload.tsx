@@ -1,8 +1,6 @@
 import { useRef, useState } from "react";
 import { Upload, X, Loader2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { getDocument, GlobalWorkerOptions } from "pdfjs-dist";
-import { PDFDocument } from "pdf-lib";
 
 interface FileMeta { name: string; type: string; size: number }
 interface Props {
@@ -33,17 +31,12 @@ export default function FileUpload({
     setBusy(true);
     try {
       const meta: FileMeta = { name: file.name, type: file.type, size: file.size };
-      
-      if (file.type === "application/pdf" || file.name.toLowerCase().endsWith(".pdf")) {
-        const compressedUrl = await compressPdf(file, maxSizeKb);
-        onChange(compressedUrl, { ...meta, size: Math.ceil((compressedUrl.length * 3) / 4) });
-        return;
-      }
-
+      // For images, attempt to compress via canvas for size
       if (imageOnly && file.type.startsWith("image/")) {
         const dataUrl = await compressImage(file, 1200, 1200, 0.82);
         const sizeKb = Math.ceil((dataUrl.length * 3) / 4 / 1024);
         if (sizeKb > maxSizeKb) {
+          // try harder
           const smaller = await compressImage(file, 800, 800, 0.7);
           onChange(smaller, meta);
         } else {
@@ -104,7 +97,7 @@ export default function FileUpload({
         >
           {busy ? <Loader2 className="h-6 w-6 animate-spin" /> : <Upload className="h-6 w-6" />}
           <span className="text-sm">{label}</span>
-          <span className="text-xs text-muted-foreground">يتم ضغط PDF تلقائياً (حد أقصى {Math.round(maxSizeKb / 1024)}MB)</span>
+          <span className="text-xs text-muted-foreground">حد أقصى {maxSizeKb} كيلوبايت</span>
         </Button>
       )}
       {err && <p className="text-xs text-destructive mt-2">{err}</p>}
@@ -140,61 +133,4 @@ async function compressImage(file: File, maxW: number, maxH: number, quality: nu
   if (!ctx) return dataUrl;
   ctx.drawImage(img, 0, 0, width, height);
   return canvas.toDataURL("image/jpeg", quality);
-}
-
-async function compressPdf(file: File, targetMaxKb: number): Promise<string> {
-  const arrayBuffer = await file.arrayBuffer();
-  const originalSizeKb = arrayBuffer.byteLength / 1024;
-
-  GlobalWorkerOptions.workerSrc = `https://unpkg.com/pdfjs-dist@4.4.168/build/pdf.worker.min.mjs`;
-  const pdfDoc = await getDocument({ data: arrayBuffer }).promise;
-  const numPages = pdfDoc.numPages;
-
-  const qualitySteps = [0.5, 0.35, 0.2];
-  const scaleSteps = [1.5, 1.0, 0.8];
-
-  for (let attempt = 0; attempt < 3; attempt++) {
-    const quality = qualitySteps[attempt];
-    const scale = scaleSteps[attempt];
-    const tempPdf = await PDFDocument.create();
-
-    for (let i = 1; i <= numPages; i++) {
-      const page = await pdfDoc.getPage(i);
-      const viewport = page.getViewport({ scale });
-
-      const canvas = document.createElement("canvas");
-      canvas.width = viewport.width;
-      canvas.height = viewport.height;
-      const ctx = canvas.getContext("2d");
-      if (!ctx) continue;
-
-      await page.render({ canvasContext: ctx, viewport }).promise;
-
-      const jpegDataUrl = canvas.toDataURL("image/jpeg", quality);
-      const jpegBase64 = jpegDataUrl.split(",")[1];
-      const jpegBytes = Uint8Array.from(atob(jpegBase64), c => c.charCodeAt(0));
-
-      const jpegImage = await tempPdf.embedJpg(jpegBytes);
-      const newPage = tempPdf.addPage([viewport.width, viewport.height]);
-      newPage.drawImage(jpegImage, {
-        x: 0,
-        y: 0,
-        width: viewport.width,
-        height: viewport.height,
-      });
-    }
-
-    const result = await tempPdf.save();
-    const sizeKb = result.length / 1024;
-
-    if (sizeKb <= targetMaxKb || attempt === 2) {
-      if (sizeKb > targetMaxKb) {
-        throw new Error(`الملف كبير جداً حتى بعد الضغط (${originalSizeKb.toFixed(0)}KB → ${sizeKb.toFixed(0)}KB). الحد الأقصى ${targetMaxKb}KB`);
-      }
-      const base64 = btoa(String.fromCharCode(...result));
-      return `data:application/pdf;base64,${base64}`;
-    }
-  }
-
-  throw new Error("فشل ضغط الملف");
 }
