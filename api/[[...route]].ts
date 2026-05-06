@@ -1318,9 +1318,10 @@ async function handleCourses(req: Request, parts: string[]): Promise<Response> {
       const quizQs = quizzes.length ? await sql`SELECT * FROM lecture_quiz_questions WHERE quiz_id = ANY(${quizzes.map((q: any) => q.id)}) ORDER BY ord` : [];
       const pdfs = await sql`SELECT lp.*, mf.url as file_url, mf.name as file_name FROM lecture_pdfs lp LEFT JOIN material_files mf ON lp.material_file_id = mf.id WHERE lp.lecture_id = ANY(${lecIds})`;
       return lectures.map((l: any) => ({
-        ...l, videos: vids.filter((v: any) => v.lecture_id === l.id),
-        quizzes: quizzes.filter((q: any) => q.lecture_id === l.id).map((q: any) => ({ ...q, questions: quizQs.filter((qq: any) => qq.quiz_id === q.id) })),
-        pdfs: pdfs.filter((p: any) => p.lecture_id === l.id).map((p: any) => ({ id: p.id, name: p.file_name || p.name, url: p.file_url || p.url, lecture_id: p.lecture_id, size_bytes: p.size_bytes })),
+        id: l.id, courseId: l.course_id, title: l.title, type: l.type, ord: l.ord,
+        videos: vids.filter((v: any) => v.lecture_id === l.id).map((v: any) => ({ id: v.id, lectureId: v.lecture_id, title: v.title, youtubeUrl: v.youtube_url, youtubeId: v.youtube_id, ord: v.ord })),
+        quizzes: quizzes.filter((q: any) => q.lecture_id === l.id).map((q: any) => ({ id: q.id, lectureId: q.lecture_id, title: q.title, questions: quizQs.filter((qq: any) => qq.quiz_id === q.id).map((qq: any) => ({ id: qq.id, quizId: qq.quiz_id, text: qq.text, options: typeof qq.options === "string" ? JSON.parse(qq.options) : qq.options, correctIndex: qq.correct_index, points: qq.points, ord: qq.ord })) })),
+        pdfs: pdfs.filter((p: any) => p.lecture_id === l.id).map((p: any) => ({ id: p.id, lectureId: p.lecture_id, name: p.file_name || p.name, url: p.file_url || p.url, sizeBytes: p.size_bytes, materialFileId: p.material_file_id })),
       }));
     });
   }
