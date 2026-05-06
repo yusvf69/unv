@@ -948,16 +948,16 @@ async function handleFollow(req: Request, parts: string[]): Promise<Response> {
 }
 
 async function handleUsers(req: Request, parts: string[]): Promise<Response> {
-  if (parts[2] === "students") {
+  if (parts[1] === "students") {
     return handle(async () => {
       const rows = await sql`SELECT * FROM users WHERE role = 'student' ORDER BY points DESC LIMIT 100`;
       return rows.map((u: any) => ({ id: u.id, name: u.name, username: u.username, avatarUrl: u.avatar_url, groupName: u.group_name, specialization: u.specialization, yearInCollege: u.year_in_college, points: u.points, uniqueCode: u.unique_code }));
     });
   }
 
-  if (parts[2]) {
+  if (parts[1]) {
     return handle(async () => {
-      const id = Number(parts[2]);
+      const id = Number(parts[1]);
       const [user] = await sql`SELECT * FROM users WHERE id = ${id} LIMIT 1`;
       if (!user) throw Object.assign(new Error("User not found"), { status: 404 });
       const [{ followerCount }] = await sql`SELECT count(*)::int AS "followerCount" FROM user_follows WHERE following_id = ${id}`;
