@@ -1311,14 +1311,16 @@ async function handleCourses(req: Request, parts: string[]): Promise<Response> {
     return handle(async () => {
       const courseId = Number(parts[2]);
       const lectures = await sql`SELECT * FROM lectures WHERE course_id = ${courseId} ORDER BY ord`;
-      const vids = await sql`SELECT * FROM lecture_videos WHERE lecture_id = ANY(${lectures.map((l: any) => l.id)}) ORDER BY ord`;
-      const quizzes = await sql`SELECT * FROM lecture_quizzes WHERE lecture_id = ANY(${lectures.map((l: any) => l.id)})`;
-      const quizQs = await sql`SELECT * FROM lecture_quiz_questions WHERE quiz_id = ANY(${quizzes.map((q: any) => q.id)}) ORDER BY ord`;
-      const pdfs = await sql`SELECT * FROM lecture_pdfs WHERE lecture_id = ANY(${lectures.map((l: any) => l.id)})`;
+      if (!lectures.length) return [];
+      const lecIds = lectures.map((l: any) => l.id);
+      const vids = await sql`SELECT * FROM lecture_videos WHERE lecture_id = ANY(${lecIds}) ORDER BY ord`;
+      const quizzes = await sql`SELECT * FROM lecture_quizzes WHERE lecture_id = ANY(${lecIds})`;
+      const quizQs = quizzes.length ? await sql`SELECT * FROM lecture_quiz_questions WHERE quiz_id = ANY(${quizzes.map((q: any) => q.id)}) ORDER BY ord` : [];
+      const pdfs = await sql`SELECT lp.*, mf.url as file_url, mf.name as file_name FROM lecture_pdfs lp LEFT JOIN material_files mf ON lp.material_file_id = mf.id WHERE lp.lecture_id = ANY(${lecIds})`;
       return lectures.map((l: any) => ({
         ...l, videos: vids.filter((v: any) => v.lecture_id === l.id),
         quizzes: quizzes.filter((q: any) => q.lecture_id === l.id).map((q: any) => ({ ...q, questions: quizQs.filter((qq: any) => qq.quiz_id === q.id) })),
-        pdfs: pdfs.filter((p: any) => p.lecture_id === l.id),
+        pdfs: pdfs.filter((p: any) => p.lecture_id === l.id).map((p: any) => ({ id: p.id, name: p.file_name || p.name, url: p.file_url || p.url, lecture_id: p.lecture_id, size_bytes: p.size_bytes })),
       }));
     });
   }
@@ -1602,7 +1604,7 @@ async function handleAdminCrud(req: Request, parts: string[]): Promise<Response>
       const [q] = await sql`INSERT INTO lecture_quizzes (lecture_id, title) VALUES (${lectureId}, ${title}) RETURNING *`;
       if (questions?.length) {
         for (const qq of questions) {
-          await sql`INSERT INTO lecture_quiz_questions (quiz_id, text, options, correct_index, points, ord) VALUES (${q.id}, ${qq.text}, ${qq.options}, ${qq.correctIndex}, ${qq.points ?? 1}, ${qq.ord ?? 0})`;
+          await sql`INSERT INTO lecture_quiz_questions (quiz_id, text, options, correct_index, points, ord) VALUES (${q.id}, ${qq.text}, ${JSON.stringify(qq.options)}, ${qq.correctIndex}, ${qq.points ?? 1}, ${qq.ord ?? 0})`;
         }
       }
       return { ...q, questions: questions || [] };
