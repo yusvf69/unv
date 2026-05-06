@@ -747,7 +747,16 @@ async function handleAdminQuizzes(req: Request, parts: string[]): Promise<Respon
   const user = await getCurrentUser(userId);
   requireRole(user, ["admin", "super_admin"]);
 
-  if (req.method === "GET" && parts[3] === "attempts") {
+  if (parts[1] === "all-quizzes") {
+    return handle(async () => {
+      const all = await sql`SELECT * FROM quizzes ORDER BY created_at DESC`;
+      const counts = await sql`SELECT quiz_id, COUNT(*)::int AS c FROM quiz_attempts GROUP BY quiz_id`;
+      const map = new Map<number, number>(counts.map((r: any) => [Number(r.quiz_id), Number(r.c)]));
+      return all.map((q: any) => ({ ...q, createdAt: q.created_at?.toISOString(), attemptsCount: map.get(q.id) ?? 0 }));
+    });
+  }
+
+  if (parts[1] === "quizzes" && parts[3] === "attempts" && !parts[4]) {
     return handle(async () => {
       const id = Number(parts[2]);
       const attempts = await sql`SELECT * FROM quiz_attempts WHERE quiz_id = ${id} ORDER BY completed_at DESC`;
@@ -758,11 +767,11 @@ async function handleAdminQuizzes(req: Request, parts: string[]): Promise<Respon
     });
   }
 
-  if (req.method === "GET" && parts[3] && parts[4] === "attempts") {
+  if (parts[1] === "quizzes" && parts[3] === "attempts" && parts[4]) {
     return handle(async () => getAttemptDetail(Number(parts[4])));
   }
 
-  if (req.method === "POST" && !parts[3]) {
+  if (req.method === "POST" && parts[1] === "quizzes" && !parts[2]) {
     return handle(async () => {
       const body = await req.json();
       const { title, description, courseId, courseTitle, durationMinutes, totalPoints, difficulty, groupOnly, yearOnly, randomize, passPercent } = body;
@@ -772,9 +781,9 @@ async function handleAdminQuizzes(req: Request, parts: string[]): Promise<Respon
     });
   }
 
-  if (req.method === "PUT" && parts[2] === "quiz-questions" && parts[3]) {
+  if (req.method === "PUT" && parts[1] === "quiz-questions" && parts[2]) {
     return handle(async () => {
-      const id = Number(parts[3]);
+      const id = Number(parts[2]);
       const body = await req.json();
       const { text, options, correctIndex, points, explanation } = body;
       const [existing] = await sql`SELECT * FROM quiz_questions WHERE id = ${id}`;
@@ -784,14 +793,14 @@ async function handleAdminQuizzes(req: Request, parts: string[]): Promise<Respon
     });
   }
 
-  if (req.method === "DELETE" && parts[2] === "quiz-questions" && parts[3]) {
+  if (req.method === "DELETE" && parts[1] === "quiz-questions" && parts[2]) {
     return handle(async () => {
-      await sql`DELETE FROM quiz_questions WHERE id = ${Number(parts[3])}`;
+      await sql`DELETE FROM quiz_questions WHERE id = ${Number(parts[2])}`;
       return { ok: true };
     });
   }
 
-  if (req.method === "PUT" && parts[2] === "quizzes" && parts[3]) {
+  if (req.method === "PUT" && parts[1] === "quizzes" && parts[2]) {
     return handle(async () => {
       const id = Number(parts[2]);
       const body = await req.json();
@@ -801,14 +810,14 @@ async function handleAdminQuizzes(req: Request, parts: string[]): Promise<Respon
     });
   }
 
-  if (req.method === "DELETE" && parts[3]) {
+  if (req.method === "DELETE" && parts[1] === "quizzes" && parts[2]) {
     return handle(async () => {
       await sql`DELETE FROM quizzes WHERE id = ${Number(parts[2])}`;
       return { ok: true };
     });
   }
 
-  if (parts[3] && parts[4] === "questions") {
+  if (parts[1] === "quizzes" && parts[3] === "questions") {
     if (req.method === "GET") {
       return handle(async () => sql`SELECT * FROM quiz_questions WHERE quiz_id = ${Number(parts[2])} ORDER BY ord`);
     }
@@ -824,10 +833,10 @@ async function handleAdminQuizzes(req: Request, parts: string[]): Promise<Respon
     }
   }
 
-  if (parts[3] === "toggle") {
+  if (parts[2] === "toggle") {
     return handle(async () => {
       ensureSuper(user);
-      const id = Number(parts[4] || parts[2]);
+      const id = Number(parts[3]);
       const [q] = await sql`SELECT * FROM quizzes WHERE id = ${id}`;
       if (!q) throw Object.assign(new Error("الاختبار غير موجود"), { status: 404 });
       await sql`UPDATE quizzes SET is_open = NOT is_open WHERE id = ${id}`;
