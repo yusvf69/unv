@@ -1624,7 +1624,12 @@ async function handleAdminCrud(req: Request, parts: string[]): Promise<Response>
       const body = await req.json();
       const { text, options, correctIndex, points } = body;
       if (!text || !options || typeof correctIndex !== "number") throw Object.assign(new Error("بيانات السؤال ناقصة"), { status: 400 });
-      const [maxOrd] = await sql`SELECT MAX(ord) AS max FROM lecture_quiz_questions WHERE quiz_id = ${quizId}`;
+      let maxOrd;
+      try {
+        [maxOrd] = await sql`SELECT MAX(ord) AS max FROM lecture_quiz_questions WHERE quiz_id = ${quizId}`;
+      } catch {
+        maxOrd = { max: 0 };
+      }
       const [qq] = await sql`INSERT INTO lecture_quiz_questions (quiz_id, text, options, correct_index, points, ord) VALUES (${quizId}, ${text}, ${JSON.stringify(options)}, ${correctIndex}, ${points ?? 10}, ${(maxOrd?.max ?? 0) + 1}) RETURNING *`;
       return qq;
     });
