@@ -850,7 +850,7 @@ async function handleAdminQuizzes(req: Request, parts: string[]): Promise<Respon
 async function handleDM(req: Request, parts: string[]): Promise<Response> {
   const { userId } = requireAuth(req.headers);
 
-  if (parts[2] === "threads") {
+  if (parts[1] === "threads") {
     return handle(async () => {
       const threads = await sql`SELECT * FROM dm_threads WHERE user_a_id = ${userId} OR user_b_id = ${userId} ORDER BY last_message_at DESC`;
       if (!threads.length) return [];
@@ -873,8 +873,8 @@ async function handleDM(req: Request, parts: string[]): Promise<Response> {
     });
   }
 
-  if (parts[2] === "with") {
-    const otherId = Number(parts[3]);
+  if (parts[1] === "with") {
+    const otherId = Number(parts[2]);
     if (req.method === "GET") {
       return handle(async () => {
         const threadId = await ensureThread(userId, otherId);
