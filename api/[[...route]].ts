@@ -1330,8 +1330,9 @@ async function handleCourses(req: Request, parts: string[]): Promise<Response> {
       const { userId } = requireAuth(req.headers);
       const courseId = Number(parts[2]);
       const lectures = await sql`SELECT * FROM lectures WHERE course_id = ${courseId}`;
+      if (!lectures.length) return [];
       const vids = await sql`SELECT * FROM lecture_videos WHERE lecture_id = ANY(${lectures.map((l: any) => l.id)})`;
-      const prog = await sql`SELECT * FROM video_progress WHERE user_id = ${userId} AND video_id = ANY(${vids.map((v: any) => v.id)})`;
+      const prog = vids.length ? await sql`SELECT * FROM video_progress WHERE user_id = ${userId} AND video_id = ANY(${vids.map((v: any) => v.id)})` : [];
       const progMap = new Map(prog.map((p: any) => [p.video_id, p.completed]));
       return vids.map((v: any) => ({ videoId: v.id, completed: progMap.get(v.id) || false }));
     });
@@ -1341,10 +1342,11 @@ async function handleCourses(req: Request, parts: string[]): Promise<Response> {
       const { userId } = requireAuth(req.headers);
       const courseId = Number(parts[2]);
       const lectures = await sql`SELECT * FROM lectures WHERE course_id = ${courseId}`;
+      if (!lectures.length) return { totalItems: 0, completedItems: 0, percent: 0, videos: [], quizzes: [] };
       const vids = await sql`SELECT * FROM lecture_videos WHERE lecture_id = ANY(${lectures.map((l: any) => l.id)})`;
       const quizzes = await sql`SELECT * FROM lecture_quizzes WHERE lecture_id = ANY(${lectures.map((l: any) => l.id)})`;
-      const videoProg = await sql`SELECT * FROM video_progress WHERE user_id = ${userId} AND video_id = ANY(${vids.map((v: any) => v.id)})`;
-      const quizAttemptsList = await sql`SELECT * FROM lecture_quiz_attempts WHERE user_id = ${userId} AND quiz_id = ANY(${quizzes.map((q: any) => q.id)})`;
+      const videoProg = vids.length ? await sql`SELECT * FROM video_progress WHERE user_id = ${userId} AND video_id = ANY(${vids.map((v: any) => v.id)})` : [];
+      const quizAttemptsList = quizzes.length ? await sql`SELECT * FROM lecture_quiz_attempts WHERE user_id = ${userId} AND quiz_id = ANY(${quizzes.map((q: any) => q.id)})` : [];
       const videoMap = new Map(videoProg.map((p: any) => [p.video_id, p.completed]));
       const quizMap = new Map(quizAttemptsList.map((a: any) => [a.quiz_id, a.score / a.total >= 0.5]));
       const totalItems = vids.length + quizzes.length;
