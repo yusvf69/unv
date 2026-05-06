@@ -9,5 +9,11 @@
       "source": "/((?!api/).*)",
       "destination": "/index.html"
     }
-  ]
+  ],
+  "functions": {
+    "api/[[...route]].ts": {
+      "maxDuration": 30,
+      "bodySizeLimit": "20mb"
+    }
+  }
 }

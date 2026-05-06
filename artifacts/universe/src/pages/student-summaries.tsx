@@ -198,7 +198,7 @@ export default function StudentSummariesPage() {
                 value={form.url || null}
                 onChange={(d, meta) => setForm({ ...form, url: d || "", kind: meta?.type?.includes("pdf") ? "pdf" : "file", sizeBytes: meta?.size || 0 })}
                 accept="application/pdf,.pdf,.doc,.docx,.ppt,.pptx,image/*"
-                maxSizeKb={4096}
+                maxSizeKb={10240}
                 imageOnly={false}
               />
             </div>
