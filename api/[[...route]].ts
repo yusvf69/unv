@@ -827,7 +827,7 @@ async function handleAdminQuizzes(req: Request, parts: string[]): Promise<Respon
         const { text, type, options, correctIndex, points, explanation } = body;
         if (!text || !options || typeof correctIndex !== "number") throw Object.assign(new Error("بيانات السؤال ناقصة"), { status: 400 });
         const [maxOrd] = await sql`SELECT MAX(ord) AS max FROM quiz_questions WHERE quiz_id = ${Number(parts[2])}`;
-        const [qq] = await sql`INSERT INTO quiz_questions (quiz_id, text, type, options, correct_index, points, explanation, ord) VALUES (${Number(parts[2])}, ${text}, ${type || "mc"}, ${options}, ${correctIndex}, ${points ?? 10}, ${explanation || ""}, ${(maxOrd?.max ?? 0) + 1}) RETURNING *`;
+        const [qq] = await sql`INSERT INTO quiz_questions (quiz_id, text, type, options, correct_index, points, explanation, ord) VALUES (${Number(parts[2])}, ${text}, ${type || "mc"}, ${JSON.stringify(options)}, ${correctIndex}, ${points ?? 10}, ${explanation || ""}, ${(maxOrd?.max ?? 0) + 1}) RETURNING *`;
         return qq;
       });
     }
