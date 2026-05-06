@@ -76,8 +76,6 @@
   },
   "dependencies": {
     "@tailwindcss/oxide-darwin-arm64": "^4.2.4",
-    "pdf-lib": "^1.17.1",
-    "pdfjs-dist": "4.4.168",
     "zustand": "^5.0.12"
   },
   "optionalDependencies": {
