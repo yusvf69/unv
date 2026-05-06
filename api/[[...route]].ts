@@ -879,8 +879,12 @@ async function handleDM(req: Request, parts: string[]): Promise<Response> {
       return handle(async () => {
         const threadId = await ensureThread(userId, otherId);
         const msgs = await sql`SELECT * FROM dm_messages WHERE thread_id = ${threadId} ORDER BY created_at`;
-        await sql`UPDATE dm_messages SET read = true WHERE thread_id = ${threadId} AND from_id != ${userId}`;
-        const [otherUser] = await sql`SELECT * FROM users WHERE id = ${otherId}`;
+        try {
+          await sql`UPDATE dm_messages SET is_read = true WHERE thread_id = ${threadId} AND from_id != ${userId}`;
+        } catch {
+          await sql`UPDATE dm_messages SET read = true WHERE thread_id = ${threadId} AND from_id != ${userId}`;
+        }
+        const [otherUser] = await sql`SELECT id, name, avatar_url, group_name, specialization FROM users WHERE id = ${otherId}`;
         return {
           threadId, other: otherUser ? { id: otherUser.id, name: otherUser.name, avatarUrl: otherUser.avatar_url, groupName: otherUser.group_name, specialization: otherUser.specialization } : null,
           messages: msgs.map((m: any) => ({ ...m, createdAt: m.created_at?.toISOString(), fromMe: m.from_id === userId })),
@@ -894,7 +898,7 @@ async function handleDM(req: Request, parts: string[]): Promise<Response> {
         const threadId = await ensureThread(userId, otherId);
         const [msg] = await sql`INSERT INTO dm_messages (thread_id, from_id, body) VALUES (${threadId}, ${userId}, ${body.body.trim()}) RETURNING *`;
         await sql`UPDATE dm_threads SET last_message_at = ${new Date()} WHERE id = ${threadId}`;
-        const [meUser] = await sql`SELECT * FROM users WHERE id = ${userId}`;
+        const [meUser] = await sql`SELECT name FROM users WHERE id = ${userId}`;
         await sql`INSERT INTO notifications (user_id, title, body, type) VALUES (${otherId}, ${`رسالة من ${meUser?.name || "أحدهم"}`}, ${body.body.trim().slice(0, 100)}, 'info')`;
         return { ...msg, createdAt: msg.created_at?.toISOString() };
       });
