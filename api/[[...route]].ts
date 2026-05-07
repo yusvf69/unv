@@ -258,7 +258,6 @@ async function handleAuth(req: Request, parts: string[]): Promise<Response> {
       const resendKey = process.env.RESEND_API_KEY;
       const ultraMsgToken = process.env.ULTRAMSG_TOKEN;
       const ultraMsgId = process.env.ULTRAMSG_INSTANCE_ID;
-      if (!resendKey && !ultraMsgToken) throw Object.assign(new Error("خدمات الإرسال غير مهيأة"), { status: 500 });
 
       const code = Math.floor(100000 + Math.random() * 900000).toString();
       const expiresAt = new Date(Date.now() + 10 * 60 * 1000).toISOString();
