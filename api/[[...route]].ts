@@ -1880,11 +1880,44 @@ async function handleAiChat(req: Request): Promise<Response> {
     const { messages } = body;
     if (!messages || !Array.isArray(messages) || messages.length === 0) throw Object.assign(new Error("الرسائل مطلوبة"), { status: 400 });
 
+    const [me] = await sql`SELECT name, year_in_college, specialization, group_name, points FROM users WHERE id = ${userId}`;
+    const courses = await sql`SELECT id, title, code, description, credits, department, instructor FROM courses ORDER BY code`;
+    const news = await sql`SELECT id, title, category, body, published_at FROM news WHERE status = 'published' ORDER BY published_at DESC LIMIT 10`;
+    const events = await sql`SELECT id, title, description, event_date, location FROM events WHERE event_date >= now() ORDER BY event_date LIMIT 10`;
+    const groupSchedule = await sql`SELECT day_number, start_time, end_time, course_title, instructor, room, type FROM group_schedule WHERE group_name = ${me?.group_name || ""} AND year_in_college = ${me?.year_in_college || 0} ORDER BY day_number, start_time`;
+    const quizzes = await sql`SELECT q.id, q.title, q.course_id, q.is_open, c.title AS course_title FROM quizzes q JOIN courses c ON c.id = q.course_id WHERE q.is_open = true LIMIT 20`;
+
+    const siteData = `أنت مساعد UniVerse الذكي — منصة طلاب كلية الزراعة.
+
+بيانات الطالب الحالي:
+- الاسم: ${me?.name || "غير معروف"}
+- السنة: ${me?.year_in_college || "غير محدد"}
+- التخصص: ${me?.specialization || "غير محدد"}
+- المجموعة: ${me?.group_name || "غير محدد"}
+- النقاط: ${me?.points || 0}
+
+المقررات (${courses.length}):
+${courses.map((c: any) => `- ${c.code}: ${c.title} (${c.credits} ساعات) - ${c.department} - د. ${c.instructor}`).join("\n")}
+
+أحدث الأخبار:
+${news.map((n: any) => `- ${n.title} (${n.category})${n.published_at ? " - " + new Date(n.published_at).toLocaleDateString("ar-EG") : ""}`).join("\n")}
+
+الأحداث القادمة:
+${events.map((e: any) => `- ${e.title}${e.event_date ? " - " + new Date(e.event_date).toLocaleDateString("ar-EG") : ""}${e.location ? " - " + e.location : ""}`).join("\n") || "لا توجد أحداث قادمة"}
+
+الاختبارات المفتوحة:
+${quizzes.map((q: any) => `- ${q.title} (مقرر: ${q.course_title})`).join("\n") || "لا توجد اختبارات مفتوحة"}
+
+${me?.group_name ? `جدول المحاضرات (المجموعة ${me.group_name}):
+${groupSchedule.map((s: any) => `- اليوم ${s.day_number}: ${s.start_time?.slice(0,5)}-${s.end_time?.slice(0,5)} ${s.course_title} (${s.type}) - ${s.room || "غير محدد"} - ${s.instructor}`).join("\n") || "لا يوجد جدول"}` : ""}
+
+إذا سألك عن حاجة خارج نطاق المنصة أو الزراعة، قلله إنك متخصص في المساعدة الأكاديمية والزراعية.
+أجب بالعربية. كن ودوداً.`;
+
     const geminiApiKey = process.env.GEMINI_API_KEY || "AIzaSyCVjfYbjb5FB-aXw6oB11gglNSq-GfSaqs";
     const lastMsg = messages[messages.length - 1]?.content || "";
 
     try {
-      // Remove the welcome assistant message if it's first
       const filtered = messages[0]?.role === "assistant" ? messages.slice(1) : messages;
       const contents = filtered.map((m: any) => ({
         role: m.role === "assistant" ? "model" : "user",
@@ -1896,6 +1929,7 @@ async function handleAiChat(req: Request): Promise<Response> {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
+          systemInstruction: { parts: [{ text: siteData }] },
           contents,
           generationConfig: { temperature: 0.7, maxOutputTokens: 1024 },
         }),
@@ -1915,14 +1949,9 @@ async function handleAiChat(req: Request): Promise<Response> {
       console.error("[AiChat]", e);
     }
 
-    // Fallback: keyword-based response
     const lower = lastMsg.toLowerCase();
-    let reply = "أهلاً! أنا مساعد UniVerse الذكي. اسألني عن أي حاجة بخصوص الزراعة أو المذاكرة.";
-    if (lower.includes("تمثيل ضوئي") || lower.includes("photosynthesis")) reply = "التمثيل الضوئي هو العملية اللي بيحول فيها النبات ضوء الشمس لطاقة. بتحصل في البلاستيدات الخضرا باستخدام الكلوروفيل، وبياخد ثاني أكسيد الكربون + ماء = جلوكوز + أكسجين.";
-    else if (lower.includes("تربة") || lower.includes("soil")) reply = "التربة هي الطبقة السطحية من القشرة الأرضية اللي فيها النباتات بت grow. أنواعها: رملية، طينية، طميارية. وخصوبتها بتعتمد على المواد العضوية والعناصر الغذائية.";
-    else if (lower.includes("امتحان") || lower.includes("مذاكرة") || lower.includes("study")) reply = "عشان تذاكر بفعالية: 1- قسم المواد لأجزاء صغيرة. 2- استخدم الخرائط الذهنية. 3- راجع بانتظام. 4- نام كويس. 5- اختبر نفسك باستمرار.";
-    else if (lower.includes("نبات") || lower.includes("زراع")) reply = "علوم النبات بتشمل: تصنيف النباتات، تركيبها، وظائفها، طرق تكاثرها، وأمراضها. عاوز تفاصيل عن حاجة معينة؟";
-
+    let reply = "أهلاً! أنا مساعد UniVerse الذكي. اسألني عن المقررات أو الأخبار أو الجدول أو أي حاجة.";
+    if (courses.length) reply = `لدي معلومات عن ${courses.length} مقرر دراسي. اسألني عن أي مقرر!`;
     const suggestions = generateSuggestions(lastMsg);
     return { reply, suggestions };
   });
