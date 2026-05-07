@@ -169,25 +169,25 @@ export default function Materials() {
   const filtered = files.filter((f) => !q || f.name.toLowerCase().includes(q.toLowerCase()));
 
   return (
-    <div className="container mx-auto px-4 py-8">
-      <motion.div initial={{ opacity: 0, y: -10 }} animate={{ opacity: 1, y: 0 }} className="mb-6">
-        <h1 className="text-3xl font-serif font-bold flex items-center gap-2"><Folder className="h-7 w-7" /> ملفات المقررات</h1>
-        <p className="text-sm text-muted-foreground mt-1">شاهد، أعجب، علّق — كل تفاعل يدعم زملاءك ويرفع نقاطهم.</p>
+    <div className="container mx-auto px-3 sm:px-4 py-4 sm:py-8">
+      <motion.div initial={{ opacity: 0, y: -10 }} animate={{ opacity: 1, y: 0 }} className="mb-4 sm:mb-6">
+        <h1 className="text-xl sm:text-3xl font-serif font-bold flex items-center gap-2"><Folder className="h-5 w-5 sm:h-7 sm:w-7" /> ملفات المقررات</h1>
+        <p className="text-xs sm:text-sm text-muted-foreground mt-1">شاهد، أعجب، علّق — كل تفاعل يدعم زملاءك ويرفع نقاطهم.</p>
       </motion.div>
 
-      <div className="grid lg:grid-cols-[300px_1fr] gap-6">
-        <div className="bg-card border rounded-2xl p-3 h-fit lg:sticky lg:top-20">
-          <h2 className="font-bold text-sm px-2 mb-2">المقررات</h2>
-          <div className="space-y-1 max-h-[60vh] overflow-y-auto">
+      <div className="grid lg:grid-cols-[280px_1fr] gap-3 sm:gap-6">
+        <div className="bg-card border rounded-xl sm:rounded-2xl p-2 sm:p-3 h-fit lg:sticky lg:top-20">
+          <h2 className="font-bold text-xs sm:text-sm px-2 mb-2">المقررات</h2>
+          <div className="space-y-1 max-h-[30vh] sm:max-h-[60vh] overflow-y-auto">
             {courses.length === 0 && <p className="text-xs text-muted-foreground p-3">لا توجد مقررات بعد. الإدارة تضيفها من لوحة التحكم.</p>}
             {courses.map((c) => (
               <button
                 key={c.id}
                 onClick={() => setSelected(c.id)}
-                className={`w-full text-start px-3 py-2 rounded-lg text-sm transition ${selected === c.id ? "bg-primary text-primary-foreground" : "hover:bg-muted"}`}
+                className={`w-full text-start px-3 py-2 rounded-lg text-xs sm:text-sm transition ${selected === c.id ? "bg-primary text-primary-foreground" : "hover:bg-muted"}`}
               >
                 <div className="font-bold truncate">{c.title}</div>
-                <div className={`text-[11px] ${selected === c.id ? "opacity-80" : "text-muted-foreground"}`}>{c.code} · {c.instructor}</div>
+                <div className={`text-[10px] sm:text-[11px] ${selected === c.id ? "opacity-80" : "text-muted-foreground"}`}>{c.code} · {c.instructor}</div>
               </button>
             ))}
           </div>
@@ -195,23 +195,23 @@ export default function Materials() {
 
         <div>
           {!selected ? (
-            <div className="bg-card border rounded-2xl p-12 text-center">
-              <Folder className="h-12 w-12 mx-auto text-muted-foreground mb-3" />
-              <p className="text-muted-foreground">اختر مقرراً من القائمة لعرض ملفاته</p>
+            <div className="bg-card border rounded-xl sm:rounded-2xl p-8 sm:p-12 text-center">
+              <Folder className="h-8 w-8 sm:h-12 sm:w-12 mx-auto text-muted-foreground mb-2 sm:mb-3" />
+              <p className="text-muted-foreground text-sm">اختر مقرراً من القائمة لعرض ملفاته</p>
             </div>
           ) : (
             <>
-              <div className="relative mb-4">
-                <Search className="absolute start-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-                <Input value={q} onChange={(e) => setQ(e.target.value)} placeholder="ابحث في الملفات..." className="ps-9" />
+              <div className="relative mb-3 sm:mb-4">
+                <Search className="absolute start-3 top-1/2 -translate-y-1/2 h-3.5 w-3.5 sm:h-4 sm:w-4 text-muted-foreground" />
+                <Input value={q} onChange={(e) => setQ(e.target.value)} placeholder="ابحث في الملفات..." className="ps-9 h-9 sm:h-10 text-sm" />
               </div>
               {filtered.length === 0 ? (
-                <div className="bg-card border rounded-2xl p-12 text-center">
-                  <FileText className="h-12 w-12 mx-auto text-muted-foreground mb-3" />
-                  <p className="text-muted-foreground">لا توجد ملفات لهذا المقرر بعد</p>
+                <div className="bg-card border rounded-xl sm:rounded-2xl p-8 sm:p-12 text-center">
+                  <FileText className="h-8 w-8 sm:h-12 sm:w-12 mx-auto text-muted-foreground mb-2 sm:mb-3" />
+                  <p className="text-muted-foreground text-sm">لا توجد ملفات لهذا المقرر بعد</p>
                 </div>
               ) : (
-                <div className="grid sm:grid-cols-2 gap-3">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 sm:gap-3">
                   {filtered.map((f) => <FileCard key={f.id} f={f} />)}
                 </div>
               )}

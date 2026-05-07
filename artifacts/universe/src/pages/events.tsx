@@ -53,42 +53,42 @@ export default function Events() {
   const isAdmin = me?.role === "admin" || me?.role === "super_admin";
 
   return (
-    <div className="container mx-auto px-4 py-8 max-w-5xl">
-      <motion.div initial={{ opacity: 0, y: -10 }} animate={{ opacity: 1, y: 0 }} className="mb-6 flex items-start justify-between gap-3 flex-wrap">
+    <div className="container mx-auto px-3 sm:px-4 py-4 sm:py-8 max-w-5xl">
+      <motion.div initial={{ opacity: 0, y: -10 }} animate={{ opacity: 1, y: 0 }} className="mb-4 sm:mb-6 flex items-start justify-between gap-2 sm:gap-3 flex-wrap">
         <div>
-          <h1 className="text-3xl md:text-4xl font-serif font-bold flex items-center gap-3">
-            <Bell className="h-8 w-8 text-primary" /> الأحداث والامتحانات
+          <h1 className="text-xl sm:text-3xl md:text-4xl font-serif font-bold flex items-center gap-2 sm:gap-3">
+            <Bell className="h-6 w-6 sm:h-8 sm:w-8 text-primary" /> الأحداث والامتحانات
           </h1>
-          <p className="text-sm text-muted-foreground mt-2">
+          <p className="text-xs sm:text-sm text-muted-foreground mt-1 sm:mt-2">
             كل المواعيد المهمة لسنتك ومجموعتك في مكان واحد — امتحانات، تسليمات، ورش، وأكثر.
           </p>
         </div>
         {isAdmin && (
-          <Button asChild>
+          <Button asChild className="text-xs sm:text-sm h-9 sm:h-10">
             <Link href="/admin/events">إدارة الأحداث</Link>
           </Button>
         )}
       </motion.div>
 
-      <div className="flex items-center gap-3 mb-6 flex-wrap">
-        <div className="inline-flex bg-muted rounded-full p-1">
+      <div className="flex items-center gap-2 sm:gap-3 mb-4 sm:mb-6 flex-wrap">
+        <div className="inline-flex bg-muted rounded-full p-0.5 sm:p-1">
           {(["upcoming", "all", "past"] as const).map((f) => (
             <button
               key={f}
               onClick={() => setFilter(f)}
-              className={`px-4 py-1.5 text-xs font-medium rounded-full transition ${filter === f ? "bg-primary text-primary-foreground shadow" : "text-muted-foreground"}`}
+              className={`px-2.5 sm:px-4 py-1 sm:py-1.5 text-[10px] sm:text-xs font-medium rounded-full transition ${filter === f ? "bg-primary text-primary-foreground shadow" : "text-muted-foreground"}`}
             >
               {f === "upcoming" ? "القادم" : f === "past" ? "المنتهي" : "الكل"}
             </button>
           ))}
         </div>
         {kinds.length > 0 && (
-          <div className="inline-flex items-center gap-2">
-            <Filter className="h-4 w-4 text-muted-foreground" />
+          <div className="inline-flex items-center gap-1.5 sm:gap-2">
+            <Filter className="h-3.5 w-3.5 sm:h-4 sm:w-4 text-muted-foreground" />
             <select
               value={kindFilter}
               onChange={(e) => setKindFilter(e.target.value)}
-              className="h-8 px-2 border rounded-md bg-background text-xs"
+              className="h-7 sm:h-8 px-2 border rounded-md bg-background text-[10px] sm:text-xs"
             >
               <option value="all">كل الأنواع</option>
               {kinds.map((k) => <option key={k} value={k}>{KIND_LABELS[k] ?? k}</option>)}
@@ -97,15 +97,15 @@ export default function Events() {
         )}
       </div>
 
-      {isLoading && <p className="text-center text-muted-foreground py-8">جاري التحميل...</p>}
+      {isLoading && <p className="text-center text-muted-foreground py-8 text-sm">جاري التحميل...</p>}
       {!isLoading && filtered.length === 0 && (
-        <div className="text-center py-16 bg-card border rounded-2xl">
-          <Calendar className="h-12 w-12 mx-auto text-muted-foreground mb-3" />
-          <p className="text-muted-foreground">لا توجد أحداث {filter === "upcoming" ? "قادمة" : filter === "past" ? "منتهية" : ""} حالياً.</p>
+        <div className="text-center py-12 sm:py-16 bg-card border rounded-xl sm:rounded-2xl">
+          <Calendar className="h-8 w-8 sm:h-12 sm:w-12 mx-auto text-muted-foreground mb-2 sm:mb-3" />
+          <p className="text-muted-foreground text-sm">لا توجد أحداث {filter === "upcoming" ? "قادمة" : filter === "past" ? "منتهية" : ""} حالياً.</p>
         </div>
       )}
 
-      <div className="space-y-3">
+      <div className="space-y-2 sm:space-y-3">
         <AnimatePresence>
           {filtered.map((e, i) => {
             const due = new Date(e.dueAt);
@@ -118,14 +118,14 @@ export default function Events() {
                 animate={{ opacity: 1, y: 0 }}
                 exit={{ opacity: 0, x: -40 }}
                 transition={{ delay: i * 0.04 }}
-                className={`bg-card border-2 rounded-2xl p-4 flex gap-4 hover:shadow-lg transition ${past ? "opacity-60" : ""}`}
+                className={`bg-card border-2 rounded-xl sm:rounded-2xl p-3 sm:p-4 flex flex-col sm:flex-row gap-2 sm:gap-4 hover:shadow-lg transition ${past ? "opacity-60" : ""}`}
               >
-                <div className={`w-16 flex-shrink-0 rounded-xl bg-gradient-to-br ${color} text-white text-center py-3`}>
-                  <div className="text-2xl font-bold leading-none">{due.getDate()}</div>
-                  <div className="text-[10px] uppercase mt-1 opacity-90">{due.toLocaleString("ar-EG", { month: "short" })}</div>
+                <div className={`w-full sm:w-16 flex-shrink-0 rounded-xl bg-gradient-to-br ${color} text-white text-center py-2 sm:py-3`}>
+                  <div className="text-xl sm:text-2xl font-bold leading-none">{due.getDate()}</div>
+                  <div className="text-[9px] sm:text-[10px] uppercase mt-0.5 sm:mt-1 opacity-90">{due.toLocaleString("ar-EG", { month: "short" })}</div>
                 </div>
                 <div className="flex-1 min-w-0">
-                  <div className="flex items-center gap-2 mb-1 flex-wrap">
+                  <div className="flex items-center gap-1.5 sm:gap-2 mb-1 flex-wrap">
                     <span className={`text-[10px] bg-gradient-to-r ${color} text-white px-2 py-0.5 rounded-full font-bold`}>
                       {KIND_LABELS[e.kind] ?? e.kind}
                     </span>
@@ -139,15 +139,15 @@ export default function Events() {
                       {timeUntil(due)}
                     </span>
                   </div>
-                  <h3 className="font-bold text-base">{e.title}</h3>
-                  {e.description && <p className="text-sm text-muted-foreground mt-1">{e.description}</p>}
-                  <div className="text-xs text-muted-foreground mt-2 flex flex-wrap items-center gap-3">
+                  <h3 className="font-bold text-sm sm:text-base">{e.title}</h3>
+                  {e.description && <p className="text-xs sm:text-sm text-muted-foreground mt-1">{e.description}</p>}
+                  <div className="text-xs text-muted-foreground mt-1.5 sm:mt-2 flex flex-wrap items-center gap-2 sm:gap-3">
                     <span className="inline-flex items-center gap-1">
-                      <Clock className="h-3.5 w-3.5" /> {due.toLocaleString("ar-EG", { hour: "2-digit", minute: "2-digit", weekday: "long" })}
+                      <Clock className="h-3 w-3 sm:h-3.5 sm:w-3.5" /> {due.toLocaleString("ar-EG", { hour: "2-digit", minute: "2-digit", weekday: "long" })}
                     </span>
                     {e.location && (
                       <span className="inline-flex items-center gap-1">
-                        <MapPin className="h-3.5 w-3.5" /> {e.location}
+                        <MapPin className="h-3 w-3 sm:h-3.5 sm:w-3.5" /> {e.location}
                       </span>
                     )}
                   </div>
@@ -159,9 +159,9 @@ export default function Events() {
       </div>
 
       {!isAdmin && me?.role === "student" && events.length > 0 && (
-        <div className="mt-8 p-4 bg-primary/5 border border-primary/20 rounded-xl flex items-center gap-3">
-          <BookOpen className="h-5 w-5 text-primary" />
-          <p className="text-sm text-muted-foreground">المواعيد تُرشّح حسب سنتك ({me.yearInCollege ?? "—"}) ومجموعتك ({me.groupName ?? "—"}).</p>
+        <div className="mt-6 sm:mt-8 p-3 sm:p-4 bg-primary/5 border border-primary/20 rounded-xl flex items-center gap-2 sm:gap-3">
+          <BookOpen className="h-4 w-4 sm:h-5 sm:w-5 text-primary flex-shrink-0" />
+          <p className="text-xs sm:text-sm text-muted-foreground">المواعيد تُرشّح حسب سنتك ({me.yearInCollege ?? "—"}) ومجموعتك ({me.groupName ?? "—"}).</p>
         </div>
       )}
     </div>

@@ -85,17 +85,17 @@ export default function AdminDashboard() {
   }));
 
   return (
-    <div className="container mx-auto px-4 py-8 space-y-8 max-w-7xl">
+    <div className="container mx-auto px-3 sm:px-4 py-4 sm:py-8 space-y-4 sm:space-y-8 max-w-7xl">
       <motion.div
         initial={{ opacity: 0, y: -10 }}
         animate={{ opacity: 1, y: 0 }}
         className="flex flex-col md:flex-row md:items-center md:justify-between gap-4"
       >
         <div>
-          <h1 className="text-3xl md:text-4xl font-serif font-bold bg-gradient-to-r from-primary to-secondary bg-clip-text text-transparent">
+          <h1 className="text-2xl sm:text-3xl md:text-4xl font-serif font-bold bg-gradient-to-r from-primary to-secondary bg-clip-text text-transparent">
             مركز التحكم
           </h1>
-          <p className="text-muted-foreground mt-1">
+          <p className="text-xs sm:text-sm text-muted-foreground mt-1">
             {isSuper ? "صلاحياتك كـ سوبر أدمن: تنفيذ مباشر + مراجعة الاقتراحات." : "صلاحياتك كأدمن: اقتراح التعديلات للسوبر أدمن."}
           </p>
         </div>
@@ -104,18 +104,18 @@ export default function AdminDashboard() {
             <motion.div
               animate={{ scale: [1, 1.05, 1] }}
               transition={{ duration: 2, repeat: Infinity }}
-              className="bg-gradient-to-r from-amber-500 to-orange-500 text-white px-5 py-3 rounded-2xl shadow-lg flex items-center gap-3 font-bold text-sm hover-elevate active-elevate"
+              className="bg-gradient-to-r from-amber-500 to-orange-500 text-white px-4 sm:px-5 py-2 sm:py-3 rounded-2xl shadow-lg flex items-center gap-2 sm:gap-3 font-bold text-xs sm:text-sm hover-elevate active-elevate"
             >
-              <ShieldCheck className="h-5 w-5" />
+              <ShieldCheck className="h-4 w-4 sm:h-5 sm:w-5" />
               {pendingProposals} اقتراح بانتظارك
-              <ArrowLeft className="h-4 w-4" />
+              <ArrowLeft className="h-3.5 w-3.5 sm:h-4 sm:w-4" />
             </motion.div>
           </Link>
         )}
       </motion.div>
 
       {/* MODULES GRID */}
-      <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-3">
+      <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-2 sm:gap-3">
         {ADMIN_MODULES_ALL.filter((m) => m.roles.includes(me?.role || "")).map((m, i) => (
           <motion.div
             key={m.href}
@@ -125,11 +125,11 @@ export default function AdminDashboard() {
             whileHover={{ y: -4 }}
           >
             <Link href={m.href}>
-              <div className={`relative overflow-hidden bg-gradient-to-br ${m.color} text-white rounded-2xl p-5 shadow-lg cursor-pointer h-full hover-elevate active-elevate`} data-testid={`admin-module-${m.href.split("/").pop()}`}>
-                <m.icon className="absolute -end-3 -bottom-3 h-20 w-20 opacity-10" />
-                <m.icon className="h-7 w-7 mb-3" />
-                <div className="font-bold text-base">{m.title}</div>
-                <div className="text-xs opacity-90 mt-0.5">{m.desc}</div>
+              <div className={`relative overflow-hidden bg-gradient-to-br ${m.color} text-white rounded-xl sm:rounded-2xl p-3 sm:p-5 shadow-lg cursor-pointer h-full hover-elevate active-elevate`} data-testid={`admin-module-${m.href.split("/").pop()}`}>
+                <m.icon className="absolute -end-3 -bottom-3 h-16 w-16 sm:h-20 sm:w-20 opacity-10" />
+                <m.icon className="h-5 w-5 sm:h-7 sm:w-7 mb-2 sm:mb-3" />
+                <div className="font-bold text-xs sm:text-base">{m.title}</div>
+                <div className="text-[10px] sm:text-xs opacity-90 mt-0.5">{m.desc}</div>
               </div>
             </Link>
           </motion.div>
@@ -137,7 +137,7 @@ export default function AdminDashboard() {
       </div>
 
       {/* STATS */}
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-2 sm:gap-3">
         {[
           { icon: Users, value: overview.totalStudents, label: "إجمالي الطلاب", color: "primary" },
           { icon: GraduationCap, value: overview.totalStaff, label: "هيئة التدريس", color: "secondary" },
@@ -151,13 +151,13 @@ export default function AdminDashboard() {
             transition={{ delay: 0.1 + i * 0.05 }}
           >
             <Card className="border-2">
-              <CardContent className="p-4 flex items-center gap-3">
-                <div className={`p-3 bg-${s.color}/10 text-${s.color} rounded-xl`}>
-                  <s.icon className="h-5 w-5" />
+              <CardContent className="p-3 sm:p-4 flex items-center gap-2 sm:gap-3">
+                <div className={`p-2.5 sm:p-3 bg-${s.color}/10 text-${s.color} rounded-xl`}>
+                  <s.icon className="h-4 w-4 sm:h-5 sm:w-5" />
                 </div>
                 <div>
-                  <div className="text-2xl font-bold tabular-nums">{s.value}</div>
-                  <div className="text-xs text-muted-foreground">{s.label}</div>
+                  <div className="text-lg sm:text-2xl font-bold tabular-nums">{s.value}</div>
+                  <div className="text-[10px] sm:text-xs text-muted-foreground">{s.label}</div>
                 </div>
               </CardContent>
             </Card>
@@ -165,28 +165,28 @@ export default function AdminDashboard() {
         ))}
       </div>
 
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-4 sm:gap-6">
         <Card className="lg:col-span-2 border-2">
           <CardHeader>
-            <CardTitle>التفاعل الأسبوعي</CardTitle>
-            <CardDescription>عدد المستخدمين النشطين ودقائق المذاكرة خلال آخر 7 أيام</CardDescription>
+            <CardTitle className="text-base sm:text-lg">التفاعل الأسبوعي</CardTitle>
+            <CardDescription className="text-xs sm:text-sm">عدد المستخدمين النشطين ودقائق المذاكرة خلال آخر 7 أيام</CardDescription>
           </CardHeader>
           <CardContent>
-            <div className="grid grid-cols-3 gap-3 mb-4">
-              <div className="bg-primary/10 rounded-lg p-3 text-center">
-                <div className="text-xl font-bold text-primary">{overview.todayActivity}</div>
+            <div className="grid grid-cols-3 gap-2 sm:gap-3 mb-4">
+              <div className="bg-primary/10 rounded-lg p-2 sm:p-3 text-center">
+                <div className="text-base sm:text-xl font-bold text-primary">{overview.todayActivity}</div>
                 <div className="text-[10px] text-muted-foreground">نشط اليوم</div>
               </div>
-              <div className="bg-secondary/10 rounded-lg p-3 text-center">
-                <div className="text-xl font-bold text-secondary">{weeklyData.reduce((s, d) => s + d.studyMinutes, 0)}</div>
+              <div className="bg-secondary/10 rounded-lg p-2 sm:p-3 text-center">
+                <div className="text-base sm:text-xl font-bold text-secondary">{weeklyData.reduce((s, d) => s + d.studyMinutes, 0)}</div>
                 <div className="text-[10px] text-muted-foreground">دقيقة هذا الأسبوع</div>
               </div>
-              <div className="bg-accent/10 rounded-lg p-3 text-center">
-                <div className="text-xl font-bold text-accent">{overview.aiUsageToday}</div>
+              <div className="bg-accent/10 rounded-lg p-2 sm:p-3 text-center">
+                <div className="text-base sm:text-xl font-bold text-accent">{overview.aiUsageToday}</div>
                 <div className="text-[10px] text-muted-foreground">استخدام AI اليوم</div>
               </div>
             </div>
-            <div className="h-[280px] w-full">
+            <div className="h-[200px] sm:h-[280px] w-full">
               <ResponsiveContainer width="100%" height="100%">
                 <LineChart data={weeklyData}>
                   <XAxis dataKey="dayLabel" fontSize={12} tickLine={false} axisLine={false} />
@@ -202,24 +202,24 @@ export default function AdminDashboard() {
         </Card>
 
         <Card className="border-2">
-          <CardHeader><CardTitle>الأقسام</CardTitle></CardHeader>
+          <CardHeader><CardTitle className="text-base sm:text-lg">الأقسام</CardTitle></CardHeader>
           <CardContent>
-            <div className="h-[200px] w-full mb-4">
+            <div className="h-[160px] sm:h-[200px] w-full mb-3 sm:mb-4">
               <ResponsiveContainer width="100%" height="100%">
                 <PieChart>
-                  <Pie data={overview.departmentBreakdown} cx="50%" cy="50%" innerRadius={60} outerRadius={80} paddingAngle={5} dataKey="count" nameKey="department">
+                  <Pie data={overview.departmentBreakdown} cx="50%" cy="50%" innerRadius={50} outerRadius={70} paddingAngle={5} dataKey="count" nameKey="department">
                     {overview.departmentBreakdown.map((_, i) => <Cell key={i} fill={COLORS[i % COLORS.length]} />)}
                   </Pie>
                   <Tooltip contentStyle={{ borderRadius: '8px', border: '1px solid var(--border)' }} />
                 </PieChart>
               </ResponsiveContainer>
             </div>
-            <div className="space-y-1.5">
+            <div className="space-y-1 sm:space-y-1.5">
               {overview.departmentBreakdown.map((d, i) => (
                 <div key={d.department} className="flex justify-between items-center text-xs">
-                  <div className="flex items-center gap-1.5 min-w-0">
-                    <div className="w-2.5 h-2.5 rounded-full flex-shrink-0" style={{ backgroundColor: COLORS[i % COLORS.length] }} />
-                    <span className="truncate">{d.department}</span>
+                  <div className="flex items-center gap-1 sm:gap-1.5 min-w-0">
+                    <div className="w-2 h-2 sm:w-2.5 sm:h-2.5 rounded-full flex-shrink-0" style={{ backgroundColor: COLORS[i % COLORS.length] }} />
+                    <span className="truncate text-xs">{d.department}</span>
                   </div>
                   <span className="font-bold tabular-nums">{d.count}</span>
                 </div>
@@ -229,62 +229,62 @@ export default function AdminDashboard() {
         </Card>
       </div>
 
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 sm:gap-6">
         <Card className="border-2">
           <CardHeader>
-            <CardTitle className="flex items-center gap-2"><Bell className="h-5 w-5 text-primary" /> تنبيهات النظام</CardTitle>
+            <CardTitle className="flex items-center gap-2 text-base sm:text-lg"><Bell className="h-4 w-4 sm:h-5 sm:w-5 text-primary" /> تنبيهات النظام</CardTitle>
           </CardHeader>
           <CardContent>
-            <div className="space-y-3">
+            <div className="space-y-2 sm:space-y-3">
               {overview.alerts.map(alert => (
-                <div key={alert.id} className="flex items-start gap-3 p-3 rounded-xl border border-border bg-card">
+                <div key={alert.id} className="flex items-start gap-2 sm:gap-3 p-2 sm:p-3 rounded-xl border border-border bg-card">
                   {alert.severity === "critical" ? (
-                    <AlertTriangle className="shrink-0 mt-0.5 w-5 h-5 text-destructive" />
+                    <AlertTriangle className="shrink-0 mt-0.5 w-4 h-4 sm:w-5 sm:h-5 text-destructive" />
                   ) : alert.severity === "warning" ? (
-                    <AlertTriangle className="shrink-0 mt-0.5 w-5 h-5 text-orange-500" />
+                    <AlertTriangle className="shrink-0 mt-0.5 w-4 h-4 sm:w-5 sm:h-5 text-orange-500" />
                   ) : (
-                    <CheckCircle className="shrink-0 mt-0.5 w-5 h-5 text-blue-500" />
+                    <CheckCircle className="shrink-0 mt-0.5 w-4 h-4 sm:w-5 sm:h-5 text-blue-500" />
                   )}
                   <div className="flex-1 min-w-0">
                     <div className="flex justify-between gap-2">
-                      <h4 className="font-bold text-sm">{alert.title}</h4>
+                      <h4 className="font-bold text-xs sm:text-sm truncate">{alert.title}</h4>
                       <Badge variant={alert.severity === "critical" ? "destructive" : "outline"} className="text-[10px] flex-shrink-0">
                         {alert.kind === "dropout_risk" ? "خطر" : alert.kind === "complaint" ? "شكوى" : alert.kind === "content_review" ? "مراجعة" : "نظام"}
                       </Badge>
                     </div>
-                    <p className="text-xs text-muted-foreground mt-1">{alert.body}</p>
+                    <p className="text-xs text-muted-foreground mt-1 line-clamp-2">{alert.body}</p>
                   </div>
                 </div>
               ))}
-              {overview.alerts.length === 0 && <div className="text-center py-8 text-muted-foreground text-sm">لا توجد تنبيهات.</div>}
+              {overview.alerts.length === 0 && <div className="text-center py-6 sm:py-8 text-muted-foreground text-xs sm:text-sm">لا توجد تنبيهات.</div>}
             </div>
           </CardContent>
         </Card>
 
         <Card className="border-2">
           <CardHeader>
-            <CardTitle className="flex items-center gap-2"><Megaphone className="h-5 w-5 text-rose-500" /> إرسال تنبيه للنظام</CardTitle>
-            <CardDescription>أرسل إشعاراً لجميع الطلاب أو لمجموعة محددة</CardDescription>
+            <CardTitle className="flex items-center gap-2 text-base sm:text-lg"><Megaphone className="h-4 w-4 sm:h-5 sm:w-5 text-rose-500" /> إرسال تنبيه للنظام</CardTitle>
+            <CardDescription className="text-xs sm:text-sm">أرسل إشعاراً لجميع الطلاب أو لمجموعة محددة</CardDescription>
           </CardHeader>
-          <CardContent className="space-y-4">
+          <CardContent className="space-y-3 sm:space-y-4">
             <div className="space-y-1.5">
-              <Label>عنوان الإشعار</Label>
-              <Input value={notifTitle} onChange={(e) => setNotifTitle(e.target.value)} placeholder="مثال: تذكير بالامتحان" />
+              <Label className="text-xs sm:text-sm">عنوان الإشعار</Label>
+              <Input value={notifTitle} onChange={(e) => setNotifTitle(e.target.value)} placeholder="مثال: تذكير بالامتحان" className="h-9 sm:h-10 text-sm" />
             </div>
             <div className="space-y-1.5">
-              <Label>نص الإشعار</Label>
-              <Input value={notifBody} onChange={(e) => setNotifBody(e.target.value)} placeholder="تفاصيل الإشعار..." />
+              <Label className="text-xs sm:text-sm">نص الإشعار</Label>
+              <Input value={notifBody} onChange={(e) => setNotifBody(e.target.value)} placeholder="تفاصيل الإشعار..." className="h-9 sm:h-10 text-sm" />
             </div>
             <div className="space-y-1.5">
-              <Label>المرسل إليهم</Label>
-              <select value={notifTarget} onChange={(e) => setNotifTarget(e.target.value)} className="w-full h-10 rounded-md border bg-background px-3 text-sm">
+              <Label className="text-xs sm:text-sm">المرسل إليهم</Label>
+              <select value={notifTarget} onChange={(e) => setNotifTarget(e.target.value)} className="w-full h-9 sm:h-10 rounded-md border bg-background px-3 text-sm">
                 <option value="all">جميع المستخدمين</option>
                 <option value="student">الطلاب فقط</option>
                 <option value="doctor">هيئة التدريس فقط</option>
               </select>
             </div>
-            <Button onClick={handleSendNotification} disabled={!notifTitle || !notifBody || sendNotification.isPending} className="w-full">
-              <Send className="me-2 h-4 w-4" />
+            <Button onClick={handleSendNotification} disabled={!notifTitle || !notifBody || sendNotification.isPending} className="w-full h-9 sm:h-10 text-sm">
+              <Send className="me-2 h-3.5 w-3.5 sm:h-4 sm:w-4" />
               {sendNotification.isPending ? "جاري الإرسال..." : "إرسال الإشعار"}
             </Button>
             {sendNotification.isSuccess && (
@@ -294,13 +294,13 @@ export default function AdminDashboard() {
         </Card>
 
         <Card className="border-2">
-          <CardHeader><CardTitle>توزيع النقاط</CardTitle></CardHeader>
+          <CardHeader><CardTitle className="text-base sm:text-lg">توزيع النقاط</CardTitle></CardHeader>
           <CardContent>
-            <div className="h-[250px] w-full">
+            <div className="h-[200px] sm:h-[250px] w-full">
               <ResponsiveContainer width="100%" height="100%">
                 <BarChart data={overview.pointsDistribution}>
-                  <XAxis dataKey="bucket" fontSize={12} tickLine={false} axisLine={false} />
-                  <YAxis fontSize={12} tickLine={false} axisLine={false} />
+                  <XAxis dataKey="bucket" fontSize={11} tickLine={false} axisLine={false} />
+                  <YAxis fontSize={11} tickLine={false} axisLine={false} />
                   <Tooltip cursor={{ fill: 'var(--muted)' }} contentStyle={{ borderRadius: '8px', border: '1px solid var(--border)' }} />
                   <Bar dataKey="count" fill="hsl(var(--accent))" radius={[8, 8, 0, 0]} name="مستخدم" />
                 </BarChart>

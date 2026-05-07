@@ -104,31 +104,31 @@ export default function AdminCourses() {
   };
 
   return (
-    <div className="container mx-auto px-4 py-8 max-w-5xl">
-      <div className="flex items-start justify-between mb-6 flex-wrap gap-3">
+    <div className="container mx-auto px-3 sm:px-4 py-4 sm:py-8 max-w-5xl">
+      <div className="flex items-start justify-between mb-4 sm:mb-6 flex-wrap gap-2 sm:gap-3">
         <div>
-          <h1 className="text-3xl font-serif font-bold flex items-center gap-2"><BookOpen className="h-7 w-7" /> إدارة المقررات</h1>
-          <p className="text-sm text-muted-foreground mt-1">اختر دكتور المقرر من قائمة الأعضاء المسجلين</p>
+          <h1 className="text-xl sm:text-3xl font-serif font-bold flex items-center gap-2"><BookOpen className="h-5 w-5 sm:h-7 sm:w-7" /> إدارة المقررات</h1>
+          <p className="text-xs sm:text-sm text-muted-foreground mt-1">اختر دكتور المقرر من قائمة الأعضاء المسجلين</p>
         </div>
-        <Button onClick={() => setOpen(true)}><Plus className="me-2 h-4 w-4" /> مقرر جديد</Button>
+        <Button onClick={() => setOpen(true)} className="h-9 sm:h-10 text-xs sm:text-sm"><Plus className="me-2 h-3.5 w-3.5 sm:h-4 sm:w-4" /> مقرر جديد</Button>
       </div>
 
-      {!courses.length && <p className="text-center text-muted-foreground py-12">لا توجد مقررات بعد.</p>}
+      {!courses.length && <p className="text-center text-muted-foreground py-8 sm:py-12 text-sm">لا توجد مقررات بعد.</p>}
 
-      <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-4">
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3 sm:gap-4">
         {courses.map((c, i) => (
-          <motion.div key={c.id} initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: i * 0.04 }} className="bg-card border rounded-2xl overflow-hidden hover:shadow-lg transition-shadow cursor-pointer" onClick={() => navigate(`/admin/courses/${c.id}`)}>
+          <motion.div key={c.id} initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: i * 0.04 }} className="bg-card border rounded-xl sm:rounded-2xl overflow-hidden hover:shadow-lg transition-shadow cursor-pointer" onClick={() => navigate(`/admin/courses/${c.id}`)}>
             {c.coverUrl ? (
-              <img src={c.coverUrl} alt={c.title} className="w-full h-32 object-cover" />
+              <img src={c.coverUrl} alt={c.title} className="w-full h-24 sm:h-32 object-cover" />
             ) : (
-              <div className="w-full h-32 bg-gradient-to-br from-primary/20 to-secondary/20 flex items-center justify-center"><BookOpen className="h-10 w-10 text-primary/40" /></div>
+              <div className="w-full h-24 sm:h-32 bg-gradient-to-br from-primary/20 to-secondary/20 flex items-center justify-center"><BookOpen className="h-8 w-8 sm:h-10 sm:w-10 text-primary/40" /></div>
             )}
-            <div className="p-4">
+            <div className="p-3 sm:p-4">
               <div className="flex items-start justify-between gap-2">
-                <div className="text-xs text-secondary font-bold">{c.code} · {c.credits} ساعات</div>
-                <button onClick={(e) => { e.stopPropagation(); remove1(c.id); }} className="p-1 rounded hover:bg-destructive/10"><Trash2 className="h-4 w-4 text-destructive" /></button>
+                <div className="text-[10px] sm:text-xs text-secondary font-bold">{c.code} · {c.credits} ساعات</div>
+                <button onClick={(e) => { e.stopPropagation(); remove1(c.id); }} className="p-1 rounded hover:bg-destructive/10"><Trash2 className="h-3.5 w-3.5 sm:h-4 sm:w-4 text-destructive" /></button>
               </div>
-              <h3 className="font-bold mt-1">{c.title}</h3>
+              <h3 className="font-bold text-sm sm:text-base mt-1">{c.title}</h3>
               <p className="text-xs text-muted-foreground line-clamp-2 mt-1">{c.description}</p>
               <div className="text-xs text-muted-foreground mt-2">د. {c.instructor} · {c.department}</div>
               <div className="text-xs mt-2 bg-primary/10 text-primary px-2 py-0.5 rounded inline-block font-bold">{c.enrolled} طالب مسجل</div>
@@ -138,22 +138,22 @@ export default function AdminCourses() {
       </div>
 
       <Dialog open={open} onOpenChange={setOpen}>
-        <DialogContent className="max-w-xl">
-          <DialogHeader><DialogTitle>إضافة مقرر جديد</DialogTitle></DialogHeader>
-          <div className="space-y-3 max-h-[70vh] overflow-y-auto pe-2">
+        <DialogContent className="max-w-xl max-h-[90vh]">
+          <DialogHeader><DialogTitle className="text-base sm:text-lg">إضافة مقرر جديد</DialogTitle></DialogHeader>
+          <div className="space-y-3 max-h-[60vh] overflow-y-auto pe-2">
             <div className="grid grid-cols-2 gap-2">
-              <div><Label className="text-xs">الكود</Label><Input value={form.code} onChange={(e) => setForm({ ...form, code: e.target.value })} placeholder="AGR101" /></div>
-              <div><Label className="text-xs">الساعات</Label><Input type="number" value={form.credits} onChange={(e) => setForm({ ...form, credits: Number(e.target.value) })} /></div>
+              <div><Label className="text-xs">الكود</Label><Input value={form.code} onChange={(e) => setForm({ ...form, code: e.target.value })} placeholder="AGR101" className="h-9 text-sm" /></div>
+              <div><Label className="text-xs">الساعات</Label><Input type="number" value={form.credits} onChange={(e) => setForm({ ...form, credits: Number(e.target.value) })} className="h-9 text-sm" /></div>
             </div>
-            <div><Label className="text-xs">عنوان المقرر</Label><Input value={form.title} onChange={(e) => setForm({ ...form, title: e.target.value })} /></div>
-            <div><Label className="text-xs">الوصف</Label><Textarea value={form.description} onChange={(e) => setForm({ ...form, description: e.target.value })} rows={3} /></div>
+            <div><Label className="text-xs">عنوان المقرر</Label><Input value={form.title} onChange={(e) => setForm({ ...form, title: e.target.value })} className="h-9 text-sm" /></div>
+            <div><Label className="text-xs">الوصف</Label><Textarea value={form.description} onChange={(e) => setForm({ ...form, description: e.target.value })} rows={3} className="text-sm" /></div>
             <div className="grid grid-cols-2 gap-2">
               <div>
                 <Label className="text-xs">القسم</Label>
                 <select
                   value={form.department}
                   onChange={(e) => setForm({ ...form, department: e.target.value })}
-                  className="w-full h-10 px-3 border-2 border-input rounded-md bg-background text-sm"
+                  className="w-full h-9 px-3 border-2 border-input rounded-md bg-background text-sm"
                 >
                   <option value="">— اختر القسم —</option>
                   {DEPARTMENTS.map((d) => <option key={d} value={d}>{d}</option>)}
@@ -164,7 +164,7 @@ export default function AdminCourses() {
                 <select
                   value={form.yearInCollege}
                   onChange={(e) => setForm({ ...form, yearInCollege: Number(e.target.value) })}
-                  className="w-full h-10 px-3 border-2 border-input rounded-md bg-background text-sm"
+                  className="w-full h-9 px-3 border-2 border-input rounded-md bg-background text-sm"
                 >
                   {YEARS.map((y) => <option key={y} value={y}>السنة {y}</option>)}
                 </select>
@@ -175,7 +175,7 @@ export default function AdminCourses() {
               <select
                 value={form.instructorId}
                 onChange={(e) => setForm({ ...form, instructorId: Number(e.target.value) })}
-                className="w-full h-10 px-3 border-2 border-input rounded-md bg-background text-sm"
+                className="w-full h-9 px-3 border-2 border-input rounded-md bg-background text-sm"
               >
                 <option value={0}>— اختر دكتور —</option>
                 {doctorOptions.map((d) => (
@@ -210,8 +210,8 @@ export default function AdminCourses() {
             </div>
           </div>
           <DialogFooter>
-            <Button variant="ghost" onClick={() => setOpen(false)}>إلغاء</Button>
-            <Button onClick={submit}><Send className="me-2 h-4 w-4" /> إضافة المقرر</Button>
+            <Button variant="ghost" onClick={() => setOpen(false)} className="text-xs sm:text-sm">إلغاء</Button>
+            <Button onClick={submit} className="text-xs sm:text-sm"><Send className="me-2 h-3.5 w-3.5 sm:h-4 sm:w-4" /> إضافة المقرر</Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>

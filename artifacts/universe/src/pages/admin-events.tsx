@@ -74,18 +74,18 @@ export default function AdminEvents() {
   };
 
   return (
-    <div className="container mx-auto px-4 py-8 max-w-5xl">
-      <div className="flex items-start justify-between mb-6 flex-wrap gap-3">
+    <div className="container mx-auto px-3 sm:px-4 py-4 sm:py-8 max-w-5xl">
+      <div className="flex items-start justify-between mb-4 sm:mb-6 flex-wrap gap-2 sm:gap-3">
         <div>
-          <h1 className="text-3xl font-serif font-bold flex items-center gap-2">
-            <Calendar className="h-7 w-7" /> إدارة الأحداث
+          <h1 className="text-xl sm:text-3xl font-serif font-bold flex items-center gap-2">
+            <Calendar className="h-5 w-5 sm:h-7 sm:w-7" /> إدارة الأحداث
           </h1>
-          <p className="text-sm text-muted-foreground mt-1">امتحانات، مواعيد نهائية، ورش — تظهر للطلاب حسب سنتهم ومجموعتهم</p>
+          <p className="text-xs sm:text-sm text-muted-foreground mt-1">امتحانات، مواعيد نهائية، ورش — تظهر للطلاب حسب سنتهم ومجموعتهم</p>
         </div>
-        <Button onClick={() => setOpen(true)}><Plus className="me-2 h-4 w-4" /> حدث جديد</Button>
+        <Button onClick={() => setOpen(true)} className="h-9 sm:h-10 text-xs sm:text-sm"><Plus className="me-2 h-3.5 w-3.5 sm:h-4 sm:w-4" /> حدث جديد</Button>
       </div>
 
-      <div className="space-y-3">
+      <div className="space-y-2 sm:space-y-3">
         <AnimatePresence>
           {events.map((e, i) => (
             <motion.div
@@ -94,7 +94,7 @@ export default function AdminEvents() {
               animate={{ opacity: 1, y: 0 }}
               exit={{ opacity: 0, x: -40 }}
               transition={{ delay: i * 0.03 }}
-              className="bg-card border rounded-xl p-4 flex items-center justify-between gap-3"
+              className="bg-card border rounded-xl p-3 sm:p-4 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-2 sm:gap-3"
             >
               <div className="flex-1 min-w-0">
                 <div className="flex items-center gap-2 mb-1 flex-wrap">
@@ -102,44 +102,44 @@ export default function AdminEvents() {
                   {e.yearInCollege && <span className="text-[10px] bg-muted px-2 py-0.5 rounded-full">السنة {e.yearInCollege}</span>}
                   {e.groupName && <span className="text-[10px] bg-secondary/20 text-secondary-foreground px-2 py-0.5 rounded-full">G{e.groupName}</span>}
                 </div>
-                <h3 className="font-bold">{e.title}</h3>
+                <h3 className="font-bold text-sm sm:text-base truncate">{e.title}</h3>
                 <p className="text-xs text-muted-foreground mt-1">
                   {new Date(e.dueAt).toLocaleString("ar-EG")}{e.location ? ` — ${e.location}` : ""}
                 </p>
               </div>
-              <Button size="icon" variant="ghost" onClick={() => remove1(e.id)}>
+              <Button size="icon" variant="ghost" onClick={() => remove1(e.id)} className="h-8 w-8 flex-shrink-0">
                 <Trash2 className="h-4 w-4 text-destructive" />
               </Button>
             </motion.div>
           ))}
         </AnimatePresence>
-        {!events.length && <p className="text-center text-muted-foreground py-12">لا توجد أحداث بعد.</p>}
+        {!events.length && <p className="text-center text-muted-foreground py-8 sm:py-12 text-sm">لا توجد أحداث بعد.</p>}
       </div>
 
       <Dialog open={open} onOpenChange={setOpen}>
-        <DialogContent className="max-w-lg">
-          <DialogHeader><DialogTitle>إضافة حدث</DialogTitle></DialogHeader>
-          <div className="space-y-3 max-h-[70vh] overflow-y-auto pe-2">
-            <div><Label className="text-xs">العنوان</Label><Input value={form.title} onChange={(e) => setForm({ ...form, title: e.target.value })} /></div>
-            <div><Label className="text-xs">الوصف</Label><Textarea rows={3} value={form.description} onChange={(e) => setForm({ ...form, description: e.target.value })} /></div>
+        <DialogContent className="max-w-lg max-h-[90vh]">
+          <DialogHeader><DialogTitle className="text-base sm:text-lg">إضافة حدث</DialogTitle></DialogHeader>
+          <div className="space-y-3 max-h-[60vh] overflow-y-auto pe-2">
+            <div><Label className="text-xs">العنوان</Label><Input value={form.title} onChange={(e) => setForm({ ...form, title: e.target.value })} className="h-9 text-sm" /></div>
+            <div><Label className="text-xs">الوصف</Label><Textarea rows={3} value={form.description} onChange={(e) => setForm({ ...form, description: e.target.value })} className="text-sm" /></div>
             <div className="grid grid-cols-2 gap-2">
               <div>
                 <Label className="text-xs">النوع</Label>
                 <select value={form.kind} onChange={(e) => setForm({ ...form, kind: e.target.value })}
-                  className="w-full h-10 px-3 border-2 border-input rounded-md bg-background text-sm">
+                  className="w-full h-9 px-3 border-2 border-input rounded-md bg-background text-sm">
                   {KINDS.map((k) => <option key={k.value} value={k.value}>{k.label}</option>)}
                 </select>
               </div>
               <div>
                 <Label className="text-xs">المكان (اختياري)</Label>
-                <Input value={form.location} onChange={(e) => setForm({ ...form, location: e.target.value })} />
+                <Input value={form.location} onChange={(e) => setForm({ ...form, location: e.target.value })} className="h-9 text-sm" />
               </div>
             </div>
             <div className="grid grid-cols-2 gap-2">
               <div>
                 <Label className="text-xs">السنة (اختياري — كل السنين لو تركتها فارغة)</Label>
                 <select value={form.yearInCollege} onChange={(e) => setForm({ ...form, yearInCollege: Number(e.target.value) })}
-                  className="w-full h-10 px-3 border-2 border-input rounded-md bg-background text-sm">
+                  className="w-full h-9 px-3 border-2 border-input rounded-md bg-background text-sm">
                   <option value={0}>كل السنين</option>
                   {YEARS.map((y) => <option key={y} value={y}>السنة {y}</option>)}
                 </select>
@@ -147,7 +147,7 @@ export default function AdminEvents() {
               <div>
                 <Label className="text-xs">المجموعة (اختياري)</Label>
                 <select value={form.groupName} onChange={(e) => setForm({ ...form, groupName: e.target.value })}
-                  className="w-full h-10 px-3 border-2 border-input rounded-md bg-background text-sm">
+                  className="w-full h-9 px-3 border-2 border-input rounded-md bg-background text-sm">
                   <option value="">كل المجموعات</option>
                   {GROUPS.map((g) => <option key={g} value={g}>G{g}</option>)}
                 </select>
@@ -155,12 +155,12 @@ export default function AdminEvents() {
             </div>
             <div>
               <Label className="text-xs">الموعد النهائي</Label>
-              <Input type="datetime-local" value={form.dueAt} onChange={(e) => setForm({ ...form, dueAt: e.target.value })} />
+              <Input type="datetime-local" value={form.dueAt} onChange={(e) => setForm({ ...form, dueAt: e.target.value })} className="h-9 text-sm" />
             </div>
           </div>
           <DialogFooter>
-            <Button variant="ghost" onClick={() => setOpen(false)}>إلغاء</Button>
-            <Button onClick={submit}><Send className="me-2 h-4 w-4" /> إضافة الحدث</Button>
+            <Button variant="ghost" onClick={() => setOpen(false)} className="text-xs sm:text-sm">إلغاء</Button>
+            <Button onClick={submit} className="text-xs sm:text-sm"><Send className="me-2 h-3.5 w-3.5 sm:h-4 sm:w-4" /> إضافة الحدث</Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>

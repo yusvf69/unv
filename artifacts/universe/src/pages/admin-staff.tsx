@@ -110,66 +110,66 @@ export default function AdminStaff() {
   }
 
   return (
-    <div className="container mx-auto px-4 py-8 max-w-6xl">
-      <div className="flex items-start justify-between mb-6 flex-wrap gap-3">
+    <div className="container mx-auto px-3 sm:px-4 py-4 sm:py-8 max-w-6xl">
+      <div className="flex items-start justify-between mb-4 sm:mb-6 flex-wrap gap-2 sm:gap-3">
         <div>
-          <h1 className="text-3xl md:text-4xl font-serif font-bold flex items-center gap-3">
-            <Users className="h-8 w-8 text-primary" /> إدارة هيئة التدريس
+          <h1 className="text-xl sm:text-3xl md:text-4xl font-serif font-bold flex items-center gap-2 sm:gap-3">
+            <Users className="h-6 w-6 sm:h-8 sm:w-8 text-primary" /> إدارة هيئة التدريس
           </h1>
-          <p className="text-muted-foreground text-sm mt-2">
+          <p className="text-muted-foreground text-xs sm:text-sm mt-1 sm:mt-2">
             أضف الدكاترة والمعيدين والإداريين بصورهم الشخصية لظهورهم في صفحة الكادر وفي اختيار دكتور المقرر.
           </p>
         </div>
-        <Button onClick={() => setOpen(true)} data-testid="button-add-staff">
-          <Plus className="me-2 h-4 w-4" /> عضو جديد
+        <Button onClick={() => setOpen(true)} data-testid="button-add-staff" className="h-9 sm:h-10 text-xs sm:text-sm">
+          <Plus className="me-2 h-3.5 w-3.5 sm:h-4 sm:w-4" /> عضو جديد
         </Button>
       </div>
 
       {Object.entries(grouped).map(([role, members]) => (
-        <div key={role} className="mb-8">
-          <div className="flex items-center gap-2 mb-3">
-            <span className="text-xs font-bold text-muted-foreground uppercase tracking-wider">
+        <div key={role} className="mb-6 sm:mb-8">
+          <div className="flex items-center gap-2 mb-2 sm:mb-3">
+            <span className="text-[10px] sm:text-xs font-bold text-muted-foreground uppercase tracking-wider">
               {ROLE_LABEL[role] || role}
             </span>
             <div className="flex-1 h-px bg-border" />
-            <span className="text-xs text-muted-foreground">{members.length}</span>
+            <span className="text-[10px] sm:text-xs text-muted-foreground">{members.length}</span>
           </div>
-          <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-3">
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2 sm:gap-3">
             {members.map((s, i) => (
               <motion.div
                 key={s.id}
                 initial={{ opacity: 0, y: 10 }}
                 animate={{ opacity: 1, y: 0 }}
                 transition={{ delay: i * 0.04 }}
-                className="bg-card border-2 border-border rounded-2xl p-4 flex gap-3 items-start hover:shadow-md transition-shadow"
+                className="bg-card border-2 border-border rounded-xl sm:rounded-2xl p-3 sm:p-4 flex gap-2 sm:gap-3 items-start hover:shadow-md transition-shadow"
               >
                 <img
                   src={s.avatarUrl || "https://i.pravatar.cc/80"}
                   alt=""
-                  className="w-14 h-14 rounded-full object-cover ring-2 ring-primary/20"
+                  className="w-12 h-12 sm:w-14 sm:h-14 rounded-full object-cover ring-2 ring-primary/20 flex-shrink-0"
                 />
                 <div className="flex-1 min-w-0">
                   <div className="flex items-start justify-between gap-1">
-                    <div className="font-bold text-sm truncate flex-1">{s.name}</div>
+                    <div className="font-bold text-xs sm:text-sm truncate flex-1">{s.name}</div>
                     {isSuper && s.role !== "super_admin" && (
                       <button
                         onClick={() => handleDelete(s)}
                         className="text-rose-500 hover:bg-rose-50 dark:hover:bg-rose-950/30 p-1 rounded-md flex-shrink-0"
                         title="حذف"
                         data-testid={`button-delete-staff-${s.id}`}
-                      ><Trash2 className="h-3.5 w-3.5" /></button>
+                      ><Trash2 className="h-3 w-3 sm:h-3.5 sm:w-3.5" /></button>
                     )}
                   </div>
-                  {s.title && <div className="text-xs text-muted-foreground truncate">{s.title}</div>}
-                  <div className="text-xs flex items-center gap-1 mt-1.5 text-muted-foreground">
-                    <Briefcase className="h-3 w-3" /> {s.department}
+                  {s.title && <div className="text-[10px] sm:text-xs text-muted-foreground truncate">{s.title}</div>}
+                  <div className="text-[10px] sm:text-xs flex items-center gap-1 mt-1 sm:mt-1.5 text-muted-foreground">
+                    <Briefcase className="h-2.5 w-2.5 sm:h-3 sm:w-3" /> {s.department}
                   </div>
-                  <div className="text-xs flex items-center gap-1 mt-0.5 text-muted-foreground truncate">
-                    <Mail className="h-3 w-3" /> {s.email}
+                  <div className="text-[10px] sm:text-xs flex items-center gap-1 mt-0.5 text-muted-foreground truncate">
+                    <Mail className="h-2.5 w-2.5 sm:h-3 sm:w-3" /> {s.email}
                   </div>
                   {s.phone && (
-                    <div className="text-xs flex items-center gap-1 mt-0.5 text-muted-foreground">
-                      <Phone className="h-3 w-3" /> {s.phone}
+                    <div className="text-[10px] sm:text-xs flex items-center gap-1 mt-0.5 text-muted-foreground">
+                      <Phone className="h-2.5 w-2.5 sm:h-3 sm:w-3" /> {s.phone}
                     </div>
                   )}
                 </div>
@@ -180,27 +180,27 @@ export default function AdminStaff() {
       ))}
 
       <Dialog open={open} onOpenChange={setOpen}>
-        <DialogContent className="max-w-lg">
+        <DialogContent className="max-w-lg max-h-[90vh]">
           <DialogHeader>
-            <DialogTitle>إضافة عضو هيئة تدريس</DialogTitle>
-            <DialogDescription>أضف دكتور أو معيد أو إداري جديد</DialogDescription>
+            <DialogTitle className="text-base sm:text-lg">إضافة عضو هيئة تدريس</DialogTitle>
+            <DialogDescription className="text-xs sm:text-sm">أضف دكتور أو معيد أو إداري جديد</DialogDescription>
           </DialogHeader>
-          <div className="space-y-3 max-h-[70vh] overflow-y-auto pe-2">
+          <div className="space-y-3 max-h-[60vh] overflow-y-auto pe-2">
             <div>
               <Label className="text-xs">الصورة الشخصية</Label>
               <FileUpload value={form.avatarUrl || null} onChange={(d) => setForm({ ...form, avatarUrl: d || "" })} accept="image/*" maxSizeKb={500} />
             </div>
             <div>
               <Label className="text-xs">الاسم</Label>
-              <Input value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} />
+              <Input value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} className="h-9 text-sm" />
             </div>
             <div>
               <Label className="text-xs">اسم المستخدم</Label>
-              <Input value={form.username} onChange={(e) => setForm({ ...form, username: e.target.value })} placeholder="يُحسب تلقائياً من الاسم لو ساب فاضي" />
+              <Input value={form.username} onChange={(e) => setForm({ ...form, username: e.target.value })} placeholder="يُحسب تلقائياً من الاسم لو ساب فاضي" className="h-9 text-sm" />
             </div>
             <div>
               <Label className="text-xs">كلمة المرور <span className="text-muted-foreground">(افتراضي: Staff123!)</span></Label>
-              <Input type="password" value={form.password} onChange={(e) => setForm({ ...form, password: e.target.value })} placeholder="اتركه فاضي للكلمة الافتراضية" />
+              <Input type="password" value={form.password} onChange={(e) => setForm({ ...form, password: e.target.value })} placeholder="اتركه فاضي للكلمة الافتراضية" className="h-9 text-sm" />
             </div>
             <div className="grid grid-cols-2 gap-2">
               <div>
@@ -208,43 +208,43 @@ export default function AdminStaff() {
                 <select
                   value={form.role}
                   onChange={(e) => setForm({ ...form, role: e.target.value as any })}
-                  className="w-full h-10 px-3 border-2 border-input rounded-md bg-background text-sm"
+                  className="w-full h-9 px-3 border-2 border-input rounded-md bg-background text-sm"
                 >
                   {ROLES.map((r) => <option key={r} value={r}>{ROLE_LABEL[r]}</option>)}
                 </select>
               </div>
               <div>
                 <Label className="text-xs">القسم</Label>
-                <Input value={form.department} onChange={(e) => setForm({ ...form, department: e.target.value })} />
+                <Input value={form.department} onChange={(e) => setForm({ ...form, department: e.target.value })} className="h-9 text-sm" />
               </div>
             </div>
             <div>
               <Label className="text-xs">المسمى الوظيفي</Label>
-              <Input value={form.title} onChange={(e) => setForm({ ...form, title: e.target.value })} placeholder="أستاذ مساعد..." />
+              <Input value={form.title} onChange={(e) => setForm({ ...form, title: e.target.value })} placeholder="أستاذ مساعد..." className="h-9 text-sm" />
             </div>
             <div className="grid grid-cols-2 gap-2">
               <div>
                 <Label className="text-xs">البريد</Label>
-                <Input type="text" value={form.email} onChange={(e) => setForm({ ...form, email: e.target.value })} />
+                <Input type="text" value={form.email} onChange={(e) => setForm({ ...form, email: e.target.value })} className="h-9 text-sm" />
               </div>
               <div>
                 <Label className="text-xs">الهاتف</Label>
-                <Input value={form.phone} onChange={(e) => setForm({ ...form, phone: e.target.value })} />
+                <Input value={form.phone} onChange={(e) => setForm({ ...form, phone: e.target.value })} className="h-9 text-sm" />
               </div>
             </div>
             <div>
               <Label className="text-xs">السيرة الذاتية المختصرة</Label>
-              <Textarea rows={3} value={form.bio} onChange={(e) => setForm({ ...form, bio: e.target.value })} />
+              <Textarea rows={3} value={form.bio} onChange={(e) => setForm({ ...form, bio: e.target.value })} className="text-sm" />
             </div>
             <div>
               <Label className="text-xs">ساعات الإرشاد المكتبي</Label>
-              <Input value={form.officeHours} onChange={(e) => setForm({ ...form, officeHours: e.target.value })} placeholder="الأحد والثلاثاء 10:00-12:00" />
+              <Input value={form.officeHours} onChange={(e) => setForm({ ...form, officeHours: e.target.value })} placeholder="الأحد والثلاثاء 10:00-12:00" className="h-9 text-sm" />
             </div>
           </div>
           <DialogFooter>
-            <Button variant="ghost" onClick={() => setOpen(false)}>إلغاء</Button>
-            <Button onClick={submit}>
-              <Send className="me-2 h-4 w-4" /> إضافة
+            <Button variant="ghost" onClick={() => setOpen(false)} className="text-xs sm:text-sm">إلغاء</Button>
+            <Button onClick={submit} className="text-xs sm:text-sm">
+              <Send className="me-2 h-3.5 w-3.5 sm:h-4 sm:w-4" /> إضافة
             </Button>
           </DialogFooter>
         </DialogContent>

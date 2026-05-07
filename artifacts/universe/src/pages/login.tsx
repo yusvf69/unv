@@ -196,7 +196,7 @@ export default function Login() {
               <div className="space-y-1.5">
                 <Label className="flex items-center gap-1.5 text-xs">@ اسم المستخدم</Label>
                 <div className="relative">
-                  <Input value={username} onChange={(e) => setUsername(e.target.value)} placeholder="مثال: ahmed2024" className={`h-10 ${usernameStatus.available ? "border-emerald-500" : usernameStatus.reason && username.length >= 4 ? "border-red-500" : ""}`} />
+                  <Input value={username} onChange={(e) => setUsername(e.target.value)} onBlur={() => checkUsername(username)} placeholder="مثال: ahmed2024" className={`h-10 ${usernameStatus.available ? "border-emerald-500" : usernameStatus.reason && username.length >= 4 ? "border-red-500" : ""}`} />
                   {username.length >= 4 && (
                     <div className="absolute left-2 top-1/2 -translate-y-1/2">
                       {usernameStatus.checking ? <Loader2 className="h-4 w-4 animate-spin text-muted-foreground" /> : usernameStatus.available ? <CheckCircle2 className="h-4 w-4 text-emerald-500" /> : <AlertCircle className="h-4 w-4 text-red-500" />}
@@ -260,7 +260,7 @@ export default function Login() {
               </div>
 
               <Button type="submit" className="sm:col-span-2 w-full h-10 sm:h-11 bg-gradient-to-r from-primary to-secondary text-sm" disabled={usernameStatus.checking}>
-                "ابدأ الآن"
+                ابدأ الآن
               </Button>
               <p className="sm:col-span-2 text-xs text-muted-foreground text-center">يمكنك تعديل بياناتك فيما عدا اسم المستخدم من صفحة الملف الشخصي.</p>
             </motion.form>

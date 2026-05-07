@@ -127,30 +127,30 @@ export default function AdminUsers() {
   );
 
   return (
-    <div className="container mx-auto px-4 py-8">
-      <div className="mb-6">
-        <button onClick={() => setLocation("/admin")} className="inline-flex items-center text-sm font-medium text-muted-foreground hover:text-primary mb-4 transition-colors">
-          <ChevronLeft className="w-4 h-4 mr-1" />
+    <div className="container mx-auto px-3 sm:px-4 py-4 sm:py-8">
+      <div className="mb-4 sm:mb-6">
+        <button onClick={() => setLocation("/admin")} className="inline-flex items-center text-xs sm:text-sm font-medium text-muted-foreground hover:text-primary mb-2 sm:mb-4 transition-colors">
+          <ChevronLeft className="w-3.5 h-3.5 sm:w-4 sm:h-4 mr-1" />
           العودة للوحة التحكم
         </button>
-        <h1 className="text-3xl font-serif font-bold text-primary">إدارة المستخدمين</h1>
+        <h1 className="text-xl sm:text-3xl font-serif font-bold text-primary">إدارة المستخدمين</h1>
       </div>
 
-      <div className="bg-card rounded-2xl border border-border shadow-sm overflow-hidden flex flex-col h-[calc(100vh-12rem)] min-h-[500px]">
-        <div className="p-4 border-b border-border flex flex-col sm:flex-row gap-4 items-center justify-between bg-muted/20 shrink-0">
+      <div className="bg-card rounded-xl sm:rounded-2xl border border-border shadow-sm overflow-hidden flex flex-col h-[calc(100vh-10rem)] sm:h-[calc(100vh-12rem)] min-h-[400px] sm:min-h-[500px]">
+        <div className="p-3 sm:p-4 border-b border-border flex flex-col sm:flex-row gap-3 sm:gap-4 items-center justify-between bg-muted/20 shrink-0">
           <div className="relative w-full sm:w-72">
-            <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 sm:w-4 sm:h-4 text-muted-foreground" />
             <Input
               placeholder="ابحث بالاسم أو الإيميل أو اليوزر أو الكود..."
               value={search}
               onChange={(e) => setSearch(e.target.value)}
-              className="pl-9 bg-background"
+              className="pl-9 bg-background h-9 text-sm"
             />
           </div>
 
           <div className="flex gap-2 w-full sm:w-auto">
             <Select value={role} onValueChange={(v) => setRole(v)}>
-              <SelectTrigger className="w-[180px] bg-background">
+              <SelectTrigger className="w-full sm:w-[180px] bg-background h-9 text-sm">
                 <SelectValue placeholder="تصفية حسب الدور" />
               </SelectTrigger>
               <SelectContent>
@@ -162,7 +162,7 @@ export default function AdminUsers() {
                 <SelectItem value="super_admin">سوبر أدمن</SelectItem>
               </SelectContent>
             </Select>
-            <Button onClick={() => void fetchUsers()} variant="outline" size="sm">تحديث</Button>
+            <Button onClick={() => void fetchUsers()} variant="outline" size="sm" className="h-9 text-sm">تحديث</Button>
           </div>
         </div>
 

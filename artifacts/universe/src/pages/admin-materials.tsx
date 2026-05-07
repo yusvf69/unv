@@ -114,28 +114,28 @@ export default function AdminMaterials() {
   };
 
   return (
-    <div className="container mx-auto px-4 py-8 max-w-6xl">
-      <motion.div initial={{ opacity: 0, y: -10 }} animate={{ opacity: 1, y: 0 }} className="mb-6">
-        <h1 className="text-3xl font-serif font-bold flex items-center gap-2"><FolderUp className="h-7 w-7" /> إدارة ملفات المواد</h1>
-        <p className="text-sm text-muted-foreground mt-1">أضف مواد للمقررات وارفع PDF، صور، صوتيات، أو أي ملف للطلاب</p>
+    <div className="container mx-auto px-3 sm:px-4 py-4 sm:py-8 max-w-6xl">
+      <motion.div initial={{ opacity: 0, y: -10 }} animate={{ opacity: 1, y: 0 }} className="mb-4 sm:mb-6">
+        <h1 className="text-xl sm:text-3xl font-serif font-bold flex items-center gap-2"><FolderUp className="h-5 w-5 sm:h-7 sm:w-7" /> إدارة ملفات المواد</h1>
+        <p className="text-xs sm:text-sm text-muted-foreground mt-1">أضف مواد للمقررات وارفع PDF، صور، صوتيات، أو أي ملف للطلاب</p>
       </motion.div>
 
-      <div className="grid lg:grid-cols-[280px_1fr] gap-4">
+      <div className="grid lg:grid-cols-[280px_1fr] gap-3 sm:gap-4">
         {/* courses panel */}
-        <div className="bg-card border rounded-2xl p-3 h-fit">
+        <div className="bg-card border rounded-xl sm:rounded-2xl p-2 sm:p-3 h-fit">
           <div className="flex items-center justify-between mb-2 px-2">
-            <h2 className="font-bold text-sm">المقررات</h2>
+            <h2 className="font-bold text-xs sm:text-sm">المقررات</h2>
             <span className="text-[10px] bg-muted px-2 py-0.5 rounded-full">{courses.length}</span>
           </div>
-          <div className="space-y-1 max-h-[60vh] overflow-y-auto">
+          <div className="space-y-1 max-h-[40vh] sm:max-h-[60vh] overflow-y-auto">
             {courses.map((c) => (
               <button
                 key={c.id}
                 onClick={() => { setCourseId(c.id); setMaterialId(null); }}
-                className={`w-full text-start px-3 py-2.5 rounded-xl text-sm transition ${courseId === c.id ? "bg-primary text-primary-foreground shadow-md" : "hover:bg-muted"}`}
+                className={`w-full text-start px-3 py-2 sm:py-2.5 rounded-lg sm:rounded-xl text-xs sm:text-sm transition ${courseId === c.id ? "bg-primary text-primary-foreground shadow-md" : "hover:bg-muted"}`}
               >
                 <div className="font-bold truncate">{c.title}</div>
-                <div className={`text-[11px] mt-0.5 ${courseId === c.id ? "opacity-80" : "text-muted-foreground"}`}>{c.code} · {c.enrolled} طالب</div>
+                <div className={`text-[10px] sm:text-[11px] mt-0.5 ${courseId === c.id ? "opacity-80" : "text-muted-foreground"}`}>{c.code} · {c.enrolled} طالب</div>
               </button>
             ))}
             {!courses.length && <p className="text-xs text-muted-foreground p-3 text-center">لا توجد مقررات. <a href="/admin/courses" className="text-primary underline">أضفها أولاً</a></p>}
@@ -143,57 +143,57 @@ export default function AdminMaterials() {
         </div>
 
         {/* content panel */}
-        <div className="space-y-4">
+        <div className="space-y-3 sm:space-y-4">
           {!courseId ? (
-            <div className="bg-card border rounded-2xl p-16 text-center text-muted-foreground">
-              <FolderUp className="h-12 w-12 mx-auto mb-3 opacity-30" />
-              <p className="font-bold">اختر مقرراً لإدارة مواده</p>
+            <div className="bg-card border rounded-xl sm:rounded-2xl p-8 sm:p-16 text-center text-muted-foreground">
+              <FolderUp className="h-8 w-8 sm:h-12 sm:w-12 mx-auto mb-2 sm:mb-3 opacity-30" />
+              <p className="font-bold text-sm sm:text-base">اختر مقرراً لإدارة مواده</p>
             </div>
           ) : (
             <>
               {/* course header */}
-              <div className="bg-card border rounded-2xl p-4 flex items-center justify-between">
+              <div className="bg-card border rounded-xl sm:rounded-2xl p-3 sm:p-4 flex items-center justify-between">
                 <div>
-                  <h2 className="font-bold text-lg">{courses.find((c) => c.id === courseId)?.title}</h2>
+                  <h2 className="font-bold text-base sm:text-lg">{courses.find((c) => c.id === courseId)?.title}</h2>
                   <p className="text-xs text-muted-foreground">{filteredMaterials.length} مادة</p>
                 </div>
-                <Button size="sm" onClick={() => setAddMaterialOpen(true)}><Plus className="me-1.5 h-4 w-4" /> إضافة مادة</Button>
+                <Button size="sm" onClick={() => setAddMaterialOpen(true)} className="text-xs sm:text-sm h-8 sm:h-9"><Plus className="me-1.5 h-3 w-3 sm:h-4 sm:w-4" /> إضافة مادة</Button>
               </div>
 
               {/* materials list */}
               {!filteredMaterials.length ? (
-                <div className="bg-card border rounded-2xl p-12 text-center text-muted-foreground">
-                  <p className="font-bold mb-2">لا توجد مواد لهذا المقرر</p>
-                  <Button size="sm" onClick={() => setAddMaterialOpen(true)}><Plus className="me-1.5 h-4 w-4" /> أضف مادة جديدة</Button>
+                <div className="bg-card border rounded-xl sm:rounded-2xl p-8 sm:p-12 text-center text-muted-foreground">
+                  <p className="font-bold text-sm sm:text-base mb-2">لا توجد مواد لهذا المقرر</p>
+                  <Button size="sm" onClick={() => setAddMaterialOpen(true)} className="text-xs h-8 sm:h-9"><Plus className="me-1.5 h-3 w-3 sm:h-4 sm:w-4" /> أضف مادة جديدة</Button>
                 </div>
               ) : (
-                <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-3">
+                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2 sm:gap-3">
                   {filteredMaterials.map((m) => (
                     <motion.div
                       key={m.id}
                       initial={{ opacity: 0, y: 10 }}
                       animate={{ opacity: 1, y: 0 }}
                       whileHover={{ y: -2 }}
-                      className={`bg-card border-2 rounded-2xl p-4 cursor-pointer transition ${materialId === m.id ? "border-primary shadow-lg" : "border-border hover:border-primary/50"}`}
+                      className={`bg-card border-2 rounded-xl sm:rounded-2xl p-3 sm:p-4 cursor-pointer transition ${materialId === m.id ? "border-primary shadow-lg" : "border-border hover:border-primary/50"}`}
                       onClick={() => setMaterialId(m.id)}
                     >
                       <div className="flex items-start justify-between">
                         <div className="flex items-center gap-2">
-                          <span className="text-2xl">{getKindIcon(m.kind)}</span>
+                          <span className="text-xl sm:text-2xl">{getKindIcon(m.kind)}</span>
                           <div>
-                            <div className="font-bold text-sm">{m.title}</div>
-                            <div className="text-[11px] text-muted-foreground">{m.lecturer || "—"}</div>
+                            <div className="font-bold text-xs sm:text-sm">{m.title}</div>
+                            <div className="text-[10px] sm:text-[11px] text-muted-foreground">{m.lecturer || "—"}</div>
                           </div>
                         </div>
                         <button
                           onClick={(e) => { e.stopPropagation(); handleDeleteMaterial(m.id); }}
-                          className="p-1.5 rounded-lg hover:bg-destructive/10 text-destructive opacity-0 group-hover:opacity-100 transition-opacity"
+                          className="p-1 sm:p-1.5 rounded-lg hover:bg-destructive/10 text-destructive opacity-0 group-hover:opacity-100 transition-opacity"
                         >
-                          <Trash2 className="h-4 w-4" />
+                          <Trash2 className="h-3.5 w-3.5 sm:h-4 sm:w-4" />
                         </button>
                       </div>
                       {m.durationMinutes && (
-                        <div className="text-[11px] mt-2 bg-secondary/10 text-secondary px-2 py-0.5 rounded inline-block">{m.durationMinutes} دقيقة</div>
+                        <div className="text-[10px] sm:text-[11px] mt-2 bg-secondary/10 text-secondary px-2 py-0.5 rounded inline-block">{m.durationMinutes} دقيقة</div>
                       )}
                     </motion.div>
                   ))}
@@ -202,17 +202,17 @@ export default function AdminMaterials() {
 
               {/* file management */}
               {selectedMaterial && (
-                <div className="space-y-4">
-                  <div className="bg-card border-2 border-primary/30 rounded-2xl p-4 space-y-3">
-                    <h3 className="font-bold flex items-center gap-2"><Plus className="h-4 w-4 text-primary" /> رفع ملف جديد — {selectedMaterial.title}</h3>
-                    <div className="grid grid-cols-2 gap-2">
+                <div className="space-y-3 sm:space-y-4">
+                  <div className="bg-card border-2 border-primary/30 rounded-xl sm:rounded-2xl p-3 sm:p-4 space-y-3">
+                    <h3 className="font-bold text-sm sm:text-base flex items-center gap-2"><Plus className="h-3.5 w-3.5 sm:h-4 sm:w-4 text-primary" /> رفع ملف جديد — {selectedMaterial.title}</h3>
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
                       <div>
                         <Label className="text-xs">اسم الملف</Label>
-                        <Input value={name} onChange={(e) => setName(e.target.value)} placeholder="ملخص الفصل الأول.pdf" />
+                        <Input value={name} onChange={(e) => setName(e.target.value)} placeholder="ملخص الفصل الأول.pdf" className="h-9 text-sm" />
                       </div>
                       <div>
                         <Label className="text-xs">النوع</Label>
-                        <select value={kind} onChange={(e) => setKind(e.target.value)} className="w-full h-10 rounded-md border bg-background px-3 text-sm">
+                        <select value={kind} onChange={(e) => setKind(e.target.value)} className="w-full h-9 rounded-md border bg-background px-3 text-sm">
                           <option value="pdf">PDF</option>
                           <option value="image">صورة</option>
                           <option value="doc">مستند</option>
@@ -223,39 +223,39 @@ export default function AdminMaterials() {
                       </div>
                     </div>
                     <FileUpload value={data} onChange={setData} accept="*/*" imageOnly={false} maxSizeKb={5000} label="اختر ملفاً" />
-                    <Button onClick={handleUpload} disabled={upload.isPending || !data || !name} className="w-full">
-                      {upload.isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : <><FolderUp className="me-2 h-4 w-4" /> ارفع الملف</>}
+                    <Button onClick={handleUpload} disabled={upload.isPending || !data || !name} className="w-full h-9 text-sm">
+                      {upload.isPending ? <Loader2 className="h-3.5 w-3.5 sm:h-4 sm:w-4 animate-spin" /> : <><FolderUp className="me-2 h-3.5 w-3.5 sm:h-4 sm:w-4" /> ارفع الملف</>}
                     </Button>
                   </div>
 
                   {/* files list */}
-                  <div className="bg-card border rounded-2xl p-4">
-                    <h3 className="font-bold mb-3 flex items-center gap-2"><FileText className="h-4 w-4 text-primary" /> الملفات ({files.length})</h3>
+                  <div className="bg-card border rounded-xl sm:rounded-2xl p-3 sm:p-4">
+                    <h3 className="font-bold text-sm sm:text-base mb-2 sm:mb-3 flex items-center gap-2"><FileText className="h-3.5 w-3.5 sm:h-4 sm:w-4 text-primary" /> الملفات ({files.length})</h3>
                     {!files.length && <p className="text-sm text-muted-foreground py-6 text-center">لا توجد ملفات بعد</p>}
                     <div className="space-y-2">
                       {files.map((f) => (
-                        <div key={f.id} className="flex items-center gap-3 p-3 border rounded-xl hover:bg-muted/30 transition">
-                          <div className="text-2xl flex-shrink-0">
+                        <div key={f.id} className="flex items-center gap-2 sm:gap-3 p-2 sm:p-3 border rounded-xl hover:bg-muted/30 transition">
+                          <div className="text-xl sm:text-2xl flex-shrink-0">
                             {f.kind === "pdf" ? "📄" : f.kind === "image" ? "🖼️" : f.kind === "audio" ? "🎵" : f.kind === "video" ? "🎬" : "📁"}
                           </div>
                           <div className="flex-1 min-w-0">
                             {editingFileId === f.id ? (
                               <div className="flex items-center gap-2">
                                 <Input value={editFileName} onChange={(e) => setEditFileName(e.target.value)} className="h-8 text-sm" autoFocus />
-                                <Button size="sm" variant="ghost" onClick={() => handleRenameFile(f.id)}><Check className="h-3.5 w-3.5" /></Button>
-                                <Button size="sm" variant="ghost" onClick={() => setEditingFileId(null)}><X className="h-3.5 w-3.5" /></Button>
+                                <Button size="sm" variant="ghost" onClick={() => handleRenameFile(f.id)} className="h-8 w-8 p-0"><Check className="h-3.5 w-3.5" /></Button>
+                                <Button size="sm" variant="ghost" onClick={() => setEditingFileId(null)} className="h-8 w-8 p-0"><X className="h-3.5 w-3.5" /></Button>
                               </div>
                             ) : (
                               <>
-                                <div className="font-bold text-sm truncate cursor-pointer hover:text-primary" onClick={() => { setEditingFileId(f.id); setEditFileName(f.name); }}>{f.name}</div>
-                                <div className="text-xs text-muted-foreground">{(f.sizeBytes / 1024).toFixed(0)}KB · {f.uploadedByName} · {new Date(f.createdAt).toLocaleDateString("ar-EG")}</div>
+                                <div className="font-bold text-xs sm:text-sm truncate cursor-pointer hover:text-primary" onClick={() => { setEditingFileId(f.id); setEditFileName(f.name); }}>{f.name}</div>
+                                <div className="text-[10px] sm:text-xs text-muted-foreground">{(f.sizeBytes / 1024).toFixed(0)}KB · {f.uploadedByName} · {new Date(f.createdAt).toLocaleDateString("ar-EG")}</div>
                               </>
                             )}
                           </div>
                           <a href={f.url} target="_blank" rel="noreferrer" download={f.name}>
-                            <Button size="sm" variant="outline" className="text-xs">معاينة</Button>
+                            <Button size="sm" variant="outline" className="text-[10px] sm:text-xs h-7 sm:h-8">معاينة</Button>
                           </a>
-                          <Button size="sm" variant="destructive" onClick={() => handleDeleteFile(f.id)} disabled={del.isPending}>
+                          <Button size="sm" variant="destructive" onClick={() => handleDeleteFile(f.id)} disabled={del.isPending} className="h-7 sm:h-8">
                             <Trash2 className="h-3.5 w-3.5" />
                           </Button>
                         </div>
@@ -272,15 +272,15 @@ export default function AdminMaterials() {
       {/* add material dialog */}
       <Dialog open={addMaterialOpen} onOpenChange={setAddMaterialOpen}>
         <DialogContent className="max-w-md">
-          <DialogHeader><DialogTitle>إضافة مادة جديدة</DialogTitle></DialogHeader>
+          <DialogHeader><DialogTitle className="text-base sm:text-lg">إضافة مادة جديدة</DialogTitle></DialogHeader>
           <div className="space-y-3">
             <div>
               <Label className="text-xs">عنوان المادة</Label>
-              <Input value={newMatTitle} onChange={(e) => setNewMatTitle(e.target.value)} placeholder="مثال: المحاضرة الأولى" autoFocus />
+              <Input value={newMatTitle} onChange={(e) => setNewMatTitle(e.target.value)} placeholder="مثال: المحاضرة الأولى" autoFocus className="h-9 text-sm" />
             </div>
             <div>
               <Label className="text-xs">النوع</Label>
-              <select value={newMatKind} onChange={(e) => setNewMatKind(e.target.value)} className="w-full h-10 rounded-md border bg-background px-3 text-sm">
+              <select value={newMatKind} onChange={(e) => setNewMatKind(e.target.value)} className="w-full h-9 rounded-md border bg-background px-3 text-sm">
                 <option value="lecture">محاضرة</option>
                 <option value="pdf">ملف PDF</option>
                 <option value="summary">ملخص</option>
@@ -291,13 +291,13 @@ export default function AdminMaterials() {
             </div>
             <div>
               <Label className="text-xs">المحاضر (اختياري)</Label>
-              <Input value={newMatLecturer} onChange={(e) => setNewMatLecturer(e.target.value)} placeholder="د. أحمد محمد" />
+              <Input value={newMatLecturer} onChange={(e) => setNewMatLecturer(e.target.value)} placeholder="د. أحمد محمد" className="h-9 text-sm" />
             </div>
           </div>
           <DialogFooter>
-            <Button variant="ghost" onClick={() => setAddMaterialOpen(false)}>إلغاء</Button>
-            <Button onClick={handleCreateMaterial} disabled={createMat.isPending || !newMatTitle}>
-              {createMat.isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : <><Plus className="me-1.5 h-4 w-4" /> إضافة</>}
+            <Button variant="ghost" onClick={() => setAddMaterialOpen(false)} className="text-xs sm:text-sm">إلغاء</Button>
+            <Button onClick={handleCreateMaterial} disabled={createMat.isPending || !newMatTitle} className="text-xs sm:text-sm">
+              {createMat.isPending ? <Loader2 className="h-3.5 w-3.5 sm:h-4 sm:w-4 animate-spin" /> : <><Plus className="me-1.5 h-3 w-3 sm:h-4 sm:w-4" /> إضافة</>}
             </Button>
           </DialogFooter>
         </DialogContent>

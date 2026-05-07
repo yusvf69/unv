@@ -79,19 +79,19 @@ function DecideDialog({
 
   return (
     <Dialog open={open} onOpenChange={onClose}>
-      <DialogContent>
+      <DialogContent className="max-w-lg">
         <DialogHeader>
-          <DialogTitle className="flex items-center gap-2">
+          <DialogTitle className="flex items-center gap-2 text-base sm:text-lg">
             {decision === "approve" ? (
-              <CheckCircle2 className="h-5 w-5 text-emerald-600" />
+              <CheckCircle2 className="h-4 w-4 sm:h-5 sm:w-5 text-emerald-600" />
             ) : (
-              <XCircle className="h-5 w-5 text-rose-600" />
+              <XCircle className="h-4 w-4 sm:h-5 sm:w-5 text-rose-600" />
             )}
             {decision === "approve" ? "موافقة على الاقتراح" : "رفض الاقتراح"}
           </DialogTitle>
         </DialogHeader>
         <div className="py-2 space-y-3">
-          <div className="text-sm text-muted-foreground">
+          <div className="text-xs sm:text-sm text-muted-foreground">
             {ACTION_LABEL[proposal.action] || proposal.action} على {RES_LABEL[proposal.resourceKind] || proposal.resourceKind}
             {proposal.reason && <div className="mt-1 italic">"{proposal.reason}"</div>}
           </div>
@@ -100,14 +100,16 @@ function DecideDialog({
             onChange={(e) => setNote(e.target.value)}
             placeholder="ملاحظة (اختياري)..."
             data-testid="input-decision-note"
+            className="h-9 text-sm"
           />
         </div>
         <DialogFooter>
-          <Button variant="ghost" onClick={onClose}>إلغاء</Button>
+          <Button variant="ghost" onClick={onClose} className="text-xs sm:text-sm">إلغاء</Button>
           <Button
             variant={decision === "approve" ? "default" : "destructive"}
             onClick={submit}
             data-testid="button-confirm-decision"
+            className="text-xs sm:text-sm"
           >
             {decision === "approve" ? "موافقة وتنفيذ" : "رفض"}
           </Button>
@@ -126,14 +128,14 @@ export default function AdminProposalsPage() {
   const [pickDecision, setPickDecision] = useState<"approve" | "reject" | null>(null);
 
   return (
-    <div className="container mx-auto px-4 py-8 max-w-5xl">
-      <div className="flex items-start justify-between gap-4 mb-8">
+    <div className="container mx-auto px-3 sm:px-4 py-4 sm:py-8 max-w-5xl">
+      <div className="flex items-start justify-between gap-3 sm:gap-4 mb-4 sm:mb-8">
         <div>
-          <h1 className="text-3xl md:text-4xl font-serif font-bold flex items-center gap-3">
-            <ShieldCheck className="h-8 w-8 text-primary" />
+          <h1 className="text-xl sm:text-3xl md:text-4xl font-serif font-bold flex items-center gap-2 sm:gap-3">
+            <ShieldCheck className="h-6 w-6 sm:h-8 sm:w-8 text-primary" />
             {isSuper ? "اقتراحات الإدارة بانتظار موافقتك" : "اقتراحاتي"}
           </h1>
-          <p className="text-muted-foreground text-sm mt-2">
+          <p className="text-muted-foreground text-xs sm:text-sm mt-1 sm:mt-2">
             {isSuper
               ? "أي تعديل يقترحه مدير عادي يحتاج موافقتك قبل التطبيق. وعند الموافقة أو الرفض يصل إشعار للمدير."
               : "تقدر تتابع حالة اقتراحاتك هنا. ستصلك إشعارات بأي قرار."}
@@ -142,17 +144,17 @@ export default function AdminProposalsPage() {
       </div>
 
       <Tabs value={tab} onValueChange={(v) => setTab(v as any)}>
-        <TabsList>
-          <TabsTrigger value="pending" data-testid="tab-pending"><Clock className="me-1.5 h-3.5 w-3.5" /> بانتظار</TabsTrigger>
-          <TabsTrigger value="approved" data-testid="tab-approved"><Check className="me-1.5 h-3.5 w-3.5" /> مقبول</TabsTrigger>
-          <TabsTrigger value="rejected" data-testid="tab-rejected"><X className="me-1.5 h-3.5 w-3.5" /> مرفوض</TabsTrigger>
+        <TabsList className="h-9 sm:h-10">
+          <TabsTrigger value="pending" data-testid="tab-pending" className="text-xs sm:text-sm"><Clock className="me-1.5 h-3 w-3 sm:h-3.5 sm:w-3.5" /> بانتظار</TabsTrigger>
+          <TabsTrigger value="approved" data-testid="tab-approved" className="text-xs sm:text-sm"><Check className="me-1.5 h-3 w-3 sm:h-3.5 sm:w-3.5" /> مقبول</TabsTrigger>
+          <TabsTrigger value="rejected" data-testid="tab-rejected" className="text-xs sm:text-sm"><X className="me-1.5 h-3 w-3 sm:h-3.5 sm:w-3.5" /> مرفوض</TabsTrigger>
         </TabsList>
       </Tabs>
 
-      <div className="space-y-3 mt-6">
+      <div className="space-y-2 sm:space-y-3 mt-4 sm:mt-6">
         {isLoading && <div className="text-center text-sm text-muted-foreground">جاري التحميل...</div>}
         {!isLoading && (proposals?.length ?? 0) === 0 && (
-          <div className="text-center bg-card border-2 border-dashed border-border rounded-2xl p-12 text-muted-foreground">
+          <div className="text-center bg-card border-2 border-dashed border-border rounded-xl sm:rounded-2xl p-8 sm:p-12 text-muted-foreground text-sm">
             لا توجد اقتراحات في هذه الحالة.
           </div>
         )}
@@ -167,63 +169,65 @@ export default function AdminProposalsPage() {
                 animate={{ opacity: 1, y: 0 }}
                 exit={{ opacity: 0, x: -50 }}
                 transition={{ delay: i * 0.04 }}
-                className="bg-card rounded-2xl border-2 border-border p-5 shadow-sm hover:shadow-md transition-shadow"
+                className="bg-card rounded-xl sm:rounded-2xl border-2 border-border p-3 sm:p-5 shadow-sm hover:shadow-md transition-shadow"
               >
-                <div className="flex items-start justify-between gap-3 flex-wrap">
+                <div className="flex items-start justify-between gap-2 sm:gap-3 flex-wrap">
                   <div className="flex-1 min-w-0">
                     <div className="flex items-center gap-2 flex-wrap">
-                      <span className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-bold border ${sp.color}`}>
-                        <sp.Icon className="h-3 w-3" /> {sp.label}
+                      <span className={`inline-flex items-center gap-1.5 px-2 sm:px-2.5 py-0.5 sm:py-1 rounded-full text-[10px] sm:text-xs font-bold border ${sp.color}`}>
+                        <sp.Icon className="h-2.5 w-2.5 sm:h-3 sm:w-3" /> {sp.label}
                       </span>
-                      <span className="text-sm font-bold">
+                      <span className="text-xs sm:text-sm font-bold truncate">
                         {ACTION_LABEL[p.action] || p.action} → {RES_LABEL[p.resourceKind] || p.resourceKind}
                         {p.resourceId && ` #${p.resourceId}`}
                       </span>
                     </div>
-                    <div className="text-xs text-muted-foreground mt-1.5">
+                    <div className="text-[10px] sm:text-xs text-muted-foreground mt-1 sm:mt-1.5">
                       اقترحه: <strong>{p.proposerName}</strong> ({p.proposerRole}) · {new Date(p.createdAt).toLocaleString("ar-EG")}
                     </div>
                     {p.reason && (
-                      <div className="text-sm mt-2 bg-muted/40 rounded-lg p-2">
+                      <div className="text-xs sm:text-sm mt-2 bg-muted/40 rounded-lg p-2">
                         <strong>السبب:</strong> {p.reason}
                       </div>
                     )}
                     {p.action === "remove_talent" && (p.payload as any).warning && (
-                      <div className="text-sm mt-2 bg-amber-50 border border-amber-200 rounded-lg p-2 text-amber-900">
-                        <AlertTriangle className="inline h-3.5 w-3.5 me-1" />
+                      <div className="text-xs sm:text-sm mt-2 bg-amber-50 border border-amber-200 rounded-lg p-2 text-amber-900">
+                        <AlertTriangle className="inline h-3 w-3 sm:h-3.5 sm:w-3.5 me-1" />
                         <strong>التحذير المُرسَل للطالب:</strong> {(p.payload as any).warning as string}
                       </div>
                     )}
                     {Object.keys(p.payload).length > 0 && p.action !== "remove_talent" && (
                       <details className="text-xs mt-2">
                         <summary className="cursor-pointer text-muted-foreground hover:text-primary">عرض البيانات</summary>
-                        <pre className="bg-muted/40 rounded-lg p-2 mt-1 overflow-x-auto">{JSON.stringify(p.payload, null, 2)}</pre>
+                        <pre className="bg-muted/40 rounded-lg p-2 mt-1 overflow-x-auto text-[10px] sm:text-xs">{JSON.stringify(p.payload, null, 2)}</pre>
                       </details>
                     )}
                     {p.decisionNote && (
-                      <div className="text-xs mt-2 italic text-muted-foreground">
+                      <div className="text-[10px] sm:text-xs mt-2 italic text-muted-foreground">
                         ملاحظة القرار: {p.decisionNote}
                       </div>
                     )}
                   </div>
 
                   {isSuper && p.status === "pending" && (
-                    <div className="flex gap-2 flex-shrink-0">
+                    <div className="flex gap-1.5 sm:gap-2 flex-shrink-0">
                       <Button
                         size="sm"
                         variant="default"
                         onClick={() => { setPickProposal(p); setPickDecision("approve"); }}
                         data-testid={`button-approve-${p.id}`}
+                        className="text-xs h-8 sm:h-9"
                       >
-                        <Check className="me-1.5 h-3.5 w-3.5" /> موافقة
+                        <Check className="me-1.5 h-3 w-3 sm:h-3.5 sm:w-3.5" /> موافقة
                       </Button>
                       <Button
                         size="sm"
                         variant="destructive"
                         onClick={() => { setPickProposal(p); setPickDecision("reject"); }}
                         data-testid={`button-reject-${p.id}`}
+                        className="text-xs h-8 sm:h-9"
                       >
-                        <X className="me-1.5 h-3.5 w-3.5" /> رفض
+                        <X className="me-1.5 h-3 w-3 sm:h-3.5 sm:w-3.5" /> رفض
                       </Button>
                     </div>
                   )}

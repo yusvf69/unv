@@ -1863,9 +1863,9 @@ async function handleAiChat(req: Request): Promise<Response> {
   return handle(async () => {
     const { userId } = requireAuth(req.headers);
     const body = await req.json();
-    const { message, history } = body;
-    if (!message) throw Object.assign(new Error("الرسالة مطلوبة"), { status: 400 });
-    return { reply: "أهلاً! أنا مساعدك الذكي. كيف أقدر أساعدك؟", sources: [] };
+    const { messages } = body;
+    if (!messages || !Array.isArray(messages) || messages.length === 0) throw Object.assign(new Error("الرسائل مطلوبة"), { status: 400 });
+    return { reply: "أهلاً! أنا مساعدك الذكي. كيف أقدر أساعدك؟", suggestions: ["اشرحلي التمثيل الضوئي", "ازاكر امتحان النباتات ازاي؟", "نصائح للمذاكرة الفعالة"] };
   });
 }
 

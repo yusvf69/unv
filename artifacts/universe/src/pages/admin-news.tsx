@@ -99,26 +99,26 @@ export default function AdminNews() {
   );
 
   return (
-    <div className="container mx-auto px-4 py-8 max-w-6xl">
-      <div className="flex items-start justify-between gap-4 mb-8 flex-wrap">
+    <div className="container mx-auto px-3 sm:px-4 py-4 sm:py-8 max-w-6xl">
+      <div className="flex items-start justify-between gap-3 sm:gap-4 mb-4 sm:mb-8 flex-wrap">
         <div>
-          <h1 className="text-3xl md:text-4xl font-serif font-bold flex items-center gap-3">
-            <Newspaper className="h-8 w-8 text-primary" /> إدارة الأخبار
+          <h1 className="text-xl sm:text-3xl md:text-4xl font-serif font-bold flex items-center gap-2 sm:gap-3">
+            <Newspaper className="h-6 w-6 sm:h-8 sm:w-8 text-primary" /> إدارة الأخبار
           </h1>
-          <p className="text-muted-foreground text-sm mt-2">
+          <p className="text-muted-foreground text-xs sm:text-sm mt-1 sm:mt-2">
             {isSuper
               ? "كل أخبار الكلية + اعتمد أو ارفض اقتراحات الإداريين."
               : "أي خبر جديد يُرسل للسوبر أدمن للاعتماد قبل النشر."}
           </p>
         </div>
-        <Button onClick={() => { setForm(empty); setOpen(true); }}>
-          <Plus className="me-2 h-4 w-4" /> خبر جديد
+        <Button onClick={() => { setForm(empty); setOpen(true); }} className="h-9 sm:h-10 text-xs sm:text-sm">
+          <Plus className="me-2 h-3.5 w-3.5 sm:h-4 sm:w-4" /> خبر جديد
         </Button>
       </div>
 
-      {items.length === 0 && <p className="text-center text-muted-foreground py-12">لا توجد أخبار بعد.</p>}
+      {items.length === 0 && <p className="text-center text-muted-foreground py-8 sm:py-12 text-sm">لا توجد أخبار بعد.</p>}
 
-      <div className="grid gap-3">
+      <div className="grid gap-2 sm:gap-3">
         <AnimatePresence>
           {items.map((n, i) => (
             <motion.div
@@ -127,10 +127,10 @@ export default function AdminNews() {
               animate={{ opacity: 1, y: 0 }}
               exit={{ opacity: 0, x: -50 }}
               transition={{ delay: i * 0.03 }}
-              className="bg-card border-2 border-border rounded-2xl p-4 flex gap-4 hover:shadow-md transition-shadow"
+              className="bg-card border-2 border-border rounded-xl sm:rounded-2xl p-3 sm:p-4 flex flex-col sm:flex-row gap-3 sm:gap-4 hover:shadow-md transition-shadow"
             >
               {n.imageUrl && (
-                <img src={n.imageUrl} alt="" className="w-24 h-24 object-cover rounded-xl flex-shrink-0" />
+                <img src={n.imageUrl} alt="" className="w-full sm:w-24 h-32 sm:h-24 object-cover rounded-xl flex-shrink-0" />
               )}
               <div className="flex-1 min-w-0">
                 <div className="flex items-center gap-2 mb-1 flex-wrap">
@@ -138,24 +138,24 @@ export default function AdminNews() {
                     {n.category}
                   </span>
                   <StatusBadge s={n.status} />
-                  <span className="text-xs text-muted-foreground">{new Date(n.publishedAt).toLocaleDateString("ar-EG")}</span>
-                  <span className="text-xs text-muted-foreground">— بقلم {n.author}</span>
+                  <span className="text-[10px] sm:text-xs text-muted-foreground">{new Date(n.publishedAt).toLocaleDateString("ar-EG")}</span>
+                  <span className="text-[10px] sm:text-xs text-muted-foreground">— بقلم {n.author}</span>
                 </div>
-                <h3 className="font-bold text-base">{n.title}</h3>
-                <p className="text-sm text-muted-foreground line-clamp-2 mt-1">{n.excerpt}</p>
+                <h3 className="font-bold text-sm sm:text-base">{n.title}</h3>
+                <p className="text-xs sm:text-sm text-muted-foreground line-clamp-2 mt-1">{n.excerpt}</p>
               </div>
-              <div className="flex flex-col gap-1 flex-shrink-0">
+              <div className="flex gap-1 flex-shrink-0">
                 {isSuper && n.status === "pending" && (
                   <>
-                    <Button size="sm" variant="ghost" onClick={() => onApprove(n.id)} title="اعتمد">
+                    <Button size="sm" variant="ghost" onClick={() => onApprove(n.id)} title="اعتمد" className="h-8 w-8 p-0">
                       <Check className="h-4 w-4 text-emerald-500" />
                     </Button>
-                    <Button size="sm" variant="ghost" onClick={() => onReject(n.id)} title="ارفض">
+                    <Button size="sm" variant="ghost" onClick={() => onReject(n.id)} title="ارفض" className="h-8 w-8 p-0">
                       <X className="h-4 w-4 text-destructive" />
                     </Button>
                   </>
                 )}
-                <Button size="sm" variant="ghost" onClick={() => onDelete(n.id)}>
+                <Button size="sm" variant="ghost" onClick={() => onDelete(n.id)} className="h-8 w-8 p-0">
                   <Trash2 className="h-4 w-4 text-destructive" />
                 </Button>
               </div>
@@ -165,32 +165,32 @@ export default function AdminNews() {
       </div>
 
       <Dialog open={open} onOpenChange={setOpen}>
-        <DialogContent className="max-w-lg">
+        <DialogContent className="max-w-lg max-h-[90vh]">
           <DialogHeader>
-            <DialogTitle>إضافة خبر</DialogTitle>
+            <DialogTitle className="text-base sm:text-lg">إضافة خبر</DialogTitle>
           </DialogHeader>
-          <div className="space-y-3 max-h-[70vh] overflow-y-auto pe-2">
+          <div className="space-y-3 max-h-[60vh] overflow-y-auto pe-2">
             <div>
               <Label className="text-xs">العنوان</Label>
-              <Input value={form.title} onChange={(e) => setForm({ ...form, title: e.target.value })} />
+              <Input value={form.title} onChange={(e) => setForm({ ...form, title: e.target.value })} className="h-9 text-sm" />
             </div>
             <div>
               <Label className="text-xs">التصنيف</Label>
               <select
                 value={form.category}
                 onChange={(e) => setForm({ ...form, category: e.target.value })}
-                className="w-full h-10 px-3 border-2 border-input rounded-md bg-background text-sm"
+                className="w-full h-9 px-3 border-2 border-input rounded-md bg-background text-sm"
               >
                 {CATEGORIES.map((c) => <option key={c}>{c}</option>)}
               </select>
             </div>
             <div>
               <Label className="text-xs">المقتطف</Label>
-              <Textarea rows={2} value={form.excerpt} onChange={(e) => setForm({ ...form, excerpt: e.target.value })} />
+              <Textarea rows={2} value={form.excerpt} onChange={(e) => setForm({ ...form, excerpt: e.target.value })} className="text-sm" />
             </div>
             <div>
               <Label className="text-xs">المحتوى</Label>
-              <Textarea rows={5} value={form.body} onChange={(e) => setForm({ ...form, body: e.target.value })} />
+              <Textarea rows={5} value={form.body} onChange={(e) => setForm({ ...form, body: e.target.value })} className="text-sm" />
             </div>
             <div>
               <Label className="text-xs">صورة الخبر</Label>
@@ -198,9 +198,9 @@ export default function AdminNews() {
             </div>
           </div>
           <DialogFooter>
-            <Button variant="ghost" onClick={() => setOpen(false)}>إلغاء</Button>
-            <Button onClick={submit}>
-              <Send className="me-2 h-4 w-4" /> {isSuper ? "نشر مباشر" : "إرسال للموافقة"}
+            <Button variant="ghost" onClick={() => setOpen(false)} className="text-xs sm:text-sm">إلغاء</Button>
+            <Button onClick={submit} className="text-xs sm:text-sm">
+              <Send className="me-2 h-3.5 w-3.5 sm:h-4 sm:w-4" /> {isSuper ? "نشر مباشر" : "إرسال للموافقة"}
             </Button>
           </DialogFooter>
         </DialogContent>

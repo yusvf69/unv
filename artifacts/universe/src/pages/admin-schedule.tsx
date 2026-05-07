@@ -26,24 +26,24 @@ export default function AdminSchedule() {
   }
 
   return (
-    <div className="container mx-auto px-4 py-8 max-w-6xl">
-      <motion.div initial={{ opacity: 0, y: -10 }} animate={{ opacity: 1, y: 0 }} className="mb-6">
-        <h1 className="text-3xl font-serif font-bold flex items-center gap-2"><Calendar className="h-7 w-7" /> إدارة الجداول</h1>
-        <p className="text-sm text-muted-foreground mt-1">حدّد جداول المحاضرات والامتحانات لكل مجموعة وسنة</p>
+    <div className="container mx-auto px-3 sm:px-4 py-4 sm:py-8 max-w-6xl">
+      <motion.div initial={{ opacity: 0, y: -10 }} animate={{ opacity: 1, y: 0 }} className="mb-4 sm:mb-6">
+        <h1 className="text-xl sm:text-3xl font-serif font-bold flex items-center gap-2"><Calendar className="h-5 w-5 sm:h-7 sm:w-7" /> إدارة الجداول</h1>
+        <p className="text-xs sm:text-sm text-muted-foreground mt-1">حدّد جداول المحاضرات والامتحانات لكل مجموعة وسنة</p>
       </motion.div>
 
-      <div className="flex gap-2 mb-6">
+      <div className="flex gap-2 mb-4 sm:mb-6 flex-wrap">
         <button
           onClick={() => setTab("classes")}
-          className={`px-5 py-2 rounded-full text-sm font-bold flex items-center gap-2 transition ${tab === "classes" ? "bg-primary text-primary-foreground" : "bg-muted hover:bg-muted/80"}`}
+          className={`px-3 sm:px-5 py-1.5 sm:py-2 rounded-full text-xs sm:text-sm font-bold flex items-center gap-2 transition ${tab === "classes" ? "bg-primary text-primary-foreground" : "bg-muted hover:bg-muted/80"}`}
         >
-          <Clock className="h-4 w-4" /> جدول المحاضرات
+          <Clock className="h-3.5 w-3.5 sm:h-4 sm:w-4" /> جدول المحاضرات
         </button>
         <button
           onClick={() => setTab("exams")}
-          className={`px-5 py-2 rounded-full text-sm font-bold flex items-center gap-2 transition ${tab === "exams" ? "bg-primary text-primary-foreground" : "bg-muted hover:bg-muted/80"}`}
+          className={`px-3 sm:px-5 py-1.5 sm:py-2 rounded-full text-xs sm:text-sm font-bold flex items-center gap-2 transition ${tab === "exams" ? "bg-primary text-primary-foreground" : "bg-muted hover:bg-muted/80"}`}
         >
-          <Award className="h-4 w-4" /> جدول الامتحانات
+          <Award className="h-3.5 w-3.5 sm:h-4 sm:w-4" /> جدول الامتحانات
         </button>
       </div>
 
@@ -84,55 +84,55 @@ function ClassScheduleTab() {
 
   return (
     <>
-      <div className="flex items-center justify-between mb-4">
-        <div className="flex gap-2 flex-wrap p-3 bg-card border rounded-xl">
-          <span className="text-xs font-bold self-center">المجموعة:</span>
-          <Button size="sm" variant={!filterGroup ? "default" : "outline"} onClick={() => setFilterGroup(null)}>الكل</Button>
-          {GROUPS.map((g) => <Button key={g} size="sm" variant={filterGroup === g ? "default" : "outline"} onClick={() => setFilterGroup(g)}>{g}</Button>)}
-          <span className="text-xs font-bold self-center ms-4">السنة:</span>
-          <Button size="sm" variant={!filterYear ? "default" : "outline"} onClick={() => setFilterYear(null)}>الكل</Button>
-          {YEARS.map((y) => <Button key={y} size="sm" variant={filterYear === y ? "default" : "outline"} onClick={() => setFilterYear(y)}>{y}</Button>)}
+      <div className="flex items-center justify-between mb-3 sm:mb-4 flex-wrap gap-2">
+        <div className="flex gap-1.5 sm:gap-2 flex-wrap p-2 sm:p-3 bg-card border rounded-xl">
+          <span className="text-[10px] sm:text-xs font-bold self-center">المجموعة:</span>
+          <Button size="sm" variant={!filterGroup ? "default" : "outline"} onClick={() => setFilterGroup(null)} className="h-7 sm:h-8 text-[10px] sm:text-xs">الكل</Button>
+          {GROUPS.map((g) => <Button key={g} size="sm" variant={filterGroup === g ? "default" : "outline"} onClick={() => setFilterGroup(g)} className="h-7 sm:h-8 text-[10px] sm:text-xs">{g}</Button>)}
+          <span className="text-[10px] sm:text-xs font-bold self-center ms-2 sm:ms-4">السنة:</span>
+          <Button size="sm" variant={!filterYear ? "default" : "outline"} onClick={() => setFilterYear(null)} className="h-7 sm:h-8 text-[10px] sm:text-xs">الكل</Button>
+          {YEARS.map((y) => <Button key={y} size="sm" variant={filterYear === y ? "default" : "outline"} onClick={() => setFilterYear(y)} className="h-7 sm:h-8 text-[10px] sm:text-xs">{y}</Button>)}
         </div>
-        <Button className="ms-3" onClick={() => setOpen(true)}><Plus className="me-2 h-4 w-4" /> محاضرة جديدة</Button>
+        <Button className="ms-3 h-8 sm:h-9 text-xs sm:text-sm" onClick={() => setOpen(true)}><Plus className="me-2 h-3 w-3 sm:h-4 sm:w-4" /> محاضرة جديدة</Button>
       </div>
 
-      {!filtered.length && <p className="text-center text-muted-foreground py-12">لا توجد محاضرات في الجدول.</p>}
+      {!filtered.length && <p className="text-center text-muted-foreground py-8 sm:py-12 text-sm">لا توجد محاضرات في الجدول.</p>}
 
       <div className="space-y-2">
         {filtered.map((r, i) => (
-          <motion.div key={r.id} initial={{ opacity: 0, x: -10 }} animate={{ opacity: 1, x: 0 }} transition={{ delay: i * 0.02 }} className="bg-card border rounded-xl p-3 flex items-center gap-3 flex-wrap">
-            <div className="bg-primary/10 text-primary font-bold px-3 py-1.5 rounded-lg text-sm">{r.day}</div>
-            <div className="text-sm font-mono">{r.startTime} - {r.endTime}</div>
-            <div className="flex-1 min-w-[200px]">
-              <div className="font-bold">{r.courseTitle} {r.courseCode && <span className="text-xs text-muted-foreground">({r.courseCode})</span>}</div>
-              <div className="text-xs text-muted-foreground">د. {r.instructor} · {r.room}</div>
+          <motion.div key={r.id} initial={{ opacity: 0, x: -10 }} animate={{ opacity: 1, x: 0 }} transition={{ delay: i * 0.02 }} className="bg-card border rounded-xl p-2 sm:p-3 flex flex-col sm:flex-row items-start gap-2 sm:gap-3 flex-wrap">
+            <div className="bg-primary/10 text-primary font-bold px-2 sm:px-3 py-1 sm:py-1.5 rounded-lg text-xs sm:text-sm">{r.day}</div>
+            <div className="text-xs sm:text-sm font-mono">{r.startTime} - {r.endTime}</div>
+            <div className="flex-1 min-w-0">
+              <div className="font-bold text-xs sm:text-sm">{r.courseTitle} {r.courseCode && <span className="text-xs text-muted-foreground">({r.courseCode})</span>}</div>
+              <div className="text-[10px] sm:text-xs text-muted-foreground">د. {r.instructor} · {r.room}</div>
             </div>
-            <div className="flex gap-1.5">
-              <span className="text-xs bg-secondary/10 text-secondary px-2 py-0.5 rounded-full font-bold">G{r.groupName}</span>
-              <span className="text-xs bg-accent/30 text-accent-foreground px-2 py-0.5 rounded-full">سنة {r.yearInCollege}</span>
-              <span className="text-xs bg-muted px-2 py-0.5 rounded-full">{r.type === "lab" ? "معمل" : r.type === "lecture" ? "محاضرة" : "تدريب"}</span>
+            <div className="flex gap-1 sm:gap-1.5">
+              <span className="text-[10px] sm:text-xs bg-secondary/10 text-secondary px-2 py-0.5 rounded-full font-bold">G{r.groupName}</span>
+              <span className="text-[10px] sm:text-xs bg-accent/30 text-accent-foreground px-2 py-0.5 rounded-full">سنة {r.yearInCollege}</span>
+              <span className="text-[10px] sm:text-xs bg-muted px-2 py-0.5 rounded-full">{r.type === "lab" ? "معمل" : r.type === "lecture" ? "محاضرة" : "تدريب"}</span>
             </div>
-            <Button size="icon" variant="ghost" onClick={() => del.mutateAsync(r.id).then(() => toast({ title: "تم الحذف" }))}>
-              <Trash2 className="h-4 w-4 text-destructive" />
+            <Button size="icon" variant="ghost" onClick={() => del.mutateAsync(r.id).then(() => toast({ title: "تم الحذف" }))} className="h-7 w-7 sm:h-8 sm:w-8">
+              <Trash2 className="h-3.5 w-3.5 sm:h-4 sm:w-4 text-destructive" />
             </Button>
           </motion.div>
         ))}
       </div>
 
       <Dialog open={open} onOpenChange={setOpen}>
-        <DialogContent className="max-w-xl">
-          <DialogHeader><DialogTitle>إضافة محاضرة للجدول</DialogTitle></DialogHeader>
-          <div className="space-y-3">
+        <DialogContent className="max-w-xl max-h-[90vh]">
+          <DialogHeader><DialogTitle className="text-base sm:text-lg">إضافة محاضرة للجدول</DialogTitle></DialogHeader>
+          <div className="space-y-3 max-h-[60vh] overflow-y-auto pe-2">
             <div className="grid grid-cols-2 gap-2">
               <div>
                 <Label className="text-xs">المجموعة</Label>
-                <select value={form.groupName} onChange={(e) => setForm({ ...form, groupName: e.target.value })} className="w-full h-10 rounded-md border bg-background px-3 text-sm">
+                <select value={form.groupName} onChange={(e) => setForm({ ...form, groupName: e.target.value })} className="w-full h-9 rounded-md border bg-background px-3 text-sm">
                   {GROUPS.map((g) => <option key={g} value={g}>{g}</option>)}
                 </select>
               </div>
               <div>
                 <Label className="text-xs">السنة</Label>
-                <select value={form.yearInCollege} onChange={(e) => setForm({ ...form, yearInCollege: Number(e.target.value) })} className="w-full h-10 rounded-md border bg-background px-3 text-sm">
+                <select value={form.yearInCollege} onChange={(e) => setForm({ ...form, yearInCollege: Number(e.target.value) })} className="w-full h-9 rounded-md border bg-background px-3 text-sm">
                   {YEARS.map((y) => <option key={y} value={y}>السنة {y}</option>)}
                 </select>
               </div>
@@ -140,24 +140,24 @@ function ClassScheduleTab() {
             <div className="grid grid-cols-3 gap-2">
               <div>
                 <Label className="text-xs">اليوم</Label>
-                <select value={form.day} onChange={(e) => setForm({ ...form, day: e.target.value })} className="w-full h-10 rounded-md border bg-background px-3 text-sm">
+                <select value={form.day} onChange={(e) => setForm({ ...form, day: e.target.value })} className="w-full h-9 rounded-md border bg-background px-3 text-sm">
                   {DAYS.map((d) => <option key={d} value={d}>{d}</option>)}
                 </select>
               </div>
-              <div><Label className="text-xs">من</Label><Input type="time" value={form.startTime} onChange={(e) => setForm({ ...form, startTime: e.target.value })} /></div>
-              <div><Label className="text-xs">إلى</Label><Input type="time" value={form.endTime} onChange={(e) => setForm({ ...form, endTime: e.target.value })} /></div>
+              <div><Label className="text-xs">من</Label><Input type="time" value={form.startTime} onChange={(e) => setForm({ ...form, startTime: e.target.value })} className="h-9 text-sm" /></div>
+              <div><Label className="text-xs">إلى</Label><Input type="time" value={form.endTime} onChange={(e) => setForm({ ...form, endTime: e.target.value })} className="h-9 text-sm" /></div>
             </div>
             <div className="grid grid-cols-2 gap-2">
-              <div><Label className="text-xs">عنوان المادة</Label><Input value={form.courseTitle} onChange={(e) => setForm({ ...form, courseTitle: e.target.value })} /></div>
-              <div><Label className="text-xs">كود المادة</Label><Input value={form.courseCode} onChange={(e) => setForm({ ...form, courseCode: e.target.value })} placeholder="AGR101" /></div>
+              <div><Label className="text-xs">عنوان المادة</Label><Input value={form.courseTitle} onChange={(e) => setForm({ ...form, courseTitle: e.target.value })} className="h-9 text-sm" /></div>
+              <div><Label className="text-xs">كود المادة</Label><Input value={form.courseCode} onChange={(e) => setForm({ ...form, courseCode: e.target.value })} placeholder="AGR101" className="h-9 text-sm" /></div>
             </div>
             <div className="grid grid-cols-3 gap-2">
-              <div className="col-span-2"><Label className="text-xs">المحاضر</Label><Input value={form.instructor} onChange={(e) => setForm({ ...form, instructor: e.target.value })} /></div>
-              <div><Label className="text-xs">القاعة</Label><Input value={form.room} onChange={(e) => setForm({ ...form, room: e.target.value })} /></div>
+              <div className="col-span-2"><Label className="text-xs">المحاضر</Label><Input value={form.instructor} onChange={(e) => setForm({ ...form, instructor: e.target.value })} className="h-9 text-sm" /></div>
+              <div><Label className="text-xs">القاعة</Label><Input value={form.room} onChange={(e) => setForm({ ...form, room: e.target.value })} className="h-9 text-sm" /></div>
             </div>
             <div>
               <Label className="text-xs">النوع</Label>
-              <select value={form.type} onChange={(e) => setForm({ ...form, type: e.target.value })} className="w-full h-10 rounded-md border bg-background px-3 text-sm">
+              <select value={form.type} onChange={(e) => setForm({ ...form, type: e.target.value })} className="w-full h-9 rounded-md border bg-background px-3 text-sm">
                 <option value="lecture">محاضرة</option>
                 <option value="lab">معمل</option>
                 <option value="practical">تدريب عملي</option>
@@ -165,8 +165,8 @@ function ClassScheduleTab() {
             </div>
           </div>
           <DialogFooter>
-            <Button variant="ghost" onClick={() => setOpen(false)}>إلغاء</Button>
-            <Button onClick={submit} disabled={add.isPending}>{add.isPending ? "جاري..." : <><Plus className="me-2 h-4 w-4" /> إضافة</>}</Button>
+            <Button variant="ghost" onClick={() => setOpen(false)} className="text-xs sm:text-sm">إلغاء</Button>
+            <Button onClick={submit} disabled={add.isPending} className="text-xs sm:text-sm">{add.isPending ? "جاري..." : <><Plus className="me-2 h-3.5 w-3.5 sm:h-4 sm:w-4" /> إضافة</>}</Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
@@ -206,56 +206,56 @@ function ExamScheduleTab() {
 
   return (
     <>
-      <div className="flex items-center justify-between mb-4">
-        <div className="flex gap-2 flex-wrap p-3 bg-card border rounded-xl">
-          <span className="text-xs font-bold self-center">المجموعة:</span>
-          <Button size="sm" variant={!filterGroup ? "default" : "outline"} onClick={() => setFilterGroup(null)}>الكل</Button>
-          {GROUPS.map((g) => <Button key={g} size="sm" variant={filterGroup === g ? "default" : "outline"} onClick={() => setFilterGroup(g)}>{g}</Button>)}
-          <span className="text-xs font-bold self-center ms-4">السنة:</span>
-          <Button size="sm" variant={!filterYear ? "default" : "outline"} onClick={() => setFilterYear(null)}>الكل</Button>
-          {YEARS.map((y) => <Button key={y} size="sm" variant={filterYear === y ? "default" : "outline"} onClick={() => setFilterYear(y)}>{y}</Button>)}
+      <div className="flex items-center justify-between mb-3 sm:mb-4 flex-wrap gap-2">
+        <div className="flex gap-1.5 sm:gap-2 flex-wrap p-2 sm:p-3 bg-card border rounded-xl">
+          <span className="text-[10px] sm:text-xs font-bold self-center">المجموعة:</span>
+          <Button size="sm" variant={!filterGroup ? "default" : "outline"} onClick={() => setFilterGroup(null)} className="h-7 sm:h-8 text-[10px] sm:text-xs">الكل</Button>
+          {GROUPS.map((g) => <Button key={g} size="sm" variant={filterGroup === g ? "default" : "outline"} onClick={() => setFilterGroup(g)} className="h-7 sm:h-8 text-[10px] sm:text-xs">{g}</Button>)}
+          <span className="text-[10px] sm:text-xs font-bold self-center ms-2 sm:ms-4">السنة:</span>
+          <Button size="sm" variant={!filterYear ? "default" : "outline"} onClick={() => setFilterYear(null)} className="h-7 sm:h-8 text-[10px] sm:text-xs">الكل</Button>
+          {YEARS.map((y) => <Button key={y} size="sm" variant={filterYear === y ? "default" : "outline"} onClick={() => setFilterYear(y)} className="h-7 sm:h-8 text-[10px] sm:text-xs">{y}</Button>)}
         </div>
-        <Button className="ms-3" onClick={() => setOpen(true)}><Plus className="me-2 h-4 w-4" /> امتحان جديد</Button>
+        <Button className="ms-3 h-8 sm:h-9 text-xs sm:text-sm" onClick={() => setOpen(true)}><Plus className="me-2 h-3 w-3 sm:h-4 sm:w-4" /> امتحان جديد</Button>
       </div>
 
-      {!filtered.length && <p className="text-center text-muted-foreground py-12">لا توجد امتحانات في الجدول.</p>}
+      {!filtered.length && <p className="text-center text-muted-foreground py-8 sm:py-12 text-sm">لا توجد امتحانات في الجدول.</p>}
 
       <div className="space-y-2">
         {filtered.map((r, i) => (
-          <motion.div key={r.id} initial={{ opacity: 0, x: -10 }} animate={{ opacity: 1, x: 0 }} transition={{ delay: i * 0.02 }} className="bg-card border rounded-xl p-3 flex items-center gap-3 flex-wrap">
-            <div className="bg-amber-500/10 text-amber-600 font-bold px-3 py-1.5 rounded-lg text-sm">{r.day}</div>
-            <div className="text-sm font-mono">{r.time}</div>
-            <div className="text-xs text-muted-foreground">{r.date}</div>
-            <div className="flex-1 min-w-[200px]">
-              <div className="font-bold">{r.courseTitle} {r.courseCode && <span className="text-xs text-muted-foreground">({r.courseCode})</span>}</div>
-              <div className="text-xs text-muted-foreground">{r.room}</div>
+          <motion.div key={r.id} initial={{ opacity: 0, x: -10 }} animate={{ opacity: 1, x: 0 }} transition={{ delay: i * 0.02 }} className="bg-card border rounded-xl p-2 sm:p-3 flex flex-col sm:flex-row items-start gap-2 sm:gap-3 flex-wrap">
+            <div className="bg-amber-500/10 text-amber-600 font-bold px-2 sm:px-3 py-1 sm:py-1.5 rounded-lg text-xs sm:text-sm">{r.day}</div>
+            <div className="text-xs sm:text-sm font-mono">{r.time}</div>
+            <div className="text-[10px] sm:text-xs text-muted-foreground">{r.date}</div>
+            <div className="flex-1 min-w-0">
+              <div className="font-bold text-xs sm:text-sm">{r.courseTitle} {r.courseCode && <span className="text-xs text-muted-foreground">({r.courseCode})</span>}</div>
+              <div className="text-[10px] sm:text-xs text-muted-foreground">{r.room}</div>
             </div>
-            <div className="flex gap-1.5">
-              <span className="text-xs bg-secondary/10 text-secondary px-2 py-0.5 rounded-full font-bold">G{r.groupName}</span>
-              <span className="text-xs bg-accent/30 text-accent-foreground px-2 py-0.5 rounded-full">سنة {r.yearInCollege}</span>
-              <span className="text-xs bg-muted px-2 py-0.5 rounded-full">{r.type === "final" ? "نهائي" : r.type === "midterm" ? "نصفي" : r.type === "quiz" ? "اختبار" : "عملي"}</span>
+            <div className="flex gap-1 sm:gap-1.5">
+              <span className="text-[10px] sm:text-xs bg-secondary/10 text-secondary px-2 py-0.5 rounded-full font-bold">G{r.groupName}</span>
+              <span className="text-[10px] sm:text-xs bg-accent/30 text-accent-foreground px-2 py-0.5 rounded-full">سنة {r.yearInCollege}</span>
+              <span className="text-[10px] sm:text-xs bg-muted px-2 py-0.5 rounded-full">{r.type === "final" ? "نهائي" : r.type === "midterm" ? "نصفي" : r.type === "quiz" ? "اختبار" : "عملي"}</span>
             </div>
-            <Button size="icon" variant="ghost" onClick={() => del.mutateAsync(r.id).then(() => toast({ title: "تم الحذف" }))}>
-              <Trash2 className="h-4 w-4 text-destructive" />
+            <Button size="icon" variant="ghost" onClick={() => del.mutateAsync(r.id).then(() => toast({ title: "تم الحذف" }))} className="h-7 w-7 sm:h-8 sm:w-8">
+              <Trash2 className="h-3.5 w-3.5 sm:h-4 sm:w-4 text-destructive" />
             </Button>
           </motion.div>
         ))}
       </div>
 
       <Dialog open={open} onOpenChange={setOpen}>
-        <DialogContent className="max-w-xl">
-          <DialogHeader><DialogTitle>إضافة امتحان للجدول</DialogTitle></DialogHeader>
-          <div className="space-y-3">
+        <DialogContent className="max-w-xl max-h-[90vh]">
+          <DialogHeader><DialogTitle className="text-base sm:text-lg">إضافة امتحان للجدول</DialogTitle></DialogHeader>
+          <div className="space-y-3 max-h-[60vh] overflow-y-auto pe-2">
             <div className="grid grid-cols-2 gap-2">
               <div>
                 <Label className="text-xs">المجموعة</Label>
-                <select value={form.groupName} onChange={(e) => setForm({ ...form, groupName: e.target.value })} className="w-full h-10 rounded-md border bg-background px-3 text-sm">
+                <select value={form.groupName} onChange={(e) => setForm({ ...form, groupName: e.target.value })} className="w-full h-9 rounded-md border bg-background px-3 text-sm">
                   {GROUPS.map((g) => <option key={g} value={g}>{g}</option>)}
                 </select>
               </div>
               <div>
                 <Label className="text-xs">السنة</Label>
-                <select value={form.yearInCollege} onChange={(e) => setForm({ ...form, yearInCollege: Number(e.target.value) })} className="w-full h-10 rounded-md border bg-background px-3 text-sm">
+                <select value={form.yearInCollege} onChange={(e) => setForm({ ...form, yearInCollege: Number(e.target.value) })} className="w-full h-9 rounded-md border bg-background px-3 text-sm">
                   {YEARS.map((y) => <option key={y} value={y}>السنة {y}</option>)}
                 </select>
               </div>
@@ -263,7 +263,7 @@ function ExamScheduleTab() {
             <div className="grid grid-cols-3 gap-2">
               <div>
                 <Label className="text-xs">اليوم</Label>
-                <div className="w-full h-10 rounded-md border bg-muted px-3 text-sm flex items-center font-bold text-muted-foreground">
+                <div className="w-full h-9 rounded-md border bg-muted px-3 text-sm flex items-center font-bold text-muted-foreground">
                   {form.day || "—"}
                 </div>
               </div>
@@ -276,18 +276,18 @@ function ExamScheduleTab() {
                 } else {
                   setForm({ ...form, date: val, day: "" });
                 }
-              }} /></div>
-              <div><Label className="text-xs">الوقت</Label><Input type="time" value={form.time} onChange={(e) => setForm({ ...form, time: e.target.value })} /></div>
+              }} className="h-9 text-sm" /></div>
+              <div><Label className="text-xs">الوقت</Label><Input type="time" value={form.time} onChange={(e) => setForm({ ...form, time: e.target.value })} className="h-9 text-sm" /></div>
             </div>
             <div className="grid grid-cols-2 gap-2">
-              <div><Label className="text-xs">عنوان المادة</Label><Input value={form.courseTitle} onChange={(e) => setForm({ ...form, courseTitle: e.target.value })} /></div>
-              <div><Label className="text-xs">كود المادة</Label><Input value={form.courseCode} onChange={(e) => setForm({ ...form, courseCode: e.target.value })} placeholder="AGR101" /></div>
+              <div><Label className="text-xs">عنوان المادة</Label><Input value={form.courseTitle} onChange={(e) => setForm({ ...form, courseTitle: e.target.value })} className="h-9 text-sm" /></div>
+              <div><Label className="text-xs">كود المادة</Label><Input value={form.courseCode} onChange={(e) => setForm({ ...form, courseCode: e.target.value })} placeholder="AGR101" className="h-9 text-sm" /></div>
             </div>
             <div className="grid grid-cols-2 gap-2">
-              <div><Label className="text-xs">القاعة</Label><Input value={form.room} onChange={(e) => setForm({ ...form, room: e.target.value })} /></div>
+              <div><Label className="text-xs">القاعة</Label><Input value={form.room} onChange={(e) => setForm({ ...form, room: e.target.value })} className="h-9 text-sm" /></div>
               <div>
                 <Label className="text-xs">النوع</Label>
-                <select value={form.type} onChange={(e) => setForm({ ...form, type: e.target.value })} className="w-full h-10 rounded-md border bg-background px-3 text-sm">
+                <select value={form.type} onChange={(e) => setForm({ ...form, type: e.target.value })} className="w-full h-9 rounded-md border bg-background px-3 text-sm">
                   <option value="midterm">نصفي</option>
                   <option value="final">نهائي</option>
                   <option value="quiz">اختبار قصير</option>
@@ -297,8 +297,8 @@ function ExamScheduleTab() {
             </div>
           </div>
           <DialogFooter>
-            <Button variant="ghost" onClick={() => setOpen(false)}>إلغاء</Button>
-            <Button onClick={submit} disabled={add.isPending}>{add.isPending ? "جاري..." : <><Plus className="me-2 h-4 w-4" /> إضافة</>}</Button>
+            <Button variant="ghost" onClick={() => setOpen(false)} className="text-xs sm:text-sm">إلغاء</Button>
+            <Button onClick={submit} disabled={add.isPending} className="text-xs sm:text-sm">{add.isPending ? "جاري..." : <><Plus className="me-2 h-3.5 w-3.5 sm:h-4 sm:w-4" /> إضافة</>}</Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
