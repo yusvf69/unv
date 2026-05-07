@@ -368,14 +368,18 @@ async function handleAdminNotifications(req: Request): Promise<Response> {
 
   return handle(async () => {
     const body = await req.json();
-    const { title, body: msgBody, targetRole, targetGroup, targetYear } = body;
+    const { title, body: msgBody, targetRole, targetGroup } = body;
     const notifType = body.type || "info";
     if (!title || !msgBody) throw Object.assign(new Error("بيانات ناقصة"), { status: 400 });
-    let whereClause = sql`1=1`;
-    if (targetRole) whereClause = sql`${whereClause} AND role = ${targetRole}`;
-    if (targetGroup) whereClause = sql`${whereClause} AND group_name = ${targetGroup}`;
-    if (targetYear !== undefined) whereClause = sql`${whereClause} AND year_in_college = ${targetYear}`;
-    const users = await sql`SELECT id FROM users WHERE ${whereClause}`;
+
+    const { neon } = require("@neondatabase/serverless");
+    const raw = neon(process.env.DATABASE_URL || "");
+    let q = "SELECT id FROM users WHERE 1=1";
+    const p: any[] = [];
+    if (targetRole) { p.push(targetRole); q += ` AND role = $${p.length}`; }
+    if (targetGroup) { p.push(targetGroup); q += ` AND group_name = $${p.length}`; }
+    const users = await raw(q, p);
+    
     if (users.length > 0) {
       for (const u of users) {
         await sql`INSERT INTO notifications (user_id, title, body, type) VALUES (${u.id}, ${title}, ${msgBody}, ${notifType})`;
