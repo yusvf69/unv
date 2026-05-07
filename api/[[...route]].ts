@@ -1881,45 +1881,46 @@ async function handleAiChat(req: Request): Promise<Response> {
     if (!messages || !Array.isArray(messages) || messages.length === 0) throw Object.assign(new Error("الرسائل مطلوبة"), { status: 400 });
 
     const geminiApiKey = process.env.GEMINI_API_KEY || "AIzaSyCVjfYbjb5FB-aXw6oB11gglNSq-GfSaqs";
-
     const lastMsg = messages[messages.length - 1]?.content || "";
 
-    const systemInstruction = `أنت مساعد دراسي ذكي متخصص في العلوم الزراعية لطلاب كلية الزراعة.
-مهمتك مساعدة الطلاب في:
-- شرح المفاهيم الزراعية (علوم التربة، الإنتاج النباتي والحيواني، الهندسة الزراعية، وقاية النبات، الاقتصاد الزراعي، علوم الأغذية، التكنولوجيا الحيوية)
-- مساعدتهم في المذاكرة والتحضير للامتحانات
-- تقديم نصائح دراسية فعالة
-- الإجابة على أسئلتهم الأكاديمية
-
-كن ودوداً ومشجعاً. قدم إجابات دقيقة ومبسطة. استخدم اللغة العربية الفصحى المبسطة أو العامية المصرية حسب سؤال الطالب.
-إذا سألك الطالب عن شيء خارج نطاق الزراعة أو الدراسة، وجهه بلطف إلى الموضوعات الزراعية والأكاديمية.`;
-
-    const contents = messages.map((m: any) => ({
+    const filtered = messages.filter((m: any, i: number) => i > 0 || m.role !== "assistant");
+    const contents = filtered.map((m: any) => ({
       role: m.role === "assistant" ? "model" : "user",
-      parts: [{ text: m.content }],
+      parts: [{ text: m.content || "" }],
     }));
+    if (contents.length === 0) throw Object.assign(new Error("لا توجد رسالة مرسلة"), { status: 400 });
 
-    const res = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${geminiApiKey}`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        systemInstruction: { parts: [{ text: systemInstruction }] },
-        contents,
-        generationConfig: {
-          temperature: 0.7,
-          maxOutputTokens: 1024,
-        },
-      }),
-    });
+    let reply: string;
+    try {
+      const res = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${geminiApiKey}`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          systemInstruction: { parts: [{ text: "أنت مساعد دراسي ذكي متخصص في العلوم الزراعية لطلاب كلية الزراعة. أجب بالعربية. كن ودوداً ومفيداً ومختصراً." }] },
+          contents,
+          generationConfig: { temperature: 0.7, maxOutputTokens: 1024 },
+        }),
+        signal: AbortSignal.timeout(25000),
+      });
 
-    if (!res.ok) {
-      const errText = await res.text();
-      console.error("[Gemini API error]", res.status, errText);
-      throw Object.assign(new Error("فشل الاتصال بخدمة AI"), { status: 502 });
+      if (!res.ok) {
+        const errText = await res.text();
+        console.error("[Gemini API error]", res.status, errText);
+        let msg = "فشل الاتصال بخدمة AI";
+        if (res.status === 403 || res.status === 401) msg = "مفتاح API غير صالح أو غير مفعل";
+        else if (res.status === 429) msg = "تم تجاوز حد الاستخدام، انتظر قليلاً";
+        else if (res.status >= 500) msg = "خدمة AI غير متاحة حالياً";
+        throw Object.assign(new Error(msg), { status: 502 });
+      }
+
+      const data: any = await res.json();
+      reply = data.candidates?.[0]?.content?.parts?.[0]?.text || "عذراً، لم أتمكن من الإجابة.";
+    } catch (e: any) {
+      if (e.name === "TimeoutError" || e.name === "AbortError")
+        throw Object.assign(new Error("استغرق الرد وقتاً طويلاً، حاول مرة أخرى"), { status: 504 });
+      throw e;
     }
 
-    const data: any = await res.json();
-    const reply = data.candidates?.[0]?.content?.parts?.[0]?.text || "عذراً، لم أتمكن من الإجابة.";
     const suggestions = generateSuggestions(lastMsg);
     return { reply, suggestions };
   });
