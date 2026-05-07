@@ -21,7 +21,7 @@ const SPECIALIZATIONS = [
   "وقاية النبات",
 ];
 const YEARS = [1, 2, 3, 4];
-const GROUPS = ["A", "B", "C", "D", "E"];
+const GROUPS = ["عام", "A", "B", "C", "D", "E"];
 
 export default function Login() {
   const [, setLocation] = useLocation();

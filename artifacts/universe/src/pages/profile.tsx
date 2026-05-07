@@ -169,7 +169,7 @@ export default function Profile() {
               <div className="space-y-1.5">
                 <Label className="text-xs">المجموعة</Label>
                 <select value={groupName} onChange={(e) => setGroupName(e.target.value)} className="w-full h-10 rounded-md border bg-background px-3 text-sm">
-                  {["A", "B", "C", "D", "E"].map((g) => <option key={g} value={g}>{g}</option>)}
+                  {["عام", "A", "B", "C", "D", "E"].map((g) => <option key={g} value={g}>{g}</option>)}
                 </select>
               </div>
               <div className="space-y-1.5 md:col-span-2">
