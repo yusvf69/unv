@@ -368,7 +368,8 @@ async function handleAdminNotifications(req: Request): Promise<Response> {
 
   return handle(async () => {
     const body = await req.json();
-    const { title, body: msgBody, type, targetRole, targetGroup, targetYear } = body;
+    const { title, body: msgBody, targetRole, targetGroup, targetYear } = body;
+    const notifType = body.type || "info";
     if (!title || !msgBody) throw Object.assign(new Error("بيانات ناقصة"), { status: 400 });
     let whereClause = sql`1=1`;
     if (targetRole) whereClause = sql`${whereClause} AND role = ${targetRole}`;
@@ -377,7 +378,7 @@ async function handleAdminNotifications(req: Request): Promise<Response> {
     const users = await sql`SELECT id FROM users WHERE ${whereClause}`;
     if (users.length > 0) {
       for (const u of users) {
-        await sql`INSERT INTO notifications (user_id, title, body, type) VALUES (${u.id}, ${title}, ${msgBody}, ${type || "info"})`;
+        await sql`INSERT INTO notifications (user_id, title, body, type) VALUES (${u.id}, ${title}, ${msgBody}, ${notifType})`;
       }
     }
     return { ok: true, sentTo: users.length };
