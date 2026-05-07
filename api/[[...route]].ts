@@ -252,8 +252,14 @@ async function handleAuth(req: Request, parts: string[]): Promise<Response> {
 
   if (action === "send-verification") {
     return handle(async () => {
-      const { email, phone } = await req.json();
+      let { email, phone } = await req.json();
       if (!email && !phone) throw Object.assign(new Error("الإيميل أو الرقم مطلوب"), { status: 400 });
+
+      if (phone) {
+        phone = phone.replace(/[^0-9]/g, "");
+        if (phone.startsWith("0")) phone = "+2" + phone;
+        else if (!phone.startsWith("+")) phone = "+" + phone;
+      }
 
       const resendKey = process.env.RESEND_API_KEY;
       const ultraMsgToken = process.env.ULTRAMSG_TOKEN;
@@ -323,8 +329,14 @@ async function handleAuth(req: Request, parts: string[]): Promise<Response> {
 
   if (action === "resend-code") {
     return handle(async () => {
-      const { email, phone } = await req.json();
+      let { email, phone } = await req.json();
       if (!email && !phone) throw Object.assign(new Error("الإيميل أو الرقم مطلوب"), { status: 400 });
+
+      if (phone) {
+        phone = phone.replace(/[^0-9]/g, "");
+        if (phone.startsWith("0")) phone = "+2" + phone;
+        else if (!phone.startsWith("+")) phone = "+" + phone;
+      }
 
       const [last] = await sql`
         SELECT * FROM verification_codes 
