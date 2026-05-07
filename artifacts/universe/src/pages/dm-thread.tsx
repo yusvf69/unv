@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef } from "react";
 import { useParams, Link } from "wouter";
 import { motion } from "framer-motion";
-import { ArrowLeft, Send, Loader2 } from "lucide-react";
+import { ArrowLeft, Send, Loader2, MessageCircle, UserX } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { useDmWith, useSendDm } from "@/lib/api";
@@ -9,7 +9,7 @@ import { useDmWith, useSendDm } from "@/lib/api";
 export default function DmThread() {
   const { id } = useParams();
   const userId = Number(id || 0);
-  const { data, isLoading } = useDmWith(userId);
+  const { data, isLoading, isError, error } = useDmWith(userId);
   const send = useSendDm(userId);
   const [text, setText] = useState("");
   const scrollRef = useRef<HTMLDivElement>(null);
@@ -26,7 +26,15 @@ export default function DmThread() {
     try { await send.mutateAsync(body); } catch {}
   };
 
-  if (isLoading) return <div className="p-12 text-center">جاري التحميل...</div>;
+  if (isLoading) return <div className="p-12 text-center text-muted-foreground">جاري التحميل...</div>;
+  if (isError) return (
+    <div className="container mx-auto max-w-2xl flex flex-col items-center justify-center" style={{ height: "calc(100vh - 4rem)" }}>
+      <UserX className="h-16 w-16 text-muted-foreground mb-4" />
+      <h2 className="text-xl font-bold mb-2">حدث خطأ</h2>
+      <p className="text-muted-foreground mb-4 text-sm">{(error as any)?.message || "المستخدم غير موجود أو لا يمكن فتح المحادثة"}</p>
+      <Link href="/messages"><Button variant="outline">الرجوع للرسائل</Button></Link>
+    </div>
+  );
 
   return (
     <div className="container mx-auto max-w-2xl flex flex-col" style={{ height: "calc(100vh - 4rem)" }}>
@@ -60,7 +68,12 @@ export default function DmThread() {
             </div>
           </motion.div>
         ))}
-        {!data?.messages?.length && <p className="text-center text-muted-foreground py-12">ابدأ المحادثة برسالتك الأولى</p>}
+        {!data?.messages?.length && (
+          <div className="text-center py-12">
+            <MessageCircle className="h-10 w-10 text-muted-foreground/50 mx-auto mb-2" />
+            <p className="text-muted-foreground text-sm">ابدأ المحادثة برسالتك الأولى</p>
+          </div>
+        )}
       </div>
 
       <form onSubmit={submit} className="border-t bg-card p-3 flex gap-2">

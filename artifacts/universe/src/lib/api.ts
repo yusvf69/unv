@@ -33,7 +33,9 @@ async function request<T>(method: string, path: string, body?: unknown): Promise
       const j = await res.json();
       msg = (j as { error?: string }).error || msg;
     } catch {}
-    throw new Error(msg);
+    const err = new Error(msg) as Error & { status?: number };
+    err.status = res.status;
+    throw err;
   }
   if (res.status === 204) return undefined as T;
   const data = await res.json();
@@ -300,6 +302,10 @@ export function useDmWith(userId: number) {
     queryFn: () => api.get(`/v2/dm/with/${userId}`),
     enabled: userId > 0,
     refetchInterval: 4000,
+    retry: (failureCount, error: any) => {
+      if (error?.status === 404) return false;
+      return failureCount < 2;
+    },
   });
 }
 export function useSendDm(userId: number) {
