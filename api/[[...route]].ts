@@ -368,21 +368,14 @@ async function handleAdminNotifications(req: Request): Promise<Response> {
 
   return handle(async () => {
     const body = await req.json();
-    const { title, body: msgBody, targetRole, targetGroup } = body;
-    const notifType = body.type || "info";
+    const { title, body: msgBody } = body;
     if (!title || !msgBody) throw Object.assign(new Error("بيانات ناقصة"), { status: 400 });
 
-    const { neon } = require("@neondatabase/serverless");
-    const raw = neon(process.env.DATABASE_URL || "");
-    let q = "SELECT id FROM users WHERE 1=1";
-    const p: any[] = [];
-    if (targetRole) { p.push(targetRole); q += ` AND role = $${p.length}`; }
-    if (targetGroup) { p.push(targetGroup); q += ` AND group_name = $${p.length}`; }
-    const users = await raw(q, p);
+    const users = await sql`SELECT id FROM users WHERE 1=1`;
     
     if (users.length > 0) {
       for (const u of users) {
-        await sql`INSERT INTO notifications (user_id, title, body, type) VALUES (${u.id}, ${title}, ${msgBody}, ${notifType})`;
+        await sql`INSERT INTO notifications (user_id, title, body) VALUES (${u.id}, ${title}, ${msgBody})`;
       }
     }
     return { ok: true, sentTo: users.length };
