@@ -1886,22 +1886,37 @@ async function handleAiChat(req: Request): Promise<Response> {
       const [u] = await sql`SELECT name, year_in_college, specialization, group_name, points FROM users WHERE id = ${userId}`;
       meData = u || {};
       siteData += `\n\nبيانات الطالب:\n- الاسم: ${meData.name || ""}\n- السنة: ${meData.year_in_college || ""}\n- التخصص: ${meData.specialization || ""}`;
-    } catch (e) { console.error("user query", e); }
+    } catch (e) { console.error("[AiChat] user query", e); }
 
     try {
-      const courses = await sql`SELECT title, code, credits, department, instructor FROM courses ORDER BY code`;
-      siteData += `\n\nالمقررات (${courses.length}):\n${courses.map((c: any) => `- ${c.code || ""}: ${c.title || ""}`).join("\n")}`;
-    } catch (e) { console.error("courses query", e); }
+      const courses = await sql`SELECT id, title, code, description, credits, department, instructor FROM courses ORDER BY code`;
+      siteData += `\n\nالمقررات (${courses.length}):\n${courses.map((c: any) => `- ${c.code}: ${c.title} (${c.credits} ساعات) - ${c.department} - د. ${c.instructor}${c.description ? ": " + c.description : ""}`).join("\n")}`;
+    } catch (e) { console.error("[AiChat] courses query", e); }
 
     try {
-      const news = await sql`SELECT title, category FROM news WHERE status = 'published' ORDER BY published_at DESC LIMIT 5`;
-      siteData += `\n\nأخبار:\n${news.map((n: any) => `- ${n.title || ""}`).join("\n") || "لا يوجد"}`;
-    } catch (e) { console.error("news query", e); }
+      const news = await sql`SELECT title, category, body, published_at FROM news WHERE status = 'published' ORDER BY published_at DESC LIMIT 10`;
+      siteData += `\n\nأخبار:\n${news.map((n: any) => `- ${n.title} (${n.category})${n.body ? ": " + n.body.slice(0, 100) : ""}`).join("\n") || "لا يوجد"}`;
+    } catch (e) { console.error("[AiChat] news query", e); }
 
     try {
-      const events = await sql`SELECT title, event_date, location FROM events WHERE event_date >= now() ORDER BY event_date LIMIT 5`;
-      siteData += `\n\nأحداث:\n${events.map((e: any) => `- ${e.title || ""}`).join("\n") || "لا يوجد"}`;
-    } catch (e) { console.error("events query", e); }
+      const events = await sql`SELECT title, description, event_date, location FROM events WHERE event_date >= now() ORDER BY event_date LIMIT 10`;
+      siteData += `\n\nأحداث قادمة:\n${events.map((e: any) => `- ${e.title}${e.event_date ? " - " + new Date(e.event_date).toLocaleDateString("ar-EG") : ""}${e.location ? " - " + e.location : ""}`).join("\n") || "لا يوجد"}`;
+    } catch (e) { console.error("[AiChat] events query", e); }
+
+    try {
+      const quizzes = await sql`SELECT q.id, q.title, q.description, q.course_id, q.is_open, q.due_date, c.title AS course_title FROM quizzes q JOIN courses c ON c.id = q.course_id WHERE q.is_open = true LIMIT 20`;
+      siteData += `\n\nالاختبارات المفتوحة:\n${quizzes.map((q: any) => `- ${q.title} (مقرر: ${q.course_title})${q.description ? ": " + q.description.slice(0, 100) : ""}${q.due_date ? " - يسلم: " + new Date(q.due_date).toLocaleDateString("ar-EG") : ""}`).join("\n") || "لا يوجد"}`;
+    } catch (e) { console.error("[AiChat] quizzes query", e); }
+
+    try {
+      const schedule = await sql`SELECT day_number, start_time, end_time, course_title, instructor, room, type FROM group_schedule WHERE group_name = ${meData.group_name || ""} ORDER BY day_number, start_time`;
+      siteData += `\n\nجدول المحاضرات (المجموعة: ${meData.group_name || ""}):\n${schedule.map((s: any) => `- اليوم ${s.day_number}: ${(s.start_time || "").slice(0, 5)}-${(s.end_time || "").slice(0, 5)} ${s.course_title} (${s.type})${s.room ? " - " + s.room : ""}${s.instructor ? " - " + s.instructor : ""}`).join("\n") || "لا يوجد جدول"}`;
+    } catch (e) { console.error("[AiChat] schedule query", e); }
+
+    try {
+      const materials = await sql`SELECT title, description, course_id, file_type, c.title AS course_title FROM materials m JOIN courses c ON c.id = m.course_id ORDER BY m.created_at DESC LIMIT 10`;
+      siteData += `\n\nالملفات الدراسية:\n${materials.map((m: any) => `- ${m.title} (${m.course_title})${m.file_type ? " - " + m.file_type : ""}`).join("\n") || "لا يوجد"}`;
+    } catch (e) { console.error("[AiChat] materials query", e); }
 
     const lastMsg = messages[messages.length - 1]?.content || "";
 
