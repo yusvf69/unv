@@ -1,10 +1,10 @@
 import { useState } from "react";
 import { Link } from "wouter";
 import { BookOpen, Users, ArrowRight } from "lucide-react";
-import { useAdminCourses } from "@/lib/api";
+import { useCourses } from "@/lib/api";
 
 export default function Courses() {
-  const { data: courses = [], isLoading } = useAdminCourses();
+  const { data: courses = [], isLoading } = useCourses();
 
   if (isLoading) return <div className="p-8 text-center">جاري التحميل...</div>;
 

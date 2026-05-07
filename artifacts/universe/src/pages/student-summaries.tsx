@@ -22,7 +22,7 @@ import {
   useDeleteStudentSummary,
   useToggleMaterialFileLike,
   useCountMaterialFileView,
-  useAdminCourses,
+  useCourses,
   useMeV2,
 } from "@/lib/api";
 import FileUpload from "@/components/file-upload";
@@ -37,7 +37,7 @@ function formatSize(bytes: number): string {
 export default function StudentSummariesPage() {
   const { data: me } = useMeV2();
   const { data: summaries = [], isLoading } = useStudentSummaries();
-  const { data: courses = [] } = useAdminCourses();
+  const { data: courses = [] } = useCourses();
   const upload = useUploadStudentSummary();
   const remove = useDeleteStudentSummary();
   const toggleLike = useToggleMaterialFileLike();

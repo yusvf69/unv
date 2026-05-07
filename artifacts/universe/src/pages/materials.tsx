@@ -6,7 +6,7 @@ import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import {
-  useAdminCourses,
+  useCourses,
   useCourseFiles,
   useToggleMaterialFileLike,
   useCountMaterialFileView,
@@ -161,7 +161,7 @@ function FileCard({ f }: { f: any }) {
 }
 
 export default function Materials() {
-  const { data: courses = [] } = useAdminCourses();
+  const { data: courses = [] } = useCourses();
   const [selected, setSelected] = useState<number | null>(null);
   const { data: files = [] } = useCourseFiles(selected || 0);
   const [q, setQ] = useState("");

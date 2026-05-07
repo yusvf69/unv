@@ -498,6 +498,9 @@ export interface AdminCourseRow {
 export function useAdminCourses() {
   return useQuery<AdminCourseRow[]>({ queryKey: ["v2", "admin", "courses"], queryFn: () => api.get("/v2/admin/all-courses") });
 }
+export function useCourses() {
+  return useQuery<AdminCourseRow[]>({ queryKey: ["v2", "courses"], queryFn: () => api.get("/v2/courses") });
+}
 
 export interface AdminMaterialRow {
   id: number; courseId: number; title: string; kind: string; url: string; lecturer: string | null; durationMinutes: number | null; ord: number;
