@@ -25,6 +25,7 @@ function extractYoutubeId(url: string): string | null {
 }
 
 async function ensureThread(a: number, b: number): Promise<number> {
+  if (isNaN(a) || isNaN(b) || a <= 0 || b <= 0) throw Object.assign(new Error("معرفات المستخدمين غير صالحة"), { status: 400 });
   const [low, high] = a < b ? [a, b] : [b, a];
   try {
     const rows = await sql`SELECT * FROM dm_threads WHERE user_a_id = ${low} AND user_b_id = ${high} LIMIT 1`;

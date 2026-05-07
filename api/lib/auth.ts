@@ -16,7 +16,8 @@ export async function getUserId(token: string | undefined): Promise<number | nul
   if (!token) return null;
   try {
     const decoded = jwt.verify(token, JWT_SECRET) as JwtPayload;
-    return decoded.userId;
+    const userId = Number(decoded.userId);
+    return userId && !isNaN(userId) ? userId : null;
   } catch {
     return null;
   }
@@ -36,8 +37,13 @@ export function requireAuth(headers: Headers): { userId: number } {
   const token = auth.slice(7);
   try {
     const decoded = jwt.verify(token, JWT_SECRET) as JwtPayload;
-    return { userId: decoded.userId };
-  } catch {
+    const userId = Number(decoded.userId);
+    if (!userId || isNaN(userId)) {
+      throw Object.assign(new Error("توكن غير صالح"), { status: 401 });
+    }
+    return { userId };
+  } catch (e) {
+    if ((e as any).status) throw e;
     throw Object.assign(new Error("توكن غير صالح"), { status: 401 });
   }
 }
