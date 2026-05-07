@@ -26,10 +26,15 @@ function extractYoutubeId(url: string): string | null {
 
 async function ensureThread(a: number, b: number): Promise<number> {
   const [low, high] = a < b ? [a, b] : [b, a];
-  const rows = await sql`SELECT * FROM dm_threads WHERE user_a_id = ${low} AND user_b_id = ${high} LIMIT 1`;
-  if (rows[0]) return rows[0].id;
-  const [t] = await sql`INSERT INTO dm_threads (user_a_id, user_b_id) VALUES (${low}, ${high}) RETURNING *`;
-  return t.id;
+  try {
+    const rows = await sql`SELECT * FROM dm_threads WHERE user_a_id = ${low} AND user_b_id = ${high} LIMIT 1`;
+    if (rows[0]) return rows[0].id;
+    const [t] = await sql`INSERT INTO dm_threads (user_a_id, user_b_id) VALUES (${low}, ${high}) RETURNING *`;
+    return t.id;
+  } catch (e) {
+    console.error("[ensureThread error]", e, { userIdA: low, userIdB: high });
+    throw e;
+  }
 }
 
 async function getAttemptDetail(attemptId: number) {
@@ -849,6 +854,7 @@ async function handleAdminQuizzes(req: Request, parts: string[]): Promise<Respon
 
 async function handleDM(req: Request, parts: string[]): Promise<Response> {
   const { userId } = requireAuth(req.headers);
+  console.log("[handleDM] userId:", userId, "parts:", JSON.stringify(parts));
 
   if (parts[1] === "threads") {
     return handle(async () => {
@@ -877,22 +883,27 @@ async function handleDM(req: Request, parts: string[]): Promise<Response> {
     const otherId = Number(parts[2]);
     if (req.method === "GET") {
       return handle(async () => {
-        const threadId = await ensureThread(userId, otherId);
-        const msgs = await sql`SELECT id, thread_id, from_id, body, created_at FROM dm_messages WHERE thread_id = ${threadId} ORDER BY created_at`;
         try {
-          await sql`UPDATE dm_messages SET is_read = true WHERE thread_id = ${threadId} AND from_id != ${userId} AND (is_read IS NULL OR is_read = false)`;
-        } catch {
+          const threadId = await ensureThread(userId, otherId);
+          const msgs = await sql`SELECT id, thread_id, from_id, body, created_at FROM dm_messages WHERE thread_id = ${threadId} ORDER BY created_at`;
           try {
-            await sql`UPDATE dm_messages SET read_at = now() WHERE thread_id = ${threadId} AND from_id != ${userId} AND read_at IS NULL`;
+            await sql`UPDATE dm_messages SET is_read = true WHERE thread_id = ${threadId} AND from_id != ${userId} AND (is_read IS NULL OR is_read = false)`;
           } catch {
-            // column may not exist, silently ignore
+            try {
+              await sql`UPDATE dm_messages SET read_at = now() WHERE thread_id = ${threadId} AND from_id != ${userId} AND read_at IS NULL`;
+            } catch {
+              // column may not exist, silently ignore
+            }
           }
+          const [otherUser] = await sql`SELECT id, name, avatar_url, group_name, specialization FROM users WHERE id = ${otherId}`;
+          return {
+            threadId, other: otherUser ? { id: otherUser.id, name: otherUser.name, avatarUrl: otherUser.avatar_url, groupName: otherUser.group_name, specialization: otherUser.specialization } : null,
+            messages: msgs.map((m: any) => ({ ...m, createdAt: m.created_at?.toISOString(), fromMe: m.from_id === userId })),
+          };
+        } catch (e) {
+          console.error("[handleDM/with GET error]", e);
+          throw e;
         }
-        const [otherUser] = await sql`SELECT id, name, avatar_url, group_name, specialization FROM users WHERE id = ${otherId}`;
-        return {
-          threadId, other: otherUser ? { id: otherUser.id, name: otherUser.name, avatarUrl: otherUser.avatar_url, groupName: otherUser.group_name, specialization: otherUser.specialization } : null,
-          messages: msgs.map((m: any) => ({ ...m, createdAt: m.created_at?.toISOString(), fromMe: m.from_id === userId })),
-        };
       });
     }
     if (req.method === "POST") {
