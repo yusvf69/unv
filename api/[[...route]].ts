@@ -1880,36 +1880,43 @@ async function handleAiChat(req: Request): Promise<Response> {
     const { messages } = body;
     if (!messages || !Array.isArray(messages) || messages.length === 0) throw Object.assign(new Error("الرسائل مطلوبة"), { status: 400 });
 
-    const [me] = await sql`SELECT name, year_in_college, specialization, group_name, points FROM users WHERE id = ${userId}`;
-    const courses = await sql`SELECT id, title, code, description, credits, department, instructor FROM courses ORDER BY code`;
-    const news = await sql`SELECT id, title, category, body, published_at FROM news WHERE status = 'published' ORDER BY published_at DESC LIMIT 10`;
-    const events = await sql`SELECT id, title, description, event_date, location FROM events WHERE event_date >= now() ORDER BY event_date LIMIT 10`;
-    const groupSchedule = await sql`SELECT day_number, start_time, end_time, course_title, instructor, room, type FROM group_schedule WHERE group_name = ${me?.group_name || ""} AND year_in_college = ${me?.year_in_college || 0} ORDER BY day_number, start_time`;
-    const quizzes = await sql`SELECT q.id, q.title, q.course_id, q.is_open, c.title AS course_title FROM quizzes q JOIN courses c ON c.id = q.course_id WHERE q.is_open = true LIMIT 20`;
+    let meData: any = {};
+    let coursesData: any[] = [];
+    let newsData: any[] = [];
+    let eventsData: any[] = [];
+    let scheduleData: any[] = [];
+    let quizzesData: any[] = [];
+
+    try { const [u] = await sql`SELECT name, year_in_college, specialization, group_name, points FROM users WHERE id = ${userId}`; meData = u || {}; } catch { meData = {}; }
+    try { coursesData = await sql`SELECT id, title, code, description, credits, department, instructor FROM courses ORDER BY code`; } catch { coursesData = []; }
+    try { newsData = await sql`SELECT id, title, category, body, published_at FROM news WHERE status = 'published' ORDER BY published_at DESC LIMIT 10`; } catch { newsData = []; }
+    try { eventsData = await sql`SELECT id, title, description, event_date, location FROM events WHERE event_date >= now() ORDER BY event_date LIMIT 10`; } catch { eventsData = []; }
+    try { quizzesData = await sql`SELECT q.id, q.title, q.course_id, q.is_open, c.title AS course_title FROM quizzes q JOIN courses c ON c.id = q.course_id WHERE q.is_open = true LIMIT 20`; } catch { quizzesData = []; }
+    try { scheduleData = await sql`SELECT day_number, start_time, end_time, course_title, instructor, room, type FROM group_schedule WHERE group_name = ${meData?.group_name || ""} AND year_in_college = ${meData?.year_in_college || 0} ORDER BY day_number, start_time`; } catch { scheduleData = []; }
 
     const siteData = `أنت مساعد UniVerse الذكي — منصة طلاب كلية الزراعة.
 
 بيانات الطالب الحالي:
-- الاسم: ${me?.name || "غير معروف"}
-- السنة: ${me?.year_in_college || "غير محدد"}
-- التخصص: ${me?.specialization || "غير محدد"}
-- المجموعة: ${me?.group_name || "غير محدد"}
-- النقاط: ${me?.points || 0}
+- الاسم: ${meData?.name || "غير معروف"}
+- السنة: ${meData?.year_in_college || "غير محدد"}
+- التخصص: ${meData?.specialization || "غير محدد"}
+- المجموعة: ${meData?.group_name || "غير محدد"}
+- النقاط: ${meData?.points || 0}
 
-المقررات (${courses.length}):
-${courses.map((c: any) => `- ${c.code}: ${c.title} (${c.credits} ساعات) - ${c.department} - د. ${c.instructor}`).join("\n")}
+المقررات (${coursesData.length}):
+${coursesData.map((c: any) => `- ${c.code}: ${c.title} (${c.credits} ساعات) - ${c.department} - د. ${c.instructor}`).join("\n")}
 
 أحدث الأخبار:
-${news.map((n: any) => `- ${n.title} (${n.category})${n.published_at ? " - " + new Date(n.published_at).toLocaleDateString("ar-EG") : ""}`).join("\n")}
+${newsData.map((n: any) => `- ${n.title} (${n.category})${n.published_at ? " - " + new Date(n.published_at).toLocaleDateString("ar-EG") : ""}`).join("\n")}
 
 الأحداث القادمة:
-${events.map((e: any) => `- ${e.title}${e.event_date ? " - " + new Date(e.event_date).toLocaleDateString("ar-EG") : ""}${e.location ? " - " + e.location : ""}`).join("\n") || "لا توجد أحداث قادمة"}
+${eventsData.map((e: any) => `- ${e.title}${e.event_date ? " - " + new Date(e.event_date).toLocaleDateString("ar-EG") : ""}${e.location ? " - " + e.location : ""}`).join("\n") || "لا توجد أحداث قادمة"}
 
 الاختبارات المفتوحة:
-${quizzes.map((q: any) => `- ${q.title} (مقرر: ${q.course_title})`).join("\n") || "لا توجد اختبارات مفتوحة"}
+${quizzesData.map((q: any) => `- ${q.title} (مقرر: ${q.course_title})`).join("\n") || "لا توجد اختبارات مفتوحة"}
 
-${me?.group_name ? `جدول المحاضرات (المجموعة ${me.group_name}):
-${groupSchedule.map((s: any) => `- اليوم ${s.day_number}: ${s.start_time?.slice(0,5)}-${s.end_time?.slice(0,5)} ${s.course_title} (${s.type}) - ${s.room || "غير محدد"} - ${s.instructor}`).join("\n") || "لا يوجد جدول"}` : ""}
+${meData?.group_name ? `جدول المحاضرات (المجموعة ${meData.group_name}):
+${scheduleData.map((s: any) => `- اليوم ${s.day_number}: ${s.start_time?.slice(0,5)}-${s.end_time?.slice(0,5)} ${s.course_title} (${s.type}) - ${s.room || "غير محدد"} - ${s.instructor}`).join("\n") || "لا يوجد جدول"}` : ""}
 
 إذا سألك عن حاجة خارج نطاق المنصة أو الزراعة، قلله إنك متخصص في المساعدة الأكاديمية والزراعية.
 أجب بالعربية. كن ودوداً.`;
