@@ -7,19 +7,16 @@ import nodemailer from "nodemailer";
 
 export const config = { runtime: "nodejs", maxDuration: 60 };
 
-let mailer: nodemailer.Transporter | null = null;
 function getMailer() {
-  if (!mailer) {
-    const user = process.env.GMAIL_USER;
-    const pass = process.env.GMAIL_APP_PASSWORD;
-    if (user && pass) {
-      mailer = nodemailer.createTransport({
-        service: "gmail",
-        auth: { user, pass },
-      });
-    }
-  }
-  return mailer;
+  const user = process.env.GMAIL_USER;
+  const pass = process.env.GMAIL_APP_PASSWORD;
+  if (!user || !pass) return null;
+  return nodemailer.createTransport({
+    host: "smtp.gmail.com",
+    port: 465,
+    secure: true,
+    auth: { user, pass },
+  });
 }
 
 // --- Helpers ---
