@@ -1880,46 +1880,28 @@ async function handleAiChat(req: Request): Promise<Response> {
     const { messages } = body;
     if (!messages || !Array.isArray(messages) || messages.length === 0) throw Object.assign(new Error("الرسائل مطلوبة"), { status: 400 });
 
+    let siteData = "أنت مساعد UniVerse الذكي — منصة طلاب كلية الزراعة. أجب بالعربية.";
     let meData: any = {};
-    let coursesData: any[] = [];
-    let newsData: any[] = [];
-    let eventsData: any[] = [];
-    let scheduleData: any[] = [];
-    let quizzesData: any[] = [];
+    try {
+      const [u] = await sql`SELECT name, year_in_college, specialization, group_name, points FROM users WHERE id = ${userId}`;
+      meData = u || {};
+      siteData += `\n\nبيانات الطالب:\n- الاسم: ${meData.name || ""}\n- السنة: ${meData.year_in_college || ""}\n- التخصص: ${meData.specialization || ""}`;
+    } catch (e) { console.error("user query", e); }
 
-    try { const [u] = await sql`SELECT name, year_in_college, specialization, group_name, points FROM users WHERE id = ${userId}`; meData = u || {}; } catch { meData = {}; }
-    try { coursesData = await sql`SELECT id, title, code, description, credits, department, instructor FROM courses ORDER BY code`; } catch { coursesData = []; }
-    try { newsData = await sql`SELECT id, title, category, body, published_at FROM news WHERE status = 'published' ORDER BY published_at DESC LIMIT 10`; } catch { newsData = []; }
-    try { eventsData = await sql`SELECT id, title, description, event_date, location FROM events WHERE event_date >= now() ORDER BY event_date LIMIT 10`; } catch { eventsData = []; }
-    try { quizzesData = await sql`SELECT q.id, q.title, q.course_id, q.is_open, c.title AS course_title FROM quizzes q JOIN courses c ON c.id = q.course_id WHERE q.is_open = true LIMIT 20`; } catch { quizzesData = []; }
-    try { scheduleData = await sql`SELECT day_number, start_time, end_time, course_title, instructor, room, type FROM group_schedule WHERE group_name = ${meData?.group_name || ""} AND year_in_college = ${meData?.year_in_college || 0} ORDER BY day_number, start_time`; } catch { scheduleData = []; }
+    try {
+      const courses = await sql`SELECT title, code, credits, department, instructor FROM courses ORDER BY code`;
+      siteData += `\n\nالمقررات (${courses.length}):\n${courses.map((c: any) => `- ${c.code || ""}: ${c.title || ""}`).join("\n")}`;
+    } catch (e) { console.error("courses query", e); }
 
-    const siteData = `أنت مساعد UniVerse الذكي — منصة طلاب كلية الزراعة.
+    try {
+      const news = await sql`SELECT title, category FROM news WHERE status = 'published' ORDER BY published_at DESC LIMIT 5`;
+      siteData += `\n\nأخبار:\n${news.map((n: any) => `- ${n.title || ""}`).join("\n") || "لا يوجد"}`;
+    } catch (e) { console.error("news query", e); }
 
-بيانات الطالب الحالي:
-- الاسم: ${meData?.name || "غير معروف"}
-- السنة: ${meData?.year_in_college || "غير محدد"}
-- التخصص: ${meData?.specialization || "غير محدد"}
-- المجموعة: ${meData?.group_name || "غير محدد"}
-- النقاط: ${meData?.points || 0}
-
-المقررات (${coursesData.length}):
-${coursesData.map((c: any) => `- ${c.code}: ${c.title} (${c.credits} ساعات) - ${c.department} - د. ${c.instructor}`).join("\n")}
-
-أحدث الأخبار:
-${newsData.map((n: any) => `- ${n.title} (${n.category})${n.published_at ? " - " + new Date(n.published_at).toLocaleDateString("ar-EG") : ""}`).join("\n")}
-
-الأحداث القادمة:
-${eventsData.map((e: any) => `- ${e.title}${e.event_date ? " - " + new Date(e.event_date).toLocaleDateString("ar-EG") : ""}${e.location ? " - " + e.location : ""}`).join("\n") || "لا توجد أحداث قادمة"}
-
-الاختبارات المفتوحة:
-${quizzesData.map((q: any) => `- ${q.title} (مقرر: ${q.course_title})`).join("\n") || "لا توجد اختبارات مفتوحة"}
-
-${meData?.group_name ? `جدول المحاضرات (المجموعة ${meData.group_name}):
-${scheduleData.map((s: any) => `- اليوم ${s.day_number}: ${s.start_time?.slice(0,5)}-${s.end_time?.slice(0,5)} ${s.course_title} (${s.type}) - ${s.room || "غير محدد"} - ${s.instructor}`).join("\n") || "لا يوجد جدول"}` : ""}
-
-إذا سألك عن حاجة خارج نطاق المنصة أو الزراعة، قلله إنك متخصص في المساعدة الأكاديمية والزراعية.
-أجب بالعربية. كن ودوداً.`;
+    try {
+      const events = await sql`SELECT title, event_date, location FROM events WHERE event_date >= now() ORDER BY event_date LIMIT 5`;
+      siteData += `\n\nأحداث:\n${events.map((e: any) => `- ${e.title || ""}`).join("\n") || "لا يوجد"}`;
+    } catch (e) { console.error("events query", e); }
 
     const geminiApiKey = process.env.GEMINI_API_KEY || "AIzaSyCVjfYbjb5FB-aXw6oB11gglNSq-GfSaqs";
     const lastMsg = messages[messages.length - 1]?.content || "";
@@ -1930,7 +1912,7 @@ ${scheduleData.map((s: any) => `- اليوم ${s.day_number}: ${s.start_time?.sl
         role: m.role === "assistant" ? "model" : "user",
         parts: [{ text: m.content || "" }],
       }));
-      if (contents.length === 0) throw new Error("لا توجد رسالة مرسلة");
+      if (contents.length === 0) throw new Error("no user message");
 
       const res = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${geminiApiKey}`, {
         method: "POST",
@@ -1945,22 +1927,15 @@ ${scheduleData.map((s: any) => `- اليوم ${s.day_number}: ${s.start_time?.sl
       if (res.ok) {
         const data: any = await res.json();
         const reply = data.candidates?.[0]?.content?.parts?.[0]?.text || "";
-        if (reply) {
-          const suggestions = generateSuggestions(lastMsg);
-          return { reply, suggestions };
-        }
+        if (reply) return { reply, suggestions: generateSuggestions(lastMsg) };
       } else {
-        console.error("[Gemini]", res.status, await res.text().catch(() => ""));
+        console.error("[Gemini]", res.status, (await res.text().catch(() => "")).slice(0, 200));
       }
     } catch (e) {
       console.error("[AiChat]", e);
     }
 
-    const lower = lastMsg.toLowerCase();
-    let reply = "أهلاً! أنا مساعد UniVerse الذكي. اسألني عن المقررات أو الأخبار أو الجدول أو أي حاجة.";
-    if (courses.length) reply = `لدي معلومات عن ${courses.length} مقرر دراسي. اسألني عن أي مقرر!`;
-    const suggestions = generateSuggestions(lastMsg);
-    return { reply, suggestions };
+    return { reply: "أهلاً! أنا مساعد UniVerse. اسألني عن المقررات أو الأخبار.", suggestions: generateSuggestions(lastMsg) };
   });
 }
 
