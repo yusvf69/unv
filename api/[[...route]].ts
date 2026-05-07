@@ -880,9 +880,13 @@ async function handleDM(req: Request, parts: string[]): Promise<Response> {
         const threadId = await ensureThread(userId, otherId);
         const msgs = await sql`SELECT id, thread_id, from_id, body, created_at FROM dm_messages WHERE thread_id = ${threadId} ORDER BY created_at`;
         try {
-          await sql`UPDATE dm_messages SET is_read = true WHERE thread_id = ${threadId} AND from_id != ${userId}`;
+          await sql`UPDATE dm_messages SET is_read = true WHERE thread_id = ${threadId} AND from_id != ${userId} AND (is_read IS NULL OR is_read = false)`;
         } catch {
-          await sql`UPDATE dm_messages SET read_at = now() WHERE thread_id = ${threadId} AND from_id != ${userId} AND read_at IS NULL`;
+          try {
+            await sql`UPDATE dm_messages SET read_at = now() WHERE thread_id = ${threadId} AND from_id != ${userId} AND read_at IS NULL`;
+          } catch {
+            // column may not exist, silently ignore
+          }
         }
         const [otherUser] = await sql`SELECT id, name, avatar_url, group_name, specialization FROM users WHERE id = ${otherId}`;
         return {
