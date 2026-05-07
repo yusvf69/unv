@@ -4,6 +4,7 @@ import { motion } from "framer-motion";
 import {
   ArrowLeft, BookOpen, Video, FileText,
   HelpCircle, Play, CheckCircle, Loader2, Download, Eye, Send,
+  ChevronDown, ChevronUp,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
@@ -173,6 +174,7 @@ function QuizTaking({ quiz, questions }: { quiz: any; questions: any[] }) {
 
 function LectureCard({ lecture, videoProgress }: { lecture: LectureFull; videoProgress: Record<number, boolean> }) {
   const markWatched = useMarkVideoWatched();
+  const [open, setOpen] = useState(false);
   const [quizTakeDialog, setQuizTakeDialog] = useState<number | null>(null);
   const [markingWatched, setMarkingWatched] = useState<number | null>(null);
 
@@ -184,54 +186,61 @@ function LectureCard({ lecture, videoProgress }: { lecture: LectureFull; videoPr
     finally { setMarkingWatched(null); }
   };
 
+  const ExpandIcon = open ? ChevronUp : ChevronDown;
+
   return (
-    <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} className="border-2 border-border rounded-2xl p-4 space-y-4 bg-card">
-      <div className="flex items-center gap-2">
-        {lecture.type === "lecture" ? <BookOpen className="h-5 w-5 text-primary" /> : <FileText className="h-5 w-5 text-secondary" />}
-        <h3 className="font-bold text-lg">{lecture.title}</h3>
+    <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} className="border-2 border-border rounded-2xl bg-card overflow-hidden">
+      <button onClick={() => setOpen(!open)} className="w-full flex items-center gap-2 p-4 text-start hover:bg-muted/30 transition-colors">
+        {lecture.type === "lecture" ? <BookOpen className="h-5 w-5 text-primary shrink-0" /> : <FileText className="h-5 w-5 text-secondary shrink-0" />}
+        <h3 className="font-bold text-lg flex-1">{lecture.title}</h3>
         <span className={`text-xs px-2 py-0.5 rounded-full ${lecture.type === "lecture" ? "bg-primary/10 text-primary" : "bg-secondary/10 text-secondary"}`}>
           {lecture.type === "lecture" ? "محاضرة" : "سكشن"}
         </span>
-      </div>
+        <ExpandIcon className="w-5 h-5 text-muted-foreground shrink-0" />
+      </button>
 
-      {/* Videos */}
-      {lecture.videos.length > 0 && (
-        <div className="space-y-3">
-          <h4 className="text-sm font-bold flex items-center gap-1"><Video className="h-4 w-4" /> الفيديوهات ({lecture.videos.length})</h4>
-          <div className="space-y-3">
-            {lecture.videos.map((v) => (
-              <VideoPlayer key={v.id} video={v} completed={isVideoCompleted(v.id)} onWatch={() => handleMarkWatched(v.id)} loading={markingWatched === v.id} />
-            ))}
-          </div>
-        </div>
-      )}
-
-      {/* PDFs */}
-      {lecture.pdfs.length > 0 && (
-        <div className="space-y-2">
-          <h4 className="text-sm font-bold flex items-center gap-1"><FileText className="h-4 w-4" /> الملفات ({lecture.pdfs.length})</h4>
-          {lecture.pdfs.map((p) => (
-            <PdfViewer key={p.id} pdf={{ name: p.name, url: p.url }} />
-          ))}
-        </div>
-      )}
-
-      {/* Quizzes */}
-      {lecture.quizzes.length > 0 && (
-        <div className="space-y-2">
-          <h4 className="text-sm font-bold flex items-center gap-1"><HelpCircle className="h-4 w-4" /> الاختبارات ({lecture.quizzes.length})</h4>
-          {lecture.quizzes.map((q) => (
-            <div key={q.id} className="p-3 border rounded-xl">
-              <div className="flex items-center justify-between">
-                <div className="flex items-center gap-2">
-                  <HelpCircle className="h-4 w-4 text-primary" />
-                  <span className="font-bold text-sm">{q.title}</span>
-                  <span className="text-xs text-muted-foreground">({q.questions.length} سؤال)</span>
-                </div>
-                <Button size="sm" variant="outline" onClick={() => setQuizTakeDialog(q.id)}>حل الاختبار</Button>
+      {open && (
+        <div className="px-4 pb-4 space-y-4">
+          {/* Videos */}
+          {lecture.videos.length > 0 && (
+            <div className="space-y-3">
+              <h4 className="text-sm font-bold flex items-center gap-1"><Video className="h-4 w-4" /> الفيديوهات ({lecture.videos.length})</h4>
+              <div className="space-y-3">
+                {lecture.videos.map((v) => (
+                  <VideoPlayer key={v.id} video={v} completed={isVideoCompleted(v.id)} onWatch={() => handleMarkWatched(v.id)} loading={markingWatched === v.id} />
+                ))}
               </div>
             </div>
-          ))}
+          )}
+
+          {/* PDFs */}
+          {lecture.pdfs.length > 0 && (
+            <div className="space-y-2">
+              <h4 className="text-sm font-bold flex items-center gap-1"><FileText className="h-4 w-4" /> الملفات ({lecture.pdfs.length})</h4>
+              {lecture.pdfs.map((p) => (
+                <PdfViewer key={p.id} pdf={{ name: p.name, url: p.url }} />
+              ))}
+            </div>
+          )}
+
+          {/* Quizzes */}
+          {lecture.quizzes.length > 0 && (
+            <div className="space-y-2">
+              <h4 className="text-sm font-bold flex items-center gap-1"><HelpCircle className="h-4 w-4" /> الاختبارات ({lecture.quizzes.length})</h4>
+              {lecture.quizzes.map((q) => (
+                <div key={q.id} className="p-3 border rounded-xl">
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-2">
+                      <HelpCircle className="h-4 w-4 text-primary" />
+                      <span className="font-bold text-sm">{q.title}</span>
+                      <span className="text-xs text-muted-foreground">({q.questions.length} سؤال)</span>
+                    </div>
+                    <Button size="sm" variant="outline" onClick={() => setQuizTakeDialog(q.id)}>حل الاختبار</Button>
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
         </div>
       )}
 
