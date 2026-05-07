@@ -1903,33 +1903,43 @@ async function handleAiChat(req: Request): Promise<Response> {
       siteData += `\n\nأحداث:\n${events.map((e: any) => `- ${e.title || ""}`).join("\n") || "لا يوجد"}`;
     } catch (e) { console.error("events query", e); }
 
-    const geminiApiKey = process.env.GEMINI_API_KEY || "AIzaSyCVjfYbjb5FB-aXw6oB11gglNSq-GfSaqs";
     const lastMsg = messages[messages.length - 1]?.content || "";
 
     try {
+      const openRouterKey = process.env.OPENROUTER_API_KEY;
+      if (!openRouterKey) throw new Error("OPENROUTER_API_KEY not configured");
       const filtered = messages[0]?.role === "assistant" ? messages.slice(1) : messages;
-      const contents = filtered.map((m: any) => ({
-        role: m.role === "assistant" ? "model" : "user",
-        parts: [{ text: m.content || "" }],
+      const openRouterMessages = filtered.map((m: any) => ({
+        role: m.role === "assistant" ? "assistant" : "user",
+        content: m.content || "",
       }));
-      if (contents.length === 0) throw new Error("no user message");
+      if (openRouterMessages.length === 0) throw new Error("no user message");
 
-      const res = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${geminiApiKey}`, {
+      const res = await fetch("https://openrouter.ai/api/v1/chat/completions", {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: {
+          "Content-Type": "application/json",
+          "Authorization": `Bearer ${openRouterKey}`,
+          "HTTP-Referer": "https://unv-api.vercel.app",
+          "X-Title": "UniVerse",
+        },
         body: JSON.stringify({
-          systemInstruction: { parts: [{ text: siteData }] },
-          contents,
-          generationConfig: { temperature: 0.7, maxOutputTokens: 1024 },
+          model: "google/gemini-2.0-flash-lite-001",
+          messages: [
+            { role: "system", content: siteData },
+            ...openRouterMessages,
+          ],
+          temperature: 0.7,
+          max_tokens: 1024,
         }),
       });
 
       if (res.ok) {
         const data: any = await res.json();
-        const reply = data.candidates?.[0]?.content?.parts?.[0]?.text || "";
+        const reply = data.choices?.[0]?.message?.content || "";
         if (reply) return { reply, suggestions: generateSuggestions(lastMsg) };
       } else {
-        console.error("[Gemini]", res.status, (await res.text().catch(() => "")).slice(0, 200));
+        console.error("[OpenRouter]", res.status, (await res.text().catch(() => "")).slice(0, 200));
       }
     } catch (e) {
       console.error("[AiChat]", e);
