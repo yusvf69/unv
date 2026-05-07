@@ -1880,15 +1880,11 @@ async function handleAiChat(req: Request): Promise<Response> {
     const { messages } = body;
     if (!messages || !Array.isArray(messages) || messages.length === 0) throw Object.assign(new Error("الرسائل مطلوبة"), { status: 400 });
 
-    const openaiApiKey = process.env.OPENAI_API_KEY;
-    const groqApiKey = process.env.GROQ_API_KEY;
+    const geminiApiKey = process.env.GEMINI_API_KEY || "AIzaSyCVjfYbjb5FB-aXw6oB11gglNSq-GfSaqs";
 
     const lastMsg = messages[messages.length - 1]?.content || "";
-    if (!openaiApiKey && !groqApiKey) {
-      return { reply: "لم يتم إعداد مفتاح AI بعد. تواصل مع الإدارة.", suggestions: ["تواصل مع الدعم", "جرب مرة أخرى لاحقاً"] };
-    }
 
-    const systemPrompt = `أنت مساعد دراسي ذكي متخصص في العلوم الزراعية لطلاب كلية الزراعة.
+    const systemInstruction = `أنت مساعد دراسي ذكي متخصص في العلوم الزراعية لطلاب كلية الزراعة.
 مهمتك مساعدة الطلاب في:
 - شرح المفاهيم الزراعية (علوم التربة، الإنتاج النباتي والحيواني، الهندسة الزراعية، وقاية النبات، الاقتصاد الزراعي، علوم الأغذية، التكنولوجيا الحيوية)
 - مساعدتهم في المذاكرة والتحضير للامتحانات
@@ -1898,43 +1894,34 @@ async function handleAiChat(req: Request): Promise<Response> {
 كن ودوداً ومشجعاً. قدم إجابات دقيقة ومبسطة. استخدم اللغة العربية الفصحى المبسطة أو العامية المصرية حسب سؤال الطالب.
 إذا سألك الطالب عن شيء خارج نطاق الزراعة أو الدراسة، وجهه بلطف إلى الموضوعات الزراعية والأكاديمية.`;
 
-    if (groqApiKey) {
-      const res = await fetch("https://api.groq.com/openai/v1/chat/completions", {
-        method: "POST",
-        headers: { "Content-Type": "application/json", "Authorization": `Bearer ${groqApiKey}` },
-        body: JSON.stringify({
-          model: "llama3-8b-8192",
-          messages: [{ role: "system", content: systemPrompt }, ...messages.slice(-10)],
+    const contents = messages.map((m: any) => ({
+      role: m.role === "assistant" ? "model" : "user",
+      parts: [{ text: m.content }],
+    }));
+
+    const res = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${geminiApiKey}`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        systemInstruction: { parts: [{ text: systemInstruction }] },
+        contents,
+        generationConfig: {
           temperature: 0.7,
-          max_tokens: 1024,
-        }),
-      });
-      if (!res.ok) throw Object.assign(new Error("فشل الاتصال بخدمة AI"), { status: 502 });
-      const data: any = await res.json();
-      const reply = data.choices?.[0]?.message?.content || "عذراً، لم أتمكن من الإجابة.";
-      const suggestions = generateSuggestions(lastMsg);
-      return { reply, suggestions };
+          maxOutputTokens: 1024,
+        },
+      }),
+    });
+
+    if (!res.ok) {
+      const errText = await res.text();
+      console.error("[Gemini API error]", res.status, errText);
+      throw Object.assign(new Error("فشل الاتصال بخدمة AI"), { status: 502 });
     }
 
-    if (openaiApiKey) {
-      const res = await fetch("https://api.openai.com/v1/chat/completions", {
-        method: "POST",
-        headers: { "Content-Type": "application/json", "Authorization": `Bearer ${openaiApiKey}` },
-        body: JSON.stringify({
-          model: "gpt-4o-mini",
-          messages: [{ role: "system", content: systemPrompt }, ...messages.slice(-10)],
-          temperature: 0.7,
-          max_tokens: 1024,
-        }),
-      });
-      if (!res.ok) throw Object.assign(new Error("فشل الاتصال بخدمة AI"), { status: 502 });
-      const data: any = await res.json();
-      const reply = data.choices?.[0]?.message?.content || "عذراً، لم أتمكن من الإجابة.";
-      const suggestions = generateSuggestions(lastMsg);
-      return { reply, suggestions };
-    }
-
-    return { reply: "لم يتم إعداد مفتاح AI بعد.", suggestions: ["تواصل مع الدعم"] };
+    const data: any = await res.json();
+    const reply = data.candidates?.[0]?.content?.parts?.[0]?.text || "عذراً، لم أتمكن من الإجابة.";
+    const suggestions = generateSuggestions(lastMsg);
+    return { reply, suggestions };
   });
 }
 
