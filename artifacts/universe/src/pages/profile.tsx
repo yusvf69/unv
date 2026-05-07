@@ -12,6 +12,7 @@ import FileUpload from "@/components/file-upload";
 import { Link } from "wouter";
 
 const SPECIALIZATIONS = [
+  "شعبه عامه",
   "علوم التربة والمياه",
   "الإنتاج النباتي",
   "الإنتاج الحيواني",
