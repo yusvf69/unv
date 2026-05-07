@@ -883,33 +883,31 @@ async function handleDM(req: Request, parts: string[]): Promise<Response> {
     const otherId = Number(parts[2]);
     if (req.method === "GET") {
       return handle(async () => {
+        const [otherUser] = await sql`SELECT id, name, avatar_url, group_name, specialization FROM users WHERE id = ${otherId}`;
+        if (!otherUser) throw Object.assign(new Error("المستخدم غير موجود"), { status: 404 });
+        const threadId = await ensureThread(userId, otherId);
+        const msgs = await sql`SELECT id, thread_id, from_id, body, created_at FROM dm_messages WHERE thread_id = ${threadId} ORDER BY created_at`;
         try {
-          const threadId = await ensureThread(userId, otherId);
-          const msgs = await sql`SELECT id, thread_id, from_id, body, created_at FROM dm_messages WHERE thread_id = ${threadId} ORDER BY created_at`;
+          await sql`UPDATE dm_messages SET is_read = true WHERE thread_id = ${threadId} AND from_id != ${userId} AND (is_read IS NULL OR is_read = false)`;
+        } catch {
           try {
-            await sql`UPDATE dm_messages SET is_read = true WHERE thread_id = ${threadId} AND from_id != ${userId} AND (is_read IS NULL OR is_read = false)`;
+            await sql`UPDATE dm_messages SET read_at = now() WHERE thread_id = ${threadId} AND from_id != ${userId} AND read_at IS NULL`;
           } catch {
-            try {
-              await sql`UPDATE dm_messages SET read_at = now() WHERE thread_id = ${threadId} AND from_id != ${userId} AND read_at IS NULL`;
-            } catch {
-              // column may not exist, silently ignore
-            }
+            // column may not exist, silently ignore
           }
-          const [otherUser] = await sql`SELECT id, name, avatar_url, group_name, specialization FROM users WHERE id = ${otherId}`;
-          return {
-            threadId, other: otherUser ? { id: otherUser.id, name: otherUser.name, avatarUrl: otherUser.avatar_url, groupName: otherUser.group_name, specialization: otherUser.specialization } : null,
-            messages: msgs.map((m: any) => ({ ...m, createdAt: m.created_at?.toISOString(), fromMe: m.from_id === userId })),
-          };
-        } catch (e) {
-          console.error("[handleDM/with GET error]", e);
-          throw e;
         }
+        return {
+          threadId, other: { id: otherUser.id, name: otherUser.name, avatarUrl: otherUser.avatar_url, groupName: otherUser.group_name, specialization: otherUser.specialization },
+          messages: msgs.map((m: any) => ({ ...m, createdAt: m.created_at?.toISOString(), fromMe: m.from_id === userId })),
+        };
       });
     }
     if (req.method === "POST") {
       return handle(async () => {
         const body = await req.json();
         if (!body.body || !body.body.trim()) throw Object.assign(new Error("اكتب رسالة"), { status: 400 });
+        const [otherUser] = await sql`SELECT id FROM users WHERE id = ${otherId}`;
+        if (!otherUser) throw Object.assign(new Error("المستخدم غير موجود"), { status: 404 });
         const threadId = await ensureThread(userId, otherId);
         const [msg] = await sql`INSERT INTO dm_messages (thread_id, from_id, body) VALUES (${threadId}, ${userId}, ${body.body.trim()}) RETURNING *`;
         await sql`UPDATE dm_threads SET last_message_at = now() WHERE id = ${threadId}`;
