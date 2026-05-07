@@ -1,5 +1,6 @@
 import type { IncomingMessage, ServerResponse } from "node:http";
 import { sql } from "./lib/db.js";
+import { neon } from "@neondatabase/serverless";
 import { handle, jsonResponse, jsonError, corsResponse } from "./lib/handler.js";
 import { getUserId, getCurrentUser, requireAuth, requireRole, ensureSuper, generateToken } from "./lib/auth.js";
 import bcrypt from "bcryptjs";
@@ -371,8 +372,16 @@ async function handleAdminNotifications(req: Request): Promise<Response> {
     const { title, body: msgBody } = body;
     if (!title || !msgBody) throw Object.assign(new Error("بيانات ناقصة"), { status: 400 });
 
-    const users = await sql`SELECT id FROM users WHERE 1=1`;
-    
+    const targetRole = body.targetRole || null;
+    const targetGroup = body.targetGroup || null;
+
+    let q = "SELECT id FROM users WHERE 1=1";
+    const p: any[] = [];
+    if (targetRole) { p.push(targetRole); q += ` AND role = $${p.length}`; }
+    if (targetGroup) { p.push(targetGroup); q += ` AND group_name = $${p.length}`; }
+    const raw = neon(process.env.DATABASE_URL || "");
+    const users = await raw(q, p);
+
     if (users.length > 0) {
       for (const u of users) {
         await sql`INSERT INTO notifications (user_id, title, body) VALUES (${u.id}, ${title}, ${msgBody})`;
