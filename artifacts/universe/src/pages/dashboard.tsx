@@ -110,13 +110,13 @@ export default function Dashboard() {
   const progressPercentage = (dashboard.user.points / (dashboard.user.points + dashboard.nextLevelPoints)) * 100;
 
   return (
-    <div className="container mx-auto px-4 py-8 space-y-8">
+    <div className="container mx-auto px-3 sm:px-4 py-4 sm:py-8 space-y-4 sm:space-y-8">
       <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
         <div>
           <motion.h1
             initial={{ opacity: 0, y: -10 }}
             animate={{ opacity: 1, y: 0 }}
-            className="text-3xl md:text-4xl font-serif font-bold bg-gradient-to-r from-primary to-secondary bg-clip-text text-transparent"
+            className="text-2xl sm:text-3xl md:text-4xl font-serif font-bold bg-gradient-to-r from-primary to-secondary bg-clip-text text-transparent"
           >
             {getGreeting(dashboard.user.name)}
           </motion.h1>
@@ -130,7 +130,7 @@ export default function Dashboard() {
             <span><strong className="text-primary">نصيحة الذكاء الاصطناعي:</strong> {aiTip}</span>
           </motion.div>
           <div className="flex items-center gap-2 mt-2 flex-wrap">
-            <p className="text-muted-foreground">نظرة سريعة على يومك</p>
+            <p className="text-muted-foreground text-sm">نظرة سريعة على يومك</p>
             {(dashboard.user as any).groupName && (
               <motion.span
                 initial={{ scale: 0 }}
@@ -148,20 +148,20 @@ export default function Dashboard() {
             )}
           </div>
         </div>
-        <div className="flex items-center gap-4 bg-card px-4 py-2 rounded-2xl shadow-sm border border-border">
-          <div className="text-center px-4 border-r border-border">
-            <div className="text-2xl font-bold text-secondary">{dashboard.user.level}</div>
-            <div className="text-xs text-muted-foreground uppercase tracking-wider">Level</div>
+        <div className="flex items-center gap-2 sm:gap-4 bg-card px-3 sm:px-4 py-2 rounded-2xl shadow-sm border border-border w-full sm:w-auto justify-center">
+          <div className="text-center px-2 sm:px-4 border-e border-border">
+            <div className="text-xl sm:text-2xl font-bold text-secondary">{dashboard.user.level}</div>
+            <div className="text-[10px] sm:text-xs text-muted-foreground uppercase tracking-wider">Level</div>
           </div>
-          <div className="text-center px-4 border-r border-border">
-            <div className="text-2xl font-bold text-accent">{dashboard.user.points}</div>
-            <div className="text-xs text-muted-foreground uppercase tracking-wider">Points</div>
+          <div className="text-center px-2 sm:px-4 border-e border-border">
+            <div className="text-xl sm:text-2xl font-bold text-accent">{dashboard.user.points}</div>
+            <div className="text-[10px] sm:text-xs text-muted-foreground uppercase tracking-wider">Points</div>
           </div>
-          <div className="text-center px-4">
-            <div className="text-2xl font-bold text-orange-500 flex items-center justify-center gap-1">
+          <div className="text-center px-2 sm:px-4">
+            <div className="text-xl sm:text-2xl font-bold text-orange-500 flex items-center justify-center gap-1">
               🔥 {dashboard.user.streak}
             </div>
-            <div className="text-xs text-muted-foreground uppercase tracking-wider">Streak</div>
+            <div className="text-[10px] sm:text-xs text-muted-foreground uppercase tracking-wider">Streak</div>
           </div>
         </div>
       </div>
@@ -175,8 +175,8 @@ export default function Dashboard() {
             </CardTitle>
           </CardHeader>
           <CardContent>
-            <div className="flex flex-col md:flex-row items-center gap-8">
-              <div className="w-48 h-48 shrink-0 relative">
+            <div className="flex flex-col md:flex-row items-center gap-6 md:gap-8">
+              <div className="w-36 h-36 sm:w-48 sm:h-48 shrink-0 relative">
                 <svg viewBox="0 0 100 100" className="w-full h-full transform -rotate-90">
                   <circle cx="50" cy="50" r="40" fill="transparent" stroke="currentColor" strokeWidth="8" className="text-muted" />
                   <circle 
@@ -186,8 +186,8 @@ export default function Dashboard() {
                   />
                 </svg>
                 <div className="absolute inset-0 flex flex-col items-center justify-center">
-                  <span className="text-4xl font-bold text-primary">{dashboard.examPrediction.predictedScore}%</span>
-                  <span className="text-xs text-muted-foreground">Predicted Score</span>
+                  <span className="text-3xl sm:text-4xl font-bold text-primary">{dashboard.examPrediction.predictedScore}%</span>
+                  <span className="text-[10px] sm:text-xs text-muted-foreground">Predicted Score</span>
                 </div>
               </div>
               <div className="flex-1 space-y-4">
@@ -261,28 +261,28 @@ export default function Dashboard() {
             <Progress value={(dashboard.weeklyMinutes / dashboard.focusGoalMinutes) * 100} className="h-2 mb-4" />
 
             {/* Weekly Summary */}
-            <div className="grid grid-cols-3 gap-3 mb-6">
-              <div className="bg-muted/30 rounded-lg p-3 text-center">
-                <div className="text-lg font-bold text-primary">{dashboard.weeklyMinutes}</div>
+            <div className="grid grid-cols-3 gap-2 sm:gap-3 mb-4 sm:mb-6">
+              <div className="bg-muted/30 rounded-lg p-2 sm:p-3 text-center">
+                <div className="text-base sm:text-lg font-bold text-primary">{dashboard.weeklyMinutes}</div>
                 <div className="text-[10px] text-muted-foreground">دقيقة مذاكرة</div>
               </div>
-              <div className="bg-muted/30 rounded-lg p-3 text-center">
-                <div className="text-lg font-bold text-accent">+{totalWeeklyPoints}</div>
+              <div className="bg-muted/30 rounded-lg p-2 sm:p-3 text-center">
+                <div className="text-base sm:text-lg font-bold text-accent">+{totalWeeklyPoints}</div>
                 <div className="text-[10px] text-muted-foreground">نقاط مكتسبة</div>
               </div>
-              <div className="bg-muted/30 rounded-lg p-3 text-center">
-                <div className="text-lg font-bold">{avgDaily} د</div>
+              <div className="bg-muted/30 rounded-lg p-2 sm:p-3 text-center">
+                <div className="text-base sm:text-lg font-bold">{avgDaily} د</div>
                 <div className="text-[10px] text-muted-foreground">متوسط يومي</div>
               </div>
             </div>
 
             {/* Study Timer */}
-            <div className="flex items-center justify-between bg-muted/30 rounded-xl p-4 mb-6">
-              <div className="flex items-center gap-3">
-                <Timer className="h-6 w-6 text-primary" />
+            <div className="flex items-center justify-between bg-muted/30 rounded-xl p-3 sm:p-4 mb-4 sm:mb-6">
+              <div className="flex items-center gap-2 sm:gap-3">
+                <Timer className="h-5 w-5 sm:h-6 sm:w-6 text-primary" />
                 <div>
-                  <div className="text-2xl font-bold tabular-nums">{formatTime(seconds)}</div>
-                  <div className="text-xs text-muted-foreground">
+                  <div className="text-xl sm:text-2xl font-bold tabular-nums">{formatTime(seconds)}</div>
+                  <div className="text-[10px] sm:text-xs text-muted-foreground">
                     {isRunning ? "جاري المذاكرة..." : "اضغط لبدء المذاكرة"}
                   </div>
                 </div>
@@ -292,12 +292,13 @@ export default function Dashboard() {
                 variant={isRunning ? "destructive" : "default"}
                 onClick={isRunning ? handleStop : () => setIsRunning(true)}
                 disabled={logActivity.isPending}
+                className="text-xs sm:text-sm"
               >
-                {isRunning ? <><Square className="me-1 h-3.5 w-3.5" /> إيقاف وتسجيل</> : <><Play className="me-1 h-3.5 w-3.5" /> ابدأ</>}
+                {isRunning ? <><Square className="me-1 h-3 w-3 sm:h-3.5 sm:w-3.5" /> إيقاف</> : <><Play className="me-1 h-3 w-3 sm:h-3.5 sm:w-3.5" /> ابدأ</>}
               </Button>
             </div>
 
-            <div className="h-[200px] w-full">
+            <div className="h-[150px] sm:h-[200px] w-full">
               <ResponsiveContainer width="100%" height="100%">
                 <BarChart data={weeklyData}>
                   <XAxis dataKey="dayLabel" fontSize={12} tickLine={false} axisLine={false} />
@@ -325,11 +326,11 @@ export default function Dashboard() {
                   initial={{ opacity: 0, x: 20 }}
                   animate={{ opacity: 1, x: 0 }}
                   transition={{ delay: i * 0.06 }}
-                  className="flex gap-3 p-3 rounded-xl border-2 border-border bg-gradient-to-r from-card to-primary/5 hover:border-primary/30 transition-all"
+                  className="flex flex-col sm:flex-row gap-2 sm:gap-3 p-3 rounded-xl border-2 border-border bg-gradient-to-r from-card to-primary/5 hover:border-primary/30 transition-all"
                 >
-                  <div className="flex flex-col items-center justify-center w-16 shrink-0 border-e border-border pe-3">
+                  <div className="flex items-center sm:flex-col sm:items-center justify-center w-full sm:w-16 shrink-0 border-b sm:border-e sm:border-b-0 sm:pe-3 pb-2 sm:pb-0 sm:pe-3">
                     <span className="font-bold text-sm tabular-nums">{item.startTime}</span>
-                    <span className="text-[10px] text-muted-foreground tabular-nums">{item.endTime}</span>
+                    <span className="text-[10px] text-muted-foreground tabular-nums ms-2 sm:ms-0">{item.endTime}</span>
                   </div>
                   <div className="flex-1 min-w-0">
                     <h4 className="font-bold text-sm">{item.courseTitle}</h4>

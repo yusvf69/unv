@@ -115,29 +115,29 @@ export default function Home() {
           <TreePine className="h-32 w-32" />
         </motion.div>
 
-        <div className="container mx-auto px-4 py-20 relative z-10 text-center">
+        <div className="container mx-auto px-3 sm:px-4 py-16 sm:py-20 relative z-10 text-center">
           <motion.div
             initial={{ opacity: 0, scale: 0.8 }}
             animate={{ opacity: 1, scale: 1 }}
             transition={{ duration: 0.6 }}
-            className="inline-flex items-center gap-2 px-4 py-2 bg-primary/10 rounded-full border border-primary/20 mb-6"
+            className="inline-flex items-center gap-2 px-3 sm:px-4 py-1.5 sm:py-2 bg-primary/10 rounded-full border border-primary/20 mb-4 sm:mb-6"
           >
-            <Sun className="h-4 w-4 text-accent-foreground" />
-            <span className="text-sm font-medium text-primary">جامعتك الذكية للزراعة</span>
+            <Sun className="h-3.5 w-3.5 sm:h-4 sm:w-4 text-accent-foreground" />
+            <span className="text-xs sm:text-sm font-medium text-primary">جامعتك الذكية للزراعة</span>
           </motion.div>
 
           <motion.h1
             initial={{ opacity: 0, y: 30 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ duration: 0.7, delay: 0.1 }}
-            className="font-serif text-5xl md:text-7xl font-bold leading-tight mb-6 bg-gradient-to-br from-primary via-primary to-secondary bg-clip-text text-transparent"
+            className="font-serif text-4xl sm:text-5xl md:text-7xl font-bold leading-tight mb-4 sm:mb-6 bg-gradient-to-br from-primary via-primary to-secondary bg-clip-text text-transparent"
           >
             UniVerse
             <motion.span
               initial={{ opacity: 0 }}
               animate={{ opacity: 1 }}
               transition={{ delay: 0.6 }}
-              className="block text-2xl md:text-4xl text-foreground mt-3 font-sans"
+              className="block text-xl sm:text-2xl md:text-4xl text-foreground mt-2 sm:mt-3 font-sans"
             >
               منصة كلية الزراعة الذكية
             </motion.span>
@@ -147,7 +147,7 @@ export default function Home() {
             initial={{ opacity: 0, y: 20 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ duration: 0.7, delay: 0.3 }}
-            className="text-lg md:text-xl text-muted-foreground max-w-2xl mx-auto mb-10"
+            className="text-base sm:text-lg md:text-xl text-muted-foreground max-w-2xl mx-auto mb-6 sm:mb-10 px-2"
           >
             مكان واحد للطلاب والدكاتره والإداريين — جدولك، درجاتك، مقرراتك،
             مواهبك، اختباراتك، ومجتمعك في تجربة عصرية متكاملة.
@@ -209,8 +209,8 @@ export default function Home() {
       </section>
 
       {/* STATS */}
-      <section className="container mx-auto px-4 py-16">
-        <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+      <section className="container mx-auto px-3 sm:px-4 py-10 sm:py-16">
+        <div className="grid grid-cols-2 gap-3 sm:gap-4">
           {[
             { icon: GraduationCap, value: feed.stats.students, label: "طالب", color: "from-primary to-primary/60" },
             { icon: BookOpen, value: feed.stats.staff, label: "عضو هيئة تدريس", color: "from-secondary to-secondary/60" },
@@ -224,14 +224,14 @@ export default function Home() {
               viewport={{ once: true }}
               transition={{ duration: 0.5, delay: i * 0.08 }}
               whileHover={{ y: -6, scale: 1.02 }}
-              className={`relative overflow-hidden rounded-2xl p-6 bg-gradient-to-br ${stat.color} text-white shadow-xl shadow-primary/10`}
+              className={`relative overflow-hidden rounded-xl sm:rounded-2xl p-4 sm:p-6 bg-gradient-to-br ${stat.color} text-white shadow-xl shadow-primary/10`}
             >
-              <stat.icon className="absolute top-3 end-3 h-10 w-10 opacity-20" />
-              <stat.icon className="h-7 w-7 mb-3" />
-              <div className="text-4xl font-bold tabular-nums">
+              <stat.icon className="absolute top-2 end-2 sm:top-3 sm:end-3 h-8 w-8 sm:h-10 sm:w-10 opacity-20" />
+              <stat.icon className="h-5 w-5 sm:h-7 sm:w-7 mb-2 sm:mb-3" />
+              <div className="text-2xl sm:text-4xl font-bold tabular-nums">
                 <AnimatedCounter value={stat.value} />
               </div>
-              <div className="text-sm opacity-90 mt-1">{stat.label}</div>
+              <div className="text-xs sm:text-sm opacity-90 mt-1">{stat.label}</div>
             </motion.div>
           ))}
         </div>
@@ -239,42 +239,42 @@ export default function Home() {
 
       {/* DEAN */}
       {feed.dean && (
-        <section className="container mx-auto px-4 py-12">
+        <section className="container mx-auto px-3 sm:px-4 py-8 sm:py-12">
           <motion.div
             initial={{ opacity: 0, y: 40 }}
             whileInView={{ opacity: 1, y: 0 }}
             viewport={{ once: true }}
-            className="bg-gradient-to-br from-card to-card/50 border-2 border-primary/10 rounded-3xl p-8 md:p-12 shadow-xl backdrop-blur"
+            className="bg-gradient-to-br from-card to-card/50 border-2 border-primary/10 rounded-2xl sm:rounded-3xl p-5 sm:p-8 md:p-12 shadow-xl backdrop-blur"
           >
-            <div className="flex items-start gap-4 mb-4">
-              <div className="bg-primary/10 p-3 rounded-2xl">
-                <GraduationCap className="h-7 w-7 text-primary" />
+            <div className="flex items-start gap-3 sm:gap-4 mb-3 sm:mb-4">
+              <div className="bg-primary/10 p-2.5 sm:p-3 rounded-xl sm:rounded-2xl shrink-0">
+                <GraduationCap className="h-5 w-5 sm:h-7 sm:w-7 text-primary" />
               </div>
               <div>
-                <div className="text-xs uppercase tracking-wider text-muted-foreground font-bold mb-1">
+                <div className="text-[10px] sm:text-xs uppercase tracking-wider text-muted-foreground font-bold mb-1">
                   كلمة العميد
                 </div>
-                <h2 className="text-2xl md:text-3xl font-serif font-bold">{feed.dean.name}</h2>
+                <h2 className="text-lg sm:text-2xl md:text-3xl font-serif font-bold">{feed.dean.name}</h2>
               </div>
             </div>
-            <p className="text-muted-foreground leading-loose text-lg">{feed.dean.bio}</p>
+            <p className="text-muted-foreground leading-loose text-sm sm:text-lg">{feed.dean.bio}</p>
           </motion.div>
         </section>
       )}
 
       {/* NEWS */}
-      <section className="container mx-auto px-4 py-12">
-        <div className="flex items-center justify-between mb-8">
-          <h2 className="text-3xl md:text-4xl font-serif font-bold">{t("news")}</h2>
+      <section className="container mx-auto px-3 sm:px-4 py-8 sm:py-12">
+        <div className="flex items-center justify-between mb-6 sm:mb-8 flex-wrap gap-2">
+          <h2 className="text-2xl sm:text-3xl md:text-4xl font-serif font-bold">{t("news")}</h2>
           <Link href="/news">
-            <Button variant="ghost" className="gap-2">
+            <Button variant="ghost" className="gap-2 text-sm">
               عرض الكل
               <ArrowLeft className="h-4 w-4" />
             </Button>
           </Link>
         </div>
 
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+        <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-4 sm:gap-6">
           {feed.latestNews.map((news, i) => (
             <motion.div
               key={news.id}
@@ -289,7 +289,7 @@ export default function Home() {
                 className="block group bg-card rounded-2xl overflow-hidden shadow-lg shadow-primary/5 hover:shadow-2xl hover:shadow-primary/15 border border-border transition-all"
               >
                 {(news as any).imageUrl && (
-                  <div className="relative h-48 overflow-hidden">
+                  <div className="relative h-36 sm:h-48 overflow-hidden">
                     <img
                       src={(news as any).imageUrl}
                       alt={news.title}
@@ -298,8 +298,8 @@ export default function Home() {
                     <div className="absolute inset-0 bg-gradient-to-t from-black/40 to-transparent" />
                   </div>
                 )}
-                <div className="p-6">
-                  <h3 className="font-bold text-lg mb-2 group-hover:text-primary transition-colors line-clamp-2">
+                <div className="p-4 sm:p-6">
+                  <h3 className="font-bold text-base sm:text-lg mb-2 group-hover:text-primary transition-colors line-clamp-2">
                     {news.title}
                   </h3>
                   <p className="text-muted-foreground text-sm line-clamp-2">{news.excerpt}</p>
@@ -311,34 +311,34 @@ export default function Home() {
       </section>
 
       {/* CTA */}
-      <section className="container mx-auto px-4 py-16">
+      <section className="container mx-auto px-3 sm:px-4 py-10 sm:py-16">
         <motion.div
           initial={{ opacity: 0, scale: 0.95 }}
           whileInView={{ opacity: 1, scale: 1 }}
           viewport={{ once: true }}
-          className="relative overflow-hidden rounded-3xl bg-gradient-to-br from-primary via-primary/90 to-secondary p-10 md:p-16 text-primary-foreground"
+          className="relative overflow-hidden rounded-2xl sm:rounded-3xl bg-gradient-to-br from-primary via-primary/90 to-secondary p-6 sm:p-10 md:p-16 text-primary-foreground"
         >
-          <div className="absolute -top-10 -end-10 opacity-20">
+          <div className="absolute -top-10 -end-10 opacity-20 hidden sm:block">
             <Wheat className="h-48 w-48" />
           </div>
           <div className="relative">
-            <h2 className="text-3xl md:text-4xl font-serif font-bold mb-4">
+            <h2 className="text-xl sm:text-3xl md:text-4xl font-serif font-bold mb-3 sm:mb-4">
               ازرع طريقك للتميز
             </h2>
-            <p className="text-lg opacity-90 mb-8 max-w-xl">
+            <p className="text-sm sm:text-lg opacity-90 mb-6 sm:mb-8 max-w-xl">
               انضم لمجتمع UniVerse، شارك مواهبك، نافس زملاءك، وتعلّم بأسلوب جديد كلياً.
             </p>
-            <div className="flex flex-wrap gap-3">
+            <div className="flex flex-wrap gap-2 sm:gap-3">
               <Link href="/talents">
-                <Button size="lg" variant="secondary" className="rounded-full">
+                <Button size="sm" variant="secondary" className="rounded-full sm:h-11">
                   استعرض المواهب
                 </Button>
               </Link>
               <Link href="/games">
                 <Button
-                  size="lg"
+                  size="sm"
                   variant="outline"
-                  className="rounded-full bg-white/10 text-white border-white/40 hover:bg-white/20"
+                  className="rounded-full bg-white/10 text-white border-white/40 hover:bg-white/20 sm:h-11"
                 >
                   جرّب الألعاب
                 </Button>

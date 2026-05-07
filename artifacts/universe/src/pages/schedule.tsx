@@ -88,29 +88,29 @@ export default function Schedule() {
   const scheduleTodayName = JS_TO_AR[scheduleCursor.getDay()];
 
   return (
-    <div className="container mx-auto px-4 py-8 max-w-6xl">
-      <motion.div initial={{ opacity: 0, y: -10 }} animate={{ opacity: 1, y: 0 }} className="mb-6">
-        <h1 className="text-3xl md:text-4xl font-serif font-bold flex items-center gap-3">
-          <Calendar className="h-8 w-8 text-primary" /> الجداول
+    <div className="container mx-auto px-3 sm:px-4 py-4 sm:py-8 max-w-6xl">
+      <motion.div initial={{ opacity: 0, y: -10 }} animate={{ opacity: 1, y: 0 }} className="mb-4 sm:mb-6">
+        <h1 className="text-2xl sm:text-3xl md:text-4xl font-serif font-bold flex items-center gap-3">
+          <Calendar className="h-6 w-6 sm:h-8 sm:w-8 text-primary" /> الجداول
         </h1>
-        <p className="text-sm text-muted-foreground mt-2">
+        <p className="text-xs sm:text-sm text-muted-foreground mt-2">
           {me?.groupName ? `مجموعة G${me.groupName}` : ""} {me?.yearInCollege ? `— السنة ${me.yearInCollege}` : ""}.
         </p>
       </motion.div>
 
       {/* Tabs */}
-      <div className="flex gap-2 mb-6">
+      <div className="flex gap-2 mb-4 sm:mb-6 overflow-x-auto pb-2">
         <button
           onClick={() => setTab("schedule")}
-          className={`px-5 py-2 rounded-full text-sm font-bold flex items-center gap-2 transition ${tab === "schedule" ? "bg-primary text-primary-foreground" : "bg-muted hover:bg-muted/80"}`}
+          className={`px-4 sm:px-5 py-1.5 sm:py-2 rounded-full text-xs sm:text-sm font-bold flex items-center gap-2 transition shrink-0 whitespace-nowrap ${tab === "schedule" ? "bg-primary text-primary-foreground" : "bg-muted hover:bg-muted/80"}`}
         >
-          <Clock className="h-4 w-4" /> جدول المحاضرات
+          <Clock className="h-3.5 w-3.5 sm:h-4 sm:w-4" /> جدول المحاضرات
         </button>
         <button
           onClick={() => setTab("exams")}
-          className={`px-5 py-2 rounded-full text-sm font-bold flex items-center gap-2 transition ${tab === "exams" ? "bg-primary text-primary-foreground" : "bg-muted hover:bg-muted/80"}`}
+          className={`px-4 sm:px-5 py-1.5 sm:py-2 rounded-full text-xs sm:text-sm font-bold flex items-center gap-2 transition shrink-0 whitespace-nowrap ${tab === "exams" ? "bg-primary text-primary-foreground" : "bg-muted hover:bg-muted/80"}`}
         >
-          <FileText className="h-4 w-4" /> جدول الامتحانات
+          <FileText className="h-3.5 w-3.5 sm:h-4 sm:w-4" /> جدول الامتحانات
         </button>
       </div>
 

@@ -131,39 +131,39 @@ function TalentCard({ talent, isAdmin }: { talent: TalentFeedItem; isAdmin: bool
       initial={{ opacity: 0, y: 30 }}
       whileInView={{ opacity: 1, y: 0 }}
       viewport={{ once: true }}
-      className="bg-card rounded-3xl overflow-hidden border-2 border-border shadow-lg shadow-primary/5 max-w-xl mx-auto"
+      className="bg-card rounded-2xl sm:rounded-3xl overflow-hidden border-2 border-border shadow-lg shadow-primary/5"
       data-testid={`talent-card-${talent.id}`}
     >
-      <div className="flex items-center justify-between p-4">
-        <Link href={`/students/${talent.ownerId}`} className="flex items-center gap-3">
+      <div className="flex items-center justify-between p-3 sm:p-4">
+        <Link href={`/students/${talent.ownerId}`} className="flex items-center gap-2 sm:gap-3 min-w-0">
           <img
             src={talent.owner?.avatarUrl || "https://i.pravatar.cc/40"}
-            className="w-11 h-11 rounded-full ring-2 ring-primary/30"
+            className="w-9 h-9 sm:w-11 sm:h-11 rounded-full ring-2 ring-primary/30 shrink-0"
             alt=""
           />
-          <div>
-            <div className="font-bold text-sm flex items-center gap-1.5">
+          <div className="min-w-0">
+            <div className="font-bold text-xs sm:text-sm flex items-center gap-1.5 truncate">
               {talent.owner?.name}
               {talent.owner?.groupName && (
-                <span className="text-[10px] bg-primary/15 text-primary px-1.5 py-0.5 rounded-full font-bold">
+                <span className="text-[9px] sm:text-[10px] bg-primary/15 text-primary px-1 sm:px-1.5 py-0.5 rounded-full font-bold shrink-0">
                   {talent.owner.groupName}
                 </span>
               )}
             </div>
-            <div className="text-xs text-muted-foreground">{talent.owner?.department}</div>
+            <div className="text-[10px] sm:text-xs text-muted-foreground truncate">{talent.owner?.department}</div>
           </div>
         </Link>
-        <div className="flex items-center gap-2">
-          <span className="text-xs px-2.5 py-1 bg-secondary/15 text-secondary-foreground rounded-full font-bold">
+        <div className="flex items-center gap-1 sm:gap-2 shrink-0">
+          <span className="text-[10px] sm:text-xs px-2 sm:px-2.5 py-1 bg-secondary/15 text-secondary-foreground rounded-full font-bold">
             {talent.category}
           </span>
           {isAdmin && (
             <>
-              <Button size="icon" variant="ghost" onClick={() => setShowModerate(true)} data-testid={`button-moderate-${talent.id}`}>
-                <ShieldAlert className="h-4 w-4 text-rose-600" />
+              <Button size="icon" variant="ghost" onClick={() => setShowModerate(true)} data-testid={`button-moderate-${talent.id}`} className="h-7 w-7 sm:h-9 sm:w-9">
+                <ShieldAlert className="h-3.5 w-3.5 sm:h-4 sm:w-4 text-rose-600" />
               </Button>
-              <Button size="icon" variant="ghost" onClick={() => { if (confirm("هل تريد حذف هذا المنشور نهائياً؟")) deleteTalent.mutate(talent.id); }}>
-                <Trash2 className="h-4 w-4 text-destructive" />
+              <Button size="icon" variant="ghost" onClick={() => { if (confirm("هل تريد حذف هذا المنشور نهائياً؟")) deleteTalent.mutate(talent.id); }} className="h-7 w-7 sm:h-9 sm:w-9">
+                <Trash2 className="h-3.5 w-3.5 sm:h-4 sm:w-4 text-destructive" />
               </Button>
             </>
           )}
@@ -183,31 +183,31 @@ function TalentCard({ talent, isAdmin }: { talent: TalentFeedItem; isAdmin: bool
         </div>
       )}
 
-      <div className="p-4">
-        <div className="flex items-center gap-3 mb-2">
+      <div className="p-3 sm:p-4">
+        <div className="flex items-center gap-2 sm:gap-3 mb-2">
           <button
             onClick={toggleLike}
-            className="hover-elevate active-elevate p-2 rounded-full -ms-2"
+            className="hover-elevate active-elevate p-1.5 sm:p-2 rounded-full -ms-2"
             data-testid={`button-like-${talent.id}`}
           >
             <motion.div animate={{ scale: liked ? [1, 1.4, 1] : 1 }} transition={{ duration: 0.4 }}>
-              <Heart className={`h-6 w-6 ${liked ? "fill-rose-500 text-rose-500" : ""}`} />
+              <Heart className={`h-5 w-5 sm:h-6 sm:w-6 ${liked ? "fill-rose-500 text-rose-500" : ""}`} />
             </motion.div>
           </button>
           <button
             onClick={() => setShowComments(true)}
-            className="hover-elevate p-2 rounded-full"
+            className="hover-elevate p-1.5 sm:p-2 rounded-full"
             data-testid={`button-comments-${talent.id}`}
           >
-            <MessageCircle className="h-6 w-6" />
+            <MessageCircle className="h-5 w-5 sm:h-6 sm:w-6" />
           </button>
-          <button className="hover-elevate p-2 rounded-full">
-            <Share2 className="h-6 w-6" />
+          <button className="hover-elevate p-1.5 sm:p-2 rounded-full">
+            <Share2 className="h-5 w-5 sm:h-6 sm:w-6" />
           </button>
         </div>
-        <div className="text-sm font-bold mb-1">{count.toLocaleString("ar-EG")} إعجاب</div>
-        <h3 className="font-bold text-lg leading-snug">{talent.title}</h3>
-        <p className="text-sm text-muted-foreground mt-1 leading-relaxed">{talent.description}</p>
+        <div className="text-xs sm:text-sm font-bold mb-1">{count.toLocaleString("ar-EG")} إعجاب</div>
+        <h3 className="font-bold text-base sm:text-lg leading-snug">{talent.title}</h3>
+        <p className="text-xs sm:text-sm text-muted-foreground mt-1 leading-relaxed">{talent.description}</p>
         {talent.commentsCount > 0 && (
           <button
             onClick={() => setShowComments(true)}
@@ -324,13 +324,13 @@ export default function Talents() {
   const isAdmin = me?.role === "admin" || me?.role === "super_admin";
 
   return (
-    <div className="container mx-auto px-4 py-8 max-w-3xl">
-      <div className="flex items-center justify-between mb-8">
+    <div className="container mx-auto px-3 sm:px-4 py-4 sm:py-8 max-w-3xl">
+      <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between mb-6 sm:mb-8 gap-3">
         <div>
-          <h1 className="text-4xl font-serif font-bold bg-gradient-to-r from-primary to-secondary bg-clip-text text-transparent">
+          <h1 className="text-2xl sm:text-4xl font-serif font-bold bg-gradient-to-r from-primary to-secondary bg-clip-text text-transparent">
             مواهب الطلاب
           </h1>
-          <p className="text-muted-foreground text-sm mt-1">شارك، أعجب، علّق — مجتمع مواهب كلية الزراعة.</p>
+          <p className="text-muted-foreground text-xs sm:text-sm mt-1">شارك، أعجب، علّق — مجتمع مواهب كلية الزراعة.</p>
         </div>
         <NewTalentDialog />
       </div>

@@ -41,13 +41,13 @@ function PostCard({ post }: { post: any }) {
   };
 
   return (
-    <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} className="bg-card border rounded-2xl p-5">
-      <div className="flex items-start gap-3">
+    <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} className="bg-card border rounded-2xl p-4 sm:p-5">
+      <div className="flex items-start gap-2 sm:gap-3">
         <Link href={`/students/${post.authorId}`} className="shrink-0">
           {post.authorAvatar ? (
-            <img src={post.authorAvatar} alt={post.authorName} className="w-10 h-10 rounded-full object-cover border" />
+            <img src={post.authorAvatar} alt={post.authorName} className="w-8 h-8 sm:w-10 sm:h-10 rounded-full object-cover border" />
           ) : (
-            <div className="w-10 h-10 rounded-full bg-primary/10 flex items-center justify-center font-bold text-primary">{post.authorName?.charAt(0) || "?"}</div>
+            <div className="w-8 h-8 sm:w-10 sm:h-10 rounded-full bg-primary/10 flex items-center justify-center font-bold text-primary text-xs sm:text-base">{post.authorName?.charAt(0) || "?"}</div>
           )}
         </Link>
         <div className="flex-1 min-w-0">
@@ -157,18 +157,26 @@ export default function Forum() {
   const visible = filter ? posts.filter((p) => p.category === filter) : posts;
 
   return (
-    <div className="container mx-auto px-4 py-8 max-w-3xl">
-      <motion.div initial={{ opacity: 0, y: -10 }} animate={{ opacity: 1, y: 0 }} className="flex items-center justify-between mb-4">
+    <div className="container mx-auto px-3 sm:px-4 py-4 sm:py-8 max-w-3xl">
+      <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between mb-4 sm:mb-8 gap-3">
         <div>
-          <h1 className="text-3xl font-serif font-bold">المنتدى</h1>
-          <p className="text-sm text-muted-foreground">شارك أفكارك واطرح أسئلتك</p>
+          <h1 className="text-2xl sm:text-4xl font-serif font-bold flex items-center gap-3">
+            <MessageSquare className="h-6 w-6 sm:h-8 sm:w-8 text-primary" /> المنتدى
+          </h1>
+          <p className="text-muted-foreground text-xs sm:text-sm mt-1">شارك، ناقش، وتعلم مع زملائك.</p>
         </div>
-        {me && (
-          <Button onClick={() => setShowForm(!showForm)}>
-            <Plus className="me-1 h-4 w-4" /> {showForm ? "إغلاق" : "موضوع جديد"}
-          </Button>
-        )}
-      </motion.div>
+        <Button onClick={() => setNewDialog(true)} className="rounded-full w-full sm:w-auto">
+          <Plus className="me-2 h-4 w-4" /> منشور جديد
+        </Button>
+      </div>
+
+      <div className="flex gap-2 mb-4 sm:mb-6 overflow-x-auto pb-2">
+        {["الكل", ...CATEGORIES].map((c) => (
+          <button key={c} onClick={() => setCategory(c)} className={`px-3 sm:px-4 py-1.5 sm:py-2 rounded-full text-xs sm:text-sm font-bold shrink-0 transition whitespace-nowrap ${category === c ? "bg-primary text-primary-foreground" : "bg-muted hover:bg-muted/80"}`}>
+            {c}
+          </button>
+        ))}
+      </div>
 
       <div className="flex gap-2 flex-wrap mb-4">
         <Button size="sm" variant={!filter ? "default" : "outline"} onClick={() => setFilter(null)}>الكل</Button>

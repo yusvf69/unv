@@ -118,7 +118,7 @@ export default function Login() {
   };
 
   return (
-    <div className="min-h-[calc(100vh-4rem)] flex items-center justify-center p-4 bg-gradient-to-br from-primary/10 via-background to-accent/20 relative overflow-hidden">
+    <div className="min-h-[calc(100vh-4rem)] flex items-center justify-center p-3 sm:p-4 bg-gradient-to-br from-primary/10 via-background to-accent/20 relative overflow-hidden">
       {Array.from({ length: 8 }).map((_, i) => (
         <motion.div
           key={i}
@@ -127,40 +127,40 @@ export default function Login() {
           animate={{ y: ["0%", "110vh"], rotate: [0, 360] }}
           transition={{ duration: 18 + i, repeat: Infinity, delay: i * 0.7, ease: "linear" }}
         >
-          <Sprout className="h-8 w-8" />
+          <Sprout className="h-6 w-6 sm:h-8 sm:w-8" />
         </motion.div>
       ))}
 
       <motion.div
         initial={{ opacity: 0, y: 20 }}
         animate={{ opacity: 1, y: 0 }}
-        className="relative w-full max-w-2xl bg-card border-2 border-primary/10 rounded-3xl shadow-2xl shadow-primary/10 p-6 md:p-8"
+        className="relative w-full max-w-lg sm:max-w-2xl bg-card border-2 border-primary/10 rounded-2xl sm:rounded-3xl shadow-2xl shadow-primary/10 p-4 sm:p-6 md:p-8 max-h-[90vh] overflow-y-auto"
       >
-        <div className="text-center mb-5">
+        <div className="text-center mb-4 sm:mb-5">
           <motion.div
             initial={{ scale: 0, rotate: -180 }}
             animate={{ scale: 1, rotate: 0 }}
             transition={{ type: "spring", duration: 0.7 }}
-            className="inline-flex items-center justify-center w-14 h-14 rounded-2xl bg-gradient-to-br from-primary to-secondary shadow-xl shadow-primary/30 mb-3"
+            className="inline-flex items-center justify-center w-12 h-12 sm:w-14 sm:h-14 rounded-2xl bg-gradient-to-br from-primary to-secondary shadow-xl shadow-primary/30 mb-2 sm:mb-3"
           >
-            <Leaf className="h-7 w-7 text-primary-foreground" />
+            <Leaf className="h-6 w-6 sm:h-7 sm:w-7 text-primary-foreground" />
           </motion.div>
-          <h1 className="text-3xl font-serif font-bold bg-gradient-to-r from-primary to-secondary bg-clip-text text-transparent">UniVerse</h1>
-          <p className="text-sm text-muted-foreground mt-1">منصة طلاب كلية الزراعة</p>
+          <h1 className="text-2xl sm:text-3xl font-serif font-bold bg-gradient-to-r from-primary to-secondary bg-clip-text text-transparent">UniVerse</h1>
+          <p className="text-xs sm:text-sm text-muted-foreground mt-1">منصة طلاب كلية الزراعة</p>
         </div>
 
-        <div className="flex bg-muted/50 rounded-xl p-1 mb-5 max-w-sm mx-auto">
+        <div className="flex bg-muted/50 rounded-xl p-1 mb-4 sm:mb-5 max-w-sm mx-auto">
           <button
             type="button"
             onClick={() => setMode("signup")}
-            className={`flex-1 px-3 py-2 rounded-lg text-sm font-medium transition ${mode === "signup" ? "bg-background shadow" : ""}`}
+            className={`flex-1 px-2 sm:px-3 py-1.5 sm:py-2 rounded-lg text-xs sm:text-sm font-medium transition ${mode === "signup" ? "bg-background shadow" : ""}`}
           >
             إنشاء حساب
           </button>
           <button
             type="button"
             onClick={() => setMode("login")}
-            className={`flex-1 px-3 py-2 rounded-lg text-sm font-medium transition ${mode === "login" ? "bg-background shadow" : ""}`}
+            className={`flex-1 px-2 sm:px-3 py-1.5 sm:py-2 rounded-lg text-xs sm:text-sm font-medium transition ${mode === "login" ? "bg-background shadow" : ""}`}
           >
             تسجيل دخول
           </button>
@@ -174,14 +174,14 @@ export default function Login() {
               <p className="text-muted-foreground mt-1">جاري التحويل...</p>
             </motion.div>
           ) : mode === "signup" ? (
-            <motion.form key="signup" initial={{ opacity: 0, x: 20 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: -20 }} onSubmit={submitSignup} noValidate className="grid md:grid-cols-2 gap-4">
-              <div className="md:col-span-2 flex flex-col items-center gap-3 mb-2">
+            <motion.form key="signup" initial={{ opacity: 0, x: 20 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: -20 }} onSubmit={submitSignup} noValidate className="grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-4">
+              <div className="sm:col-span-2 flex flex-col items-center gap-3 mb-2">
                 <div className="text-xs text-muted-foreground">صورة الملف الشخصي (اختياري)</div>
-                <div className="w-32">
+                <div className="w-24 sm:w-32">
                   {avatarUrl ? (
                     <div className="relative">
-                      <img src={avatarUrl} alt="me" className="w-32 h-32 rounded-full object-cover border-4 border-primary/20" />
-                      <button type="button" onClick={() => setAvatarUrl(null)} className="absolute -top-1 -end-1 bg-destructive text-destructive-foreground rounded-full w-7 h-7 text-sm">x</button>
+                      <img src={avatarUrl} alt="me" className="w-24 h-24 sm:w-32 sm:h-32 rounded-full object-cover border-4 border-primary/20" />
+                      <button type="button" onClick={() => setAvatarUrl(null)} className="absolute -top-1 -end-1 bg-destructive text-destructive-foreground rounded-full w-6 h-6 sm:w-7 sm:h-7 text-xs sm:text-sm flex items-center justify-center">x</button>
                     </div>
                   ) : (
                     <FileUpload value={avatarUrl} onChange={setAvatarUrl} label="ارفع صورة" maxSizeKb={400} />
@@ -191,7 +191,7 @@ export default function Login() {
 
               <div className="space-y-1.5">
                 <Label className="flex items-center gap-1.5 text-xs"><User className="h-3.5 w-3.5" /> الاسم بالكامل</Label>
-                <Input value={name} onChange={(e) => setName(e.target.value)} placeholder="مثال: أحمد محمد" className="h-10" />
+                <Input value={name} onChange={(e) => setName(e.target.value)} placeholder="مثال: أحمد محمد" className="h-9 sm:h-10 text-sm" />
               </div>
               <div className="space-y-1.5">
                 <Label className="flex items-center gap-1.5 text-xs">@ اسم المستخدم</Label>
@@ -259,27 +259,27 @@ export default function Login() {
                 </div>
               </div>
 
-              <Button type="submit" className="md:col-span-2 w-full h-11 bg-gradient-to-r from-primary to-secondary" disabled={usernameStatus.checking}>
+              <Button type="submit" className="sm:col-span-2 w-full h-10 sm:h-11 bg-gradient-to-r from-primary to-secondary text-sm" disabled={usernameStatus.checking}>
                 "ابدأ الآن"
               </Button>
-              <p className="md:col-span-2 text-xs text-muted-foreground text-center">يمكنك تعديل بياناتك فيما عدا اسم المستخدم من صفحة الملف الشخصي.</p>
+              <p className="sm:col-span-2 text-xs text-muted-foreground text-center">يمكنك تعديل بياناتك فيما عدا اسم المستخدم من صفحة الملف الشخصي.</p>
             </motion.form>
           ) : (
-            <motion.form key="login" initial={{ opacity: 0, x: 20 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: -20 }} onSubmit={submitLogin} noValidate className="space-y-4 max-w-md mx-auto py-4">
+            <motion.form key="login" initial={{ opacity: 0, x: 20 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: -20 }} onSubmit={submitLogin} noValidate className="space-y-3 sm:space-y-4 max-w-md mx-auto py-2 sm:py-4">
               <div className="space-y-1.5">
                 <Label className="flex items-center gap-1.5 text-xs"><Mail className="h-3.5 w-3.5" /> البريد الإلكتروني أو رقم الهاتف</Label>
-                <Input type="text" value={email} onChange={(e) => setEmail(e.target.value)} placeholder="you@example.com أو 01xxxxxxxxx" className="h-11" />
+                <Input type="text" value={email} onChange={(e) => setEmail(e.target.value)} placeholder="you@example.com أو 01xxxxxxxxx" className="h-10 sm:h-11 text-sm" />
               </div>
               <div className="space-y-1.5">
                 <Label className="flex items-center gap-1.5 text-xs"><Shield className="h-3.5 w-3.5" /> كلمة المرور</Label>
                 <div className="relative">
-                  <Input key={showPassword ? "visible" : "hidden"} type={showPassword ? "text" : "password"} value={password} onChange={(e) => setPassword(e.target.value)} placeholder="كلمة المرور" className="h-11 ps-10" />
+                  <Input key={showPassword ? "visible" : "hidden"} type={showPassword ? "text" : "password"} value={password} onChange={(e) => setPassword(e.target.value)} placeholder="كلمة المرور" className="h-10 sm:h-11 ps-10 text-sm" />
                   <button type="button" onClick={() => setShowPassword(!showPassword)} className="absolute start-2 top-1/2 -translate-y-1/2 text-muted-foreground z-10 cursor-pointer">
                     {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
                   </button>
                 </div>
               </div>
-              <Button type="submit" className="w-full h-11 bg-gradient-to-r from-primary to-secondary">
+              <Button type="submit" className="w-full h-10 sm:h-11 bg-gradient-to-r from-primary to-secondary text-sm">
                 تسجيل الدخول
               </Button>
               <p className="text-xs text-muted-foreground text-center">ليس لديك حساب؟ <button type="button" onClick={() => setMode("signup")} className="text-primary underline">أنشئ حساب جديد</button></p>

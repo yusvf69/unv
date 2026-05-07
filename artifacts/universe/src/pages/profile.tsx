@@ -88,24 +88,24 @@ export default function Profile() {
   ];
 
   return (
-    <div className="container mx-auto px-4 py-8 max-w-4xl">
-      <motion.h1 initial={{ opacity: 0, y: -10 }} animate={{ opacity: 1, y: 0 }} className="text-3xl font-serif font-bold mb-6">
+    <div className="container mx-auto px-3 sm:px-4 py-4 sm:py-8 max-w-4xl">
+      <motion.h1 initial={{ opacity: 0, y: -10 }} animate={{ opacity: 1, y: 0 }} className="text-2xl sm:text-3xl font-serif font-bold mb-4 sm:mb-6">
         ملفي الشخصي
       </motion.h1>
 
       {/* Profile Header */}
-      <div className="bg-card border rounded-2xl p-6 mb-6">
-        <div className="flex items-center gap-6">
+      <div className="bg-card border rounded-2xl p-4 sm:p-6 mb-4 sm:mb-6">
+        <div className="flex flex-col sm:flex-row items-center gap-4 sm:gap-6">
           {avatarUrl ? (
-            <img src={avatarUrl} alt={name} className="w-24 h-24 rounded-full object-cover border-4 border-primary/30" />
+            <img src={avatarUrl} alt={name} className="w-20 h-20 sm:w-24 sm:h-24 rounded-full object-cover border-4 border-primary/30" />
           ) : (
-            <div className="w-24 h-24 rounded-full bg-muted flex items-center justify-center"><User className="h-12 w-12 text-muted-foreground" /></div>
+            <div className="w-20 h-20 sm:w-24 sm:h-24 rounded-full bg-muted flex items-center justify-center"><User className="h-10 w-10 sm:h-12 sm:w-12 text-muted-foreground" /></div>
           )}
-          <div className="flex-1">
-            <div className="font-bold text-2xl">{me.name}</div>
+          <div className="flex-1 text-center sm:text-start">
+            <div className="font-bold text-xl sm:text-2xl">{me.name}</div>
             {me.title && <div className="text-sm text-primary font-bold">{me.title}</div>}
             <div className="text-sm text-muted-foreground">{me.email}</div>
-            <div className="flex flex-wrap gap-2 mt-2">
+            <div className="flex flex-wrap gap-2 mt-2 justify-center sm:justify-start">
               <span className="text-xs bg-primary/10 text-primary px-3 py-1 rounded-full font-bold">{me.points} نقطة</span>
               <span className="text-xs bg-secondary/10 text-secondary px-3 py-1 rounded-full font-bold">المستوى {me.level}</span>
               <span className="text-xs bg-amber-500/10 text-amber-700 px-3 py-1 rounded-full font-bold">🔥 {me.streak} يوم</span>
@@ -117,40 +117,40 @@ export default function Profile() {
       </div>
 
       {/* Tabs */}
-      <div className="flex gap-2 mb-6 overflow-x-auto pb-2">
+      <div className="flex gap-1.5 sm:gap-2 mb-4 sm:mb-6 overflow-x-auto pb-2 scrollbar-hide">
         {tabs.map(({ key, label, icon: Icon }) => (
-          <button key={key} onClick={() => setTab(key)} className={`px-5 py-2 rounded-full text-sm font-bold flex items-center gap-2 transition shrink-0 ${tab === key ? "bg-primary text-primary-foreground" : "bg-muted hover:bg-muted/80"}`}>
-            <Icon className="h-4 w-4" /> {label}
+          <button key={key} onClick={() => setTab(key)} className={`px-3 sm:px-5 py-1.5 sm:py-2 rounded-full text-xs sm:text-sm font-bold flex items-center gap-1.5 sm:gap-2 transition shrink-0 ${tab === key ? "bg-primary text-primary-foreground" : "bg-muted hover:bg-muted/80"}`}>
+            <Icon className="h-3.5 w-3.5 sm:h-4 sm:w-4" /> <span className="whitespace-nowrap">{label}</span>
           </button>
         ))}
       </div>
 
       {/* Tab Content */}
       {tab === "account" && (
-        <div className="grid md:grid-cols-3 gap-6">
-          <motion.div initial={{ opacity: 0, x: -20 }} animate={{ opacity: 1, x: 0 }} className="md:col-span-1 bg-card border rounded-2xl p-6">
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-4 sm:gap-6">
+          <motion.div initial={{ opacity: 0, x: -20 }} animate={{ opacity: 1, x: 0 }} className="md:col-span-1 bg-card border rounded-2xl p-4 sm:p-6">
             <div className="space-y-4">
               <h3 className="font-bold text-sm flex items-center gap-2"><Key className="w-4 h-4 text-primary" /> معلومات حسابك</h3>
               <div>
                 <Label className="text-xs">اسم المستخدم</Label>
                 <div className="flex items-center gap-2 mt-1">
-                  <Input value={me.username ?? ""} disabled className="h-10 bg-muted font-mono" />
+                  <Input value={me.username ?? ""} disabled className="h-9 sm:h-10 bg-muted font-mono text-sm" />
                   <Lock className="w-4 h-4 text-muted-foreground shrink-0" />
                 </div>
               </div>
               <div>
                 <Label className="text-xs">الكود الخاص بك</Label>
                 <div className="flex items-center gap-2 mt-1">
-                  <Input value={me.uniqueCode || ""} disabled className="h-10 bg-muted font-mono font-bold text-primary" />
-                  <Button variant="ghost" size="sm" onClick={copyCode} className="h-10"><Copy className="w-4 h-4" /></Button>
+                  <Input value={me.uniqueCode || ""} disabled className="h-9 sm:h-10 bg-muted font-mono font-bold text-primary text-sm" />
+                  <Button variant="ghost" size="sm" onClick={copyCode} className="h-9 sm:h-10"><Copy className="w-4 h-4" /></Button>
                 </div>
               </div>
             </div>
           </motion.div>
 
-          <motion.div initial={{ opacity: 0, x: 20 }} animate={{ opacity: 1, x: 0 }} className="md:col-span-2 bg-card border rounded-2xl p-6 space-y-4">
-            <h2 className="font-bold text-xl">تعديل البيانات</h2>
-            <div className="grid md:grid-cols-2 gap-4">
+          <motion.div initial={{ opacity: 0, x: 20 }} animate={{ opacity: 1, x: 0 }} className="md:col-span-2 bg-card border rounded-2xl p-4 sm:p-6 space-y-4">
+            <h2 className="font-bold text-lg sm:text-xl">تعديل البيانات</h2>
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-4">
               <div className="space-y-1.5">
                 <Label className="text-xs">الاسم</Label>
                 <Input value={name} onChange={(e) => setName(e.target.value)} />
@@ -187,20 +187,20 @@ export default function Profile() {
       )}
 
       {tab === "schedule" && (
-        <div className="space-y-6">
-          <div className="bg-card border rounded-2xl p-6">
-            <h2 className="font-bold text-xl mb-4 flex items-center gap-2"><Clock className="h-5 w-5 text-primary" /> جدول المحاضرات</h2>
+        <div className="space-y-4 sm:space-y-6">
+          <div className="bg-card border rounded-2xl p-4 sm:p-6">
+            <h2 className="font-bold text-lg sm:text-xl mb-4 flex items-center gap-2"><Clock className="h-5 w-5 text-primary" /> جدول المحاضرات</h2>
             {schedule.length === 0 ? (
               <p className="text-muted-foreground text-center py-4">لم يُحدَّد جدول لمجموعتك بعد</p>
             ) : (
               <div className="space-y-2">
                 {schedule.map((s: any) => (
-                  <div key={s.id} className="flex items-center justify-between p-3 bg-muted/30 rounded-lg">
+                  <div key={s.id} className="flex flex-col sm:flex-row items-start sm:items-center justify-between p-3 bg-muted/30 rounded-lg gap-2">
                     <div>
                       <div className="font-bold text-sm">{s.courseTitle}</div>
                       <div className="text-xs text-muted-foreground">{s.instructor}</div>
                     </div>
-                    <div className="text-sm text-muted-foreground">
+                    <div className="text-xs sm:text-sm text-muted-foreground">
                       <span className="font-bold">{s.day}</span> · {s.startTime} - {s.endTime} · {s.room}
                     </div>
                   </div>
@@ -209,19 +209,19 @@ export default function Profile() {
             )}
           </div>
 
-          <div className="bg-card border rounded-2xl p-6">
-            <h2 className="font-bold text-xl mb-4 flex items-center gap-2"><Calendar className="h-5 w-5 text-rose-500" /> جدول الامتحانات</h2>
+          <div className="bg-card border rounded-2xl p-4 sm:p-6">
+            <h2 className="font-bold text-lg sm:text-xl mb-4 flex items-center gap-2"><Calendar className="h-5 w-5 text-rose-500" /> جدول الامتحانات</h2>
             {exams.length === 0 ? (
               <p className="text-muted-foreground text-center py-4">لم يتم نشر جدول الامتحانات بعد</p>
             ) : (
               <div className="space-y-2">
                 {exams.map((e: any) => (
-                  <div key={e.id} className="flex items-center justify-between p-3 bg-amber-500/5 rounded-lg border border-amber-500/20">
+                  <div key={e.id} className="flex flex-col sm:flex-row items-start sm:items-center justify-between p-3 bg-amber-500/5 rounded-lg border border-amber-500/20 gap-2">
                     <div>
                       <div className="font-bold text-sm">{e.courseTitle}</div>
                       <div className="text-xs text-muted-foreground">{e.type === "midterm" ? "نصفي" : e.type === "final" ? "نهائي" : e.type}</div>
                     </div>
-                    <div className="text-sm text-muted-foreground">
+                    <div className="text-xs sm:text-sm text-muted-foreground">
                       {e.date} · {e.time} · {e.room}
                     </div>
                   </div>
@@ -233,15 +233,15 @@ export default function Profile() {
       )}
 
       {tab === "tasks" && (
-        <div className="bg-card border rounded-2xl p-6">
-          <h2 className="font-bold text-xl mb-4 flex items-center gap-2"><Target className="h-5 w-5 text-primary" /> المهام</h2>
+        <div className="bg-card border rounded-2xl p-4 sm:p-6">
+          <h2 className="font-bold text-lg sm:text-xl mb-4 flex items-center gap-2"><Target className="h-5 w-5 text-primary" /> المهام</h2>
           {missions.length === 0 ? (
             <p className="text-muted-foreground text-center py-4">لا توجد مهام حالياً</p>
           ) : (
             <div className="space-y-3">
               {missions.map((m: any) => (
-                <div key={m.id} className={`p-4 rounded-xl border ${m.completed ? "bg-emerald-500/5 border-emerald-500/30" : "bg-card"}`}>
-                  <div className="flex items-center justify-between">
+                <div key={m.id} className={`p-3 sm:p-4 rounded-xl border ${m.completed ? "bg-emerald-500/5 border-emerald-500/30" : "bg-card"}`}>
+                  <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-2">
                     <div>
                       <div className="font-bold">{m.title}</div>
                       <div className="text-sm text-muted-foreground">{m.description}</div>
@@ -263,9 +263,9 @@ export default function Profile() {
       )}
 
       {tab === "progress" && (
-        <div className="bg-card border rounded-2xl p-6">
-          <h2 className="font-bold text-xl mb-4 flex items-center gap-2"><Trophy className="h-5 w-5 text-primary" /> الإنجازات</h2>
-          <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-4">
+        <div className="bg-card border rounded-2xl p-4 sm:p-6">
+          <h2 className="font-bold text-lg sm:text-xl mb-4 flex items-center gap-2"><Trophy className="h-5 w-5 text-primary" /> الإنجازات</h2>
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3 sm:gap-4">
             {(achievements ?? []).map((a: any) => (
               <div key={a.id} className={`p-4 rounded-2xl border-2 ${a.completed ? "bg-emerald-500/10 border-emerald-500/40" : "bg-card border"}`}>
                 <div className="flex items-start gap-3">
@@ -286,10 +286,10 @@ export default function Profile() {
       )}
 
       {tab === "goals" && (
-        <div className="space-y-6">
-          <div className="bg-card border rounded-2xl p-6">
-            <h2 className="font-bold text-xl mb-4 flex items-center gap-2"><BookOpen className="h-5 w-5 text-primary" /> أهدافك</h2>
-            <div className="grid md:grid-cols-2 gap-4">
+        <div className="space-y-4 sm:space-y-6">
+          <div className="bg-card border rounded-2xl p-4 sm:p-6">
+            <h2 className="font-bold text-lg sm:text-xl mb-4 flex items-center gap-2"><BookOpen className="h-5 w-5 text-primary" /> أهدافك</h2>
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-4">
               <div className="p-4 bg-muted/30 rounded-xl">
                 <div className="text-sm text-muted-foreground mb-1">النقاط الحالية</div>
                 <div className="text-3xl font-bold">{me.points}</div>

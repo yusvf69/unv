@@ -52,29 +52,29 @@ function MemoryMatch({ onScore }: { onScore: (s: number) => void }) {
     }
   }, [cards, done]);
 
-  const cols = size <= 6 ? 4 : size <= 10 ? 4 : 5;
+  const cols = size <= 6 ? 3 : size <= 10 ? 4 : 5;
 
   return (
-    <div className="space-y-4">
-      <div className="flex items-center justify-between gap-2 flex-wrap">
-        <div className="flex gap-2 text-sm">
-          <span className="bg-primary/10 px-3 py-1 rounded-full font-bold">حركات: {moves}</span>
-          <span className="bg-accent/30 px-3 py-1 rounded-full font-bold">{cards.filter((c) => c.matched).length / 2}/{size}</span>
+    <div className="space-y-3 sm:space-y-4">
+      <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-2">
+        <div className="flex gap-2 text-xs sm:text-sm">
+          <span className="bg-primary/10 px-2 sm:px-3 py-1 rounded-full font-bold">حركات: {moves}</span>
+          <span className="bg-accent/30 px-2 sm:px-3 py-1 rounded-full font-bold">{cards.filter((c) => c.matched).length / 2}/{size}</span>
         </div>
         <div className="flex gap-1">
           {[6, 8, 12].map((s) => (
-            <Button key={s} size="sm" variant={size === s ? "default" : "outline"} onClick={() => setSize(s)}>{s}</Button>
+            <Button key={s} size="sm" variant={size === s ? "default" : "outline"} onClick={() => setSize(s)} className="text-xs">{s}</Button>
           ))}
           <Button size="sm" variant="outline" onClick={() => init()}><RotateCcw className="h-3 w-3" /></Button>
         </div>
       </div>
-      <div className={`grid gap-2`} style={{ gridTemplateColumns: `repeat(${cols}, minmax(0, 1fr))` }}>
+      <div className={`grid gap-1.5 sm:gap-2`} style={{ gridTemplateColumns: `repeat(${cols}, minmax(0, 1fr))` }}>
         {cards.map((c) => (
           <motion.button
             key={c.id}
             onClick={() => flip(c.id)}
             whileTap={{ scale: 0.95 }}
-            className={`aspect-square rounded-2xl text-3xl md:text-4xl flex items-center justify-center font-bold transition-all ${
+            className={`aspect-square rounded-xl sm:rounded-2xl text-2xl sm:text-3xl md:text-4xl flex items-center justify-center font-bold transition-all ${
               c.matched ? "bg-emerald-200 text-emerald-900 border-2 border-emerald-400"
               : c.flipped ? "bg-primary/15 border-2 border-primary"
               : "bg-gradient-to-br from-primary to-primary/70 text-primary-foreground shadow-md"}`}
@@ -225,11 +225,11 @@ function HarvestRun({ onScore }: { onScore: (s: number) => void }) {
 
   return (
     <div>
-      <div className="flex items-center justify-between mb-3 text-sm">
-        <span className="bg-primary/10 px-3 py-1 rounded-full font-bold flex items-center gap-1.5"><Star className="h-4 w-4" /> {score}</span>
-        <span className="bg-accent/30 px-3 py-1 rounded-full font-bold flex items-center gap-1.5"><Timer className="h-4 w-4" /> {Math.max(time, 0)}s</span>
+      <div className="flex items-center justify-between mb-3 text-xs sm:text-sm">
+        <span className="bg-primary/10 px-2 sm:px-3 py-1 rounded-full font-bold flex items-center gap-1.5"><Star className="h-4 w-4" /> {score}</span>
+        <span className="bg-accent/30 px-2 sm:px-3 py-1 rounded-full font-bold flex items-center gap-1.5"><Timer className="h-4 w-4" /> {Math.max(time, 0)}s</span>
       </div>
-      <div className="relative w-full h-96 bg-gradient-to-b from-sky-100 via-amber-50 to-amber-200 rounded-2xl overflow-hidden border-2 border-amber-300"
+      <div className="relative w-full h-64 sm:h-80 md:h-96 bg-gradient-to-b from-sky-100 via-amber-50 to-amber-200 rounded-2xl overflow-hidden border-2 border-amber-300"
         onMouseMove={(e) => { const r = e.currentTarget.getBoundingClientRect(); setPos(((e.clientX - r.left) / r.width) * 100); }}
         onTouchMove={(e) => { const r = e.currentTarget.getBoundingClientRect(); setPos(((e.touches[0].clientX - r.left) / r.width) * 100); }}>
         {crops.map((c) => (
@@ -409,32 +409,32 @@ export default function Games() {
   };
 
   return (
-    <div className="container mx-auto px-4 py-8 max-w-5xl">
-      <div className="text-center mb-8">
+    <div className="container mx-auto px-3 sm:px-4 py-4 sm:py-8 max-w-5xl">
+      <div className="text-center mb-6 sm:mb-8">
         <motion.h1 initial={{ opacity: 0, y: -20 }} animate={{ opacity: 1, y: 0 }}
-          className="text-4xl md:text-5xl font-serif font-bold bg-gradient-to-r from-primary via-secondary to-accent-foreground bg-clip-text text-transparent">ساحة الألعاب</motion.h1>
-        <p className="text-muted-foreground mt-2">٥ ألعاب · أسئلة لا تتكرر · نقاط تُضاف لرصيدك</p>
+          className="text-2xl sm:text-4xl md:text-5xl font-serif font-bold bg-gradient-to-r from-primary via-secondary to-accent-foreground bg-clip-text text-transparent">ساحة الألعاب</motion.h1>
+        <p className="text-muted-foreground mt-2 text-xs sm:text-sm">٥ ألعاب · أسئلة لا تتكرر · نقاط تُضاف لرصيدك</p>
       </div>
 
       <Tabs value={tab} onValueChange={setTab}>
         <TabsList className="grid grid-cols-3 md:grid-cols-5 max-w-3xl mx-auto h-auto p-1">
           {GAMES.map((g) => (
-            <TabsTrigger key={g.key} value={g.key} className="flex flex-col items-center gap-1 py-3">
-              <g.icon className="h-5 w-5" />
-              <span className="text-[11px]">{g.label}</span>
+            <TabsTrigger key={g.key} value={g.key} className="flex flex-col items-center gap-1 py-2 sm:py-3 px-1">
+              <g.icon className="h-4 w-4 sm:h-5 sm:w-5" />
+              <span className="text-[9px] sm:text-[11px] text-center leading-tight">{g.label}</span>
             </TabsTrigger>
           ))}
         </TabsList>
 
-        <div className="grid lg:grid-cols-3 gap-6 mt-8">
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-4 sm:gap-6 mt-6 sm:mt-8">
           <div className="lg:col-span-2">
             {GAMES.map((g) => (
-              <TabsContent key={g.key} value={g.key} className="bg-card rounded-3xl p-6 border-2 border-border shadow-lg shadow-primary/5">
+              <TabsContent key={g.key} value={g.key} className="bg-card rounded-2xl sm:rounded-3xl p-4 sm:p-6 border-2 border-border shadow-lg shadow-primary/5">
                 <g.Comp onScore={(s) => submitScore(g.key, s)} />
               </TabsContent>
             ))}
           </div>
-          <div className="bg-card border-2 border-border rounded-3xl p-5 h-fit">
+          <div className="bg-card border-2 border-border rounded-2xl sm:rounded-3xl p-4 sm:p-5 h-fit">
             <h3 className="font-bold mb-3 flex items-center gap-2"><Trophy className="h-4 w-4 text-amber-500" /> أعلى النتائج</h3>
             <div className="space-y-2">
               <AnimatePresence>
