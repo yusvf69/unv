@@ -4,7 +4,7 @@ import { handle, jsonResponse, jsonError, corsResponse } from "./lib/handler.js"
 import { getUserId, getCurrentUser, requireAuth, requireRole, ensureSuper, generateToken } from "./lib/auth.js";
 import bcrypt from "bcryptjs";
 
-export const config = { runtime: "nodejs", maxDuration: 30 };
+export const config = { runtime: "nodejs", maxDuration: 60 };
 
 // --- Helpers ---
 function generateUniqueCode(): string {
@@ -1879,8 +1879,78 @@ async function handleAiChat(req: Request): Promise<Response> {
     const body = await req.json();
     const { messages } = body;
     if (!messages || !Array.isArray(messages) || messages.length === 0) throw Object.assign(new Error("الرسائل مطلوبة"), { status: 400 });
-    return { reply: "أهلاً! أنا مساعدك الذكي. كيف أقدر أساعدك؟", suggestions: ["اشرحلي التمثيل الضوئي", "ازاكر امتحان النباتات ازاي؟", "نصائح للمذاكرة الفعالة"] };
+
+    const openaiApiKey = process.env.OPENAI_API_KEY;
+    const groqApiKey = process.env.GROQ_API_KEY;
+
+    const lastMsg = messages[messages.length - 1]?.content || "";
+    if (!openaiApiKey && !groqApiKey) {
+      return { reply: "لم يتم إعداد مفتاح AI بعد. تواصل مع الإدارة.", suggestions: ["تواصل مع الدعم", "جرب مرة أخرى لاحقاً"] };
+    }
+
+    const systemPrompt = `أنت مساعد دراسي ذكي متخصص في العلوم الزراعية لطلاب كلية الزراعة.
+مهمتك مساعدة الطلاب في:
+- شرح المفاهيم الزراعية (علوم التربة، الإنتاج النباتي والحيواني، الهندسة الزراعية، وقاية النبات، الاقتصاد الزراعي، علوم الأغذية، التكنولوجيا الحيوية)
+- مساعدتهم في المذاكرة والتحضير للامتحانات
+- تقديم نصائح دراسية فعالة
+- الإجابة على أسئلتهم الأكاديمية
+
+كن ودوداً ومشجعاً. قدم إجابات دقيقة ومبسطة. استخدم اللغة العربية الفصحى المبسطة أو العامية المصرية حسب سؤال الطالب.
+إذا سألك الطالب عن شيء خارج نطاق الزراعة أو الدراسة، وجهه بلطف إلى الموضوعات الزراعية والأكاديمية.`;
+
+    if (groqApiKey) {
+      const res = await fetch("https://api.groq.com/openai/v1/chat/completions", {
+        method: "POST",
+        headers: { "Content-Type": "application/json", "Authorization": `Bearer ${groqApiKey}` },
+        body: JSON.stringify({
+          model: "llama3-8b-8192",
+          messages: [{ role: "system", content: systemPrompt }, ...messages.slice(-10)],
+          temperature: 0.7,
+          max_tokens: 1024,
+        }),
+      });
+      if (!res.ok) throw Object.assign(new Error("فشل الاتصال بخدمة AI"), { status: 502 });
+      const data: any = await res.json();
+      const reply = data.choices?.[0]?.message?.content || "عذراً، لم أتمكن من الإجابة.";
+      const suggestions = generateSuggestions(lastMsg);
+      return { reply, suggestions };
+    }
+
+    if (openaiApiKey) {
+      const res = await fetch("https://api.openai.com/v1/chat/completions", {
+        method: "POST",
+        headers: { "Content-Type": "application/json", "Authorization": `Bearer ${openaiApiKey}` },
+        body: JSON.stringify({
+          model: "gpt-4o-mini",
+          messages: [{ role: "system", content: systemPrompt }, ...messages.slice(-10)],
+          temperature: 0.7,
+          max_tokens: 1024,
+        }),
+      });
+      if (!res.ok) throw Object.assign(new Error("فشل الاتصال بخدمة AI"), { status: 502 });
+      const data: any = await res.json();
+      const reply = data.choices?.[0]?.message?.content || "عذراً، لم أتمكن من الإجابة.";
+      const suggestions = generateSuggestions(lastMsg);
+      return { reply, suggestions };
+    }
+
+    return { reply: "لم يتم إعداد مفتاح AI بعد.", suggestions: ["تواصل مع الدعم"] };
   });
+}
+
+function generateSuggestions(lastMsg: string): string[] {
+  const lower = lastMsg.toLowerCase();
+  if (lower.includes("تمثيل") || lower.includes("ضوئ") || lower.includes("photosynthesis"))
+    return ["ازاي التمثيل الضوئي بيحصل في الليل؟", "الفرق بين C3 و C4", "أهم معادلات التمثيل الضوئي"];
+  if (lower.includes("تربة") || lower.includes("soil"))
+    return ["أنواع التربة", "تحسين خصوبة التربة", "ري التربة"];
+  if (lower.includes("امتحان") || lower.includes("مذاكرة") || lower.includes("study") || lower.includes("exam"))
+    return ["جدول مذاكرة فعال", "طرق تثبيت المعلومات", "أهم الأسئلة المتوقعة"];
+  if (lower.includes("نبات") || lower.includes("زراع") || lower.includes("crop"))
+    return ["أمراض النباتات الشائعة", "طرق التسميد", "مواسم الزراعة"];
+  if (lower.includes("حيوان") || lower.includes("animal"))
+    return ["تغذية الحيوان", "أمراض الماشية", "إنتاج الألبان"];
+  return ["اسألني عن أي مادة زراعية", "ازاكر امتحان النباتات ازاي؟", "نصائح للمذاكرة الفعالة", "شرح التمثيل الضوئي"];
 }
 
 async function handleStaffDoctors(): Promise<Response> {
