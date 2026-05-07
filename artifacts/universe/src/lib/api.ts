@@ -500,6 +500,7 @@ export function useAdminQuizAttemptDetail(attemptId: number) {
 export interface AdminCourseRow {
   id: number; title: string; code: string; description: string; credits: number;
   department: string; instructor: string; coverUrl: string | null; enrolled: number;
+  semester: number;
 }
 export function useAdminCourses() {
   return useQuery<AdminCourseRow[]>({ queryKey: ["v2", "admin", "courses"], queryFn: () => api.get("/v2/admin/all-courses") });

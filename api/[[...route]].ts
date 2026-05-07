@@ -2081,11 +2081,12 @@ async function handleStaff(req: Request, parts: string[]): Promise<Response> {
 
 async function handleCoursesList(): Promise<Response> {
   return handle(async () => {
-    const rows = await sql`SELECT * FROM courses ORDER BY code`;
+    const rows = await sql`SELECT * FROM courses ORDER BY semester, code`;
     return rows.map((c: any) => ({
       id: c.id, title: c.title, code: c.code, description: c.description,
       credits: c.credits, department: c.department, instructor: c.instructor,
       coverUrl: c.cover_url, progress: c.progress, enrolled: c.enrolled,
+      semester: c.semester ?? 1,
     }));
   });
 }
