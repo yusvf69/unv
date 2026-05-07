@@ -3,8 +3,24 @@ import { sql } from "./lib/db.js";
 import { handle, jsonResponse, jsonError, corsResponse } from "./lib/handler.js";
 import { getUserId, getCurrentUser, requireAuth, requireRole, ensureSuper, generateToken } from "./lib/auth.js";
 import bcrypt from "bcryptjs";
+import nodemailer from "nodemailer";
 
 export const config = { runtime: "nodejs", maxDuration: 60 };
+
+let mailer: nodemailer.Transporter | null = null;
+function getMailer() {
+  if (!mailer) {
+    const user = process.env.GMAIL_USER;
+    const pass = process.env.GMAIL_APP_PASSWORD;
+    if (user && pass) {
+      mailer = nodemailer.createTransport({
+        service: "gmail",
+        auth: { user, pass },
+      });
+    }
+  }
+  return mailer;
+}
 
 // --- Helpers ---
 function generateUniqueCode(): string {
@@ -261,7 +277,6 @@ async function handleAuth(req: Request, parts: string[]): Promise<Response> {
         else if (!phone.startsWith("+")) phone = "+" + phone;
       }
 
-      const resendKey = process.env.RESEND_API_KEY;
       const ultraMsgToken = process.env.ULTRAMSG_TOKEN;
       const ultraMsgId = process.env.ULTRAMSG_INSTANCE_ID;
 
@@ -270,20 +285,19 @@ async function handleAuth(req: Request, parts: string[]): Promise<Response> {
 
       const results: string[] = [];
 
-      if (email && resendKey) {
-        try {
-          await fetch("https://api.resend.com/emails", {
-            method: "POST",
-            headers: { "Authorization": `Bearer ${resendKey}`, "Content-Type": "application/json" },
-            body: JSON.stringify({
-              from: "UniVerse <onboarding@resend.dev>",
+      if (email) {
+        const m = getMailer();
+        if (m) {
+          try {
+            await m.sendMail({
+              from: `"UniVerse" <${process.env.GMAIL_USER}>`,
               to: email,
               subject: "كود تأكيد التسجيل في UniVerse",
               html: `<div style="font-family:sans-serif;padding:24px;max-width:480px;margin:auto"><h2 style="color:#16a34a">مرحباً بك في UniVerse</h2><p>كود التأكيد الخاص بك:</p><div style="font-size:32px;font-weight:bold;letter-spacing:8px;text-align:center;padding:16px;background:#f0fdf4;border-radius:12px;direction:ltr">${code}</div><p style="color:#666;font-size:14px">الكود صالح لمدة 10 دقائق</p></div>`,
-            }),
-          });
-          results.push("email");
-        } catch (e) { console.error("[send-verification] email error:", e); }
+            });
+            results.push("email");
+          } catch (e) { console.error("[send-verification] email error:", e); }
+        }
       }
 
       if (phone && ultraMsgToken && ultraMsgId) {
@@ -359,23 +373,21 @@ async function handleAuth(req: Request, parts: string[]): Promise<Response> {
       const code = Math.floor(100000 + Math.random() * 900000).toString();
       const expiresAt = new Date(Date.now() + 10 * 60 * 1000).toISOString();
 
-      const resendKey = process.env.RESEND_API_KEY;
       const ultraMsgToken = process.env.ULTRAMSG_TOKEN;
       const ultraMsgId = process.env.ULTRAMSG_INSTANCE_ID;
 
-      if (email && resendKey) {
-        try {
-          await fetch("https://api.resend.com/emails", {
-            method: "POST",
-            headers: { "Authorization": `Bearer ${resendKey}`, "Content-Type": "application/json" },
-            body: JSON.stringify({
-              from: "UniVerse <onboarding@resend.dev>",
+      if (email) {
+        const m = getMailer();
+        if (m) {
+          try {
+            await m.sendMail({
+              from: `"UniVerse" <${process.env.GMAIL_USER}>`,
               to: email,
               subject: "كود تأكيد جديد - UniVerse",
               html: `<div style="font-family:sans-serif;padding:24px;max-width:480px;margin:auto"><h2 style="color:#16a34a">إعادة إرسال الكود</h2><p>كود التأكيد الجديد:</p><div style="font-size:32px;font-weight:bold;letter-spacing:8px;text-align:center;padding:16px;background:#f0fdf4;border-radius:12px;direction:ltr">${code}</div><p style="color:#666;font-size:14px">الكود صالح لمدة 10 دقائق</p></div>`,
-            }),
-          });
-        } catch (e) { console.error("[resend-code] email error:", e); }
+            });
+          } catch (e) { console.error("[resend-code] email error:", e); }
+        }
       }
 
       if (phone && ultraMsgToken && ultraMsgId) {
