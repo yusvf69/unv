@@ -250,6 +250,144 @@ async function handleAuth(req: Request, parts: string[]): Promise<Response> {
     });
   }
 
+  if (action === "send-verification") {
+    return handle(async () => {
+      const { email, phone } = await req.json();
+      if (!email && !phone) throw Object.assign(new Error("الإيميل أو الرقم مطلوب"), { status: 400 });
+
+      const resendKey = process.env.RESEND_API_KEY;
+      const ultraMsgToken = process.env.ULTRAMSG_TOKEN;
+      const ultraMsgId = process.env.ULTRAMSG_INSTANCE_ID;
+      if (!resendKey && !ultraMsgToken) throw Object.assign(new Error("خدمات الإرسال غير مهيأة"), { status: 500 });
+
+      const code = Math.floor(100000 + Math.random() * 900000).toString();
+      const expiresAt = new Date(Date.now() + 10 * 60 * 1000).toISOString();
+
+      const results: string[] = [];
+
+      if (email && resendKey) {
+        try {
+          await fetch("https://api.resend.com/emails", {
+            method: "POST",
+            headers: { "Authorization": `Bearer ${resendKey}`, "Content-Type": "application/json" },
+            body: JSON.stringify({
+              from: "UniVerse <onboarding@resend.dev>",
+              to: email,
+              subject: "كود تأكيد التسجيل في UniVerse",
+              html: `<div style="font-family:sans-serif;padding:24px;max-width:480px;margin:auto"><h2 style="color:#16a34a">مرحباً بك في UniVerse</h2><p>كود التأكيد الخاص بك:</p><div style="font-size:32px;font-weight:bold;letter-spacing:8px;text-align:center;padding:16px;background:#f0fdf4;border-radius:12px;direction:ltr">${code}</div><p style="color:#666;font-size:14px">الكود صالح لمدة 10 دقائق</p></div>`,
+            }),
+          });
+          results.push("email");
+        } catch (e) { console.error("[send-verification] email error:", e); }
+      }
+
+      if (phone && ultraMsgToken && ultraMsgId) {
+        try {
+          await fetch(`https://api.ultramsg.com/${ultraMsgId}/messages/chat`, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              token: ultraMsgToken,
+              to: phone,
+              body: `كود تأكيد UniVerse: ${code}\nصالح لمدة 10 دقائق`,
+            }),
+          });
+          results.push("whatsapp");
+        } catch (e) { console.error("[send-verification] whatsapp error:", e); }
+      }
+
+      await sql`DELETE FROM verification_codes WHERE (email = ${email} OR phone = ${phone}) AND verified = false`;
+      await sql`INSERT INTO verification_codes (email, phone, code, type, expires_at) VALUES (${email || null}, ${phone || null}, ${code}, 'email', ${expiresAt})`;
+
+      if (results.length === 0) throw Object.assign(new Error("فشل إرسال الكود، حاول مرة أخرى"), { status: 500 });
+      return { sentTo: results };
+    });
+  }
+
+  if (action === "verify-code") {
+    return handle(async () => {
+      const { email, phone, code } = await req.json();
+      if (!code) throw Object.assign(new Error("الكود مطلوب"), { status: 400 });
+
+      const [row] = await sql`
+        SELECT * FROM verification_codes 
+        WHERE (email = ${email || ""} OR phone = ${phone || ""}) 
+        AND code = ${code} AND verified = false 
+        AND expires_at > NOW() 
+        ORDER BY created_at DESC LIMIT 1`;
+      if (!row) throw Object.assign(new Error("الكود غير صحيح أو منتهي الصلاحية"), { status: 400 });
+
+      await sql`UPDATE verification_codes SET verified = true WHERE id = ${row.id}`;
+      return { verified: true };
+    });
+  }
+
+  if (action === "resend-code") {
+    return handle(async () => {
+      const { email, phone } = await req.json();
+      if (!email && !phone) throw Object.assign(new Error("الإيميل أو الرقم مطلوب"), { status: 400 });
+
+      const [last] = await sql`
+        SELECT * FROM verification_codes 
+        WHERE (email = ${email || ""} OR phone = ${phone || ""}) 
+        AND verified = false 
+        ORDER BY created_at DESC LIMIT 1`;
+
+      const delays = [60, 300, 600, 1800, 3600];
+      const attempt = last?.resend_attempts || 0;
+      const delay = delays[Math.min(attempt, delays.length - 1)];
+
+      if (last) {
+        const elapsed = (Date.now() - new Date(last.last_sent_at).getTime()) / 1000;
+        if (elapsed < delay) throw Object.assign(
+          new Error(`انتظر ${Math.ceil(delay - elapsed)} ثانية قبل إعادة الإرسال`),
+          { status: 429, retryAfter: Math.ceil(delay - elapsed) }
+        );
+      }
+
+      const code = Math.floor(100000 + Math.random() * 900000).toString();
+      const expiresAt = new Date(Date.now() + 10 * 60 * 1000).toISOString();
+
+      const resendKey = process.env.RESEND_API_KEY;
+      const ultraMsgToken = process.env.ULTRAMSG_TOKEN;
+      const ultraMsgId = process.env.ULTRAMSG_INSTANCE_ID;
+
+      if (email && resendKey) {
+        try {
+          await fetch("https://api.resend.com/emails", {
+            method: "POST",
+            headers: { "Authorization": `Bearer ${resendKey}`, "Content-Type": "application/json" },
+            body: JSON.stringify({
+              from: "UniVerse <onboarding@resend.dev>",
+              to: email,
+              subject: "كود تأكيد جديد - UniVerse",
+              html: `<div style="font-family:sans-serif;padding:24px;max-width:480px;margin:auto"><h2 style="color:#16a34a">إعادة إرسال الكود</h2><p>كود التأكيد الجديد:</p><div style="font-size:32px;font-weight:bold;letter-spacing:8px;text-align:center;padding:16px;background:#f0fdf4;border-radius:12px;direction:ltr">${code}</div><p style="color:#666;font-size:14px">الكود صالح لمدة 10 دقائق</p></div>`,
+            }),
+          });
+        } catch (e) { console.error("[resend-code] email error:", e); }
+      }
+
+      if (phone && ultraMsgToken && ultraMsgId) {
+        try {
+          await fetch(`https://api.ultramsg.com/${ultraMsgId}/messages/chat`, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              token: ultraMsgToken,
+              to: phone,
+              body: `كود تأكيد جديد UniVerse: ${code}\nصالح لمدة 10 دقائق`,
+            }),
+          });
+        } catch (e) { console.error("[resend-code] whatsapp error:", e); }
+      }
+
+      await sql`DELETE FROM verification_codes WHERE (email = ${email || ""} OR phone = ${phone || ""}) AND verified = false`;
+      await sql`INSERT INTO verification_codes (email, phone, code, type, expires_at, resend_attempts) VALUES (${email || null}, ${phone || null}, ${code}, 'email', ${expiresAt}, ${attempt + 1})`;
+
+      return { sent: true };
+    });
+  }
+
   if (action === "demo-login") {
     return handle(async () => {
       const body = await req.json();
@@ -2407,6 +2545,12 @@ async function handleRequest(request: Request): Promise<Response> {
     "POST /v2/auth/logout": () => handleAuth(request, parts),
     "POST /v2/auth/demo-login": () => handleAuth(request, parts),
     "GET /v2/auth/username-available": () => handleAuth(request, parts),
+    "POST /auth/send-verification": () => handleAuth(request, parts),
+    "POST /v2/auth/send-verification": () => handleAuth(request, parts),
+    "POST /auth/verify-code": () => handleAuth(request, parts),
+    "POST /v2/auth/verify-code": () => handleAuth(request, parts),
+    "POST /auth/resend-code": () => handleAuth(request, parts),
+    "POST /v2/auth/resend-code": () => handleAuth(request, parts),
 
     // Me
     "GET /me": () => handleMe(request),

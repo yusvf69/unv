@@ -43,6 +43,13 @@ export default function Login() {
 
   const [usernameStatus, setUsernameStatus] = useState<{ checking: boolean; available: boolean; reason?: string; suggestions?: string[] }>({ checking: false, available: false });
 
+  // Verification state
+  const [verifyStep, setVerifyStep] = useState<"idle" | "sending" | "sent" | "verifying" | "done">("idle");
+  const [emailCode, setEmailCode] = useState("");
+  const [whatsappCode, setWhatsappCode] = useState("");
+  const [resendTimer, setResendTimer] = useState(0);
+  const [resendLoading, setResendLoading] = useState(false);
+
   const checkUsername = useCallback(async (un: string) => {
     if (un.length < 4) {
       setUsernameStatus({ checking: false, available: false, reason: un.length > 0 ? "اليوزر لازم يكون 4 حروف على الأقل" : undefined });
@@ -76,21 +83,86 @@ export default function Login() {
       toast({ title: "كلمة المرور لازم تكون 6 حروف على الأقل", variant: "destructive" });
       return;
     }
+
+    if (verifyStep === "idle") {
+      setVerifyStep("sending");
+      try {
+        const res = await fetch("/api/v2/auth/send-verification", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ email, phone }),
+        });
+        const data = await res.json();
+        if (!res.ok) throw new Error(data.error || "فشل الإرسال");
+        setVerifyStep("sent");
+        toast({ title: "تم الإرسال", description: "تحقق من بريدك وواتساب" });
+      } catch (err) {
+        setVerifyStep("idle");
+        toast({ title: "خطأ", description: (err as Error).message, variant: "destructive" });
+      }
+      return;
+    }
+
+    if (verifyStep === "sent" || verifyStep === "done") {
+      if (verifyStep === "sent") {
+        setVerifyStep("verifying");
+        try {
+          const code = emailCode || whatsappCode;
+          if (!code) throw new Error("أدخل الكود");
+          const res = await fetch("/api/v2/auth/verify-code", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ email, phone, code }),
+          });
+          const data = await res.json();
+          if (!res.ok) throw new Error(data.error || "الكود غلط");
+          setVerifyStep("done");
+          toast({ title: "تم التأكيد", description: "الكود صحيح، هنسجل حسابك دلوقتي" });
+        } catch (err) {
+          setVerifyStep("sent");
+          toast({ title: "خطأ", description: (err as Error).message, variant: "destructive" });
+          return;
+        }
+      }
+
+      try {
+        const res = await fetch("/api/v2/auth/signup", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ name, username, email, phone, password, yearInCollege, specialization, groupName, avatarUrl }),
+        });
+        const data = await res.json();
+        if (!res.ok) throw new Error(data.error || data.message);
+        if (data.token) localStorage.setItem("uv_token", data.token);
+        queryClient.invalidateQueries();
+        setDone(true);
+        toast({ title: `أهلاً ${name}`, description: "تم إنشاء حسابك بنجاح" });
+        setTimeout(() => setLocation("/"), 900);
+      } catch (err) {
+        toast({ title: "خطأ", description: (err as Error).message, variant: "destructive" });
+      }
+    }
+  };
+
+  const handleResend = async () => {
+    setResendLoading(true);
     try {
-      const res = await fetch("/api/v2/auth/signup", {
+      const res = await fetch("/api/v2/auth/resend-code", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ name, username, email, phone, password, yearInCollege, specialization, groupName, avatarUrl }),
+        body: JSON.stringify({ email, phone }),
       });
       const data = await res.json();
-      if (!res.ok) throw new Error(data.error || data.message);
-      if (data.token) localStorage.setItem("uv_token", data.token);
-      queryClient.invalidateQueries();
-      setDone(true);
-      toast({ title: `أهلاً ${name}`, description: "تم إنشاء حسابك بنجاح" });
-      setTimeout(() => setLocation("/"), 900);
+      if (!res.ok) throw new Error(data.error || "فشل");
+      toast({ title: "تم إعادة الإرسال", description: "تحقق من بريدك وواتساب" });
+      setResendTimer(60);
+      const interval = setInterval(() => {
+        setResendTimer(t => { if (t <= 1) { clearInterval(interval); return 0; } return t - 1; });
+      }, 1000);
     } catch (err) {
       toast({ title: "خطأ", description: (err as Error).message, variant: "destructive" });
+    } finally {
+      setResendLoading(false);
     }
   };
 
@@ -259,10 +331,47 @@ export default function Login() {
                 </div>
               </div>
 
-              <Button type="submit" className="sm:col-span-2 w-full h-10 sm:h-11 bg-gradient-to-r from-primary to-secondary text-sm" disabled={usernameStatus.checking}>
-                ابدأ الآن
-              </Button>
-              <p className="sm:col-span-2 text-xs text-muted-foreground text-center">يمكنك تعديل بياناتك فيما عدا اسم المستخدم من صفحة الملف الشخصي.</p>
+              {verifyStep === "idle" ? (
+                <>
+                  <Button type="submit" className="sm:col-span-2 w-full h-10 sm:h-11 bg-gradient-to-r from-primary to-secondary text-sm" disabled={usernameStatus.checking}>
+                    <Mail className="me-2 h-4 w-4" /> تأكيد البريد والواتساب
+                  </Button>
+                  <p className="sm:col-span-2 text-xs text-muted-foreground text-center">سيتم إرسال كود تأكيد لبريدك وواتساب. يمكنك تعديل بياناتك فيما عدا اسم المستخدم من صفحة الملف الشخصي.</p>
+                </>
+              ) : (
+                <div className="sm:col-span-2 space-y-3 border-2 border-primary/20 rounded-xl p-4 bg-primary/5">
+                  <h3 className="font-bold text-sm text-center">تأكيد البريد والواتساب</h3>
+                  <p className="text-xs text-muted-foreground text-center">تم إرسال كود التأكيد إلى {email} و {phone}</p>
+
+                  <div className="space-y-1.5">
+                    <Label className="text-xs">كود البريد الإلكتروني</Label>
+                    <Input value={emailCode} onChange={(e) => setEmailCode(e.target.value)} placeholder="أدخل الكود" className="h-10 text-center text-lg tracking-widest" maxLength={6} />
+                  </div>
+
+                  {verifyStep === "done" ? (
+                    <Button onClick={submitSignup} className="w-full h-10 bg-gradient-to-r from-emerald-500 to-green-600 text-sm">
+                      <CheckCircle2 className="me-2 h-4 w-4" /> إنشاء الحساب
+                    </Button>
+                  ) : (
+                    <>
+                      <Button onClick={submitSignup} disabled={verifyStep === "sending" || verifyStep === "verifying" || (!emailCode && !whatsappCode)} className="w-full h-10 text-sm">
+                        {verifyStep === "sending" || verifyStep === "verifying" ? <><Loader2 className="me-2 h-4 w-4 animate-spin" /> جاري...</> : "تأكيد الكود"}
+                      </Button>
+                      <div className="text-center">
+                        {resendTimer > 0 ? (
+                          <span className="text-xs text-muted-foreground">إعادة الإرسال بعد {resendTimer} ثانية</span>
+                        ) : (
+                          <button type="button" onClick={handleResend} disabled={resendLoading} className="text-xs text-primary underline disabled:opacity-50">
+                            {resendLoading ? "جاري..." : "إعادة إرسال الكود"}
+                          </button>
+                        )}
+                      </div>
+                    </>
+                  )}
+
+                  <button type="button" onClick={() => { setVerifyStep("idle"); setEmailCode(""); setWhatsappCode(""); }} className="text-xs text-muted-foreground underline block mx-auto">تغيير البريد أو الرقم</button>
+                </div>
+              )}
             </motion.form>
           ) : (
             <motion.form key="login" initial={{ opacity: 0, x: 20 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: -20 }} onSubmit={submitLogin} noValidate className="space-y-3 sm:space-y-4 max-w-md mx-auto py-2 sm:py-4">
