@@ -51,6 +51,7 @@ export default function AdminCourses() {
     instructorId: 0,
     taIds: [] as number[],
     yearInCollege: 1,
+    semester: 1,
     coverUrl: "",
   });
 
@@ -76,11 +77,12 @@ export default function AdminCourses() {
         instructorId: form.instructorId,
         taIds: form.taIds,
         yearInCollege: form.yearInCollege,
+        semester: form.semester,
         coverUrl: form.coverUrl || undefined,
       });
       toast({ title: "تم إضافة المقرر" });
       setOpen(false);
-      setForm({ title: "", code: "", description: "", credits: 3, department: "", instructorId: 0, taIds: [], yearInCollege: 1, coverUrl: "" });
+      setForm({ title: "", code: "", description: "", credits: 3, department: "", instructorId: 0, taIds: [], yearInCollege: 1, semester: 1, coverUrl: "" });
     } catch (e) {
       toast({ title: "خطأ", description: (e as Error).message, variant: "destructive" });
     }
@@ -167,6 +169,17 @@ export default function AdminCourses() {
                   className="w-full h-9 px-3 border-2 border-input rounded-md bg-background text-sm"
                 >
                   {YEARS.map((y) => <option key={y} value={y}>السنة {y}</option>)}
+                </select>
+              </div>
+              <div>
+                <Label className="text-xs">الترم</Label>
+                <select
+                  value={form.semester}
+                  onChange={(e) => setForm({ ...form, semester: Number(e.target.value) })}
+                  className="w-full h-9 px-3 border-2 border-input rounded-md bg-background text-sm"
+                >
+                  <option value={1}>الترم الأول</option>
+                  <option value={2}>الترم الثاني</option>
                 </select>
               </div>
             </div>

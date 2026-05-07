@@ -724,7 +724,7 @@ export function useCreateAdminCourse() {
     mutationFn: (body: {
       title: string; code: string; description?: string; credits?: number;
       department?: string; instructorId: number; taIds?: number[];
-      yearInCollege?: number; coverUrl?: string;
+      yearInCollege?: number; semester?: number; coverUrl?: string;
     }) => api.post("/v2/admin/courses", body),
     onSuccess: () => qc.invalidateQueries({ queryKey: ["v2", "admin", "courses"] }),
   });

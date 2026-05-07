@@ -2297,12 +2297,12 @@ async function handleAdminCourses(req: Request, parts: string[]): Promise<Respon
   if (req.method === "POST") {
     return handle(async () => {
       const body = await req.json();
-      const { title, code, description, credits, department, instructorId, taIds, yearInCollege, coverUrl } = body;
+      const { title, code, description, credits, department, instructorId, taIds, yearInCollege, semester, coverUrl } = body;
       if (!title || !code) throw Object.assign(new Error("العنوان والكود مطلوب"), { status: 400 });
       const [instructor] = await sql`SELECT name FROM users WHERE id = ${instructorId}`;
       const [c] = await sql`
-        INSERT INTO courses (title, code, description, credits, department, instructor, instructor_id, cover_url, year_in_college)
-        VALUES (${title}, ${code}, ${description || ""}, ${credits || 3}, ${department || ""}, ${instructor?.name || ""}, ${instructorId || null}, ${coverUrl || null}, ${yearInCollege || null})
+        INSERT INTO courses (title, code, description, credits, department, instructor, instructor_id, cover_url, year_in_college, semester)
+        VALUES (${title}, ${code}, ${description || ""}, ${credits || 3}, ${department || ""}, ${instructor?.name || ""}, ${instructorId || null}, ${coverUrl || null}, ${yearInCollege || null}, ${semester || 1})
         RETURNING *`;
       return c;
     });
