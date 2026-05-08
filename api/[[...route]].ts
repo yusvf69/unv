@@ -215,6 +215,15 @@ async function getDailyMissions(userId: number) {
   return await generateDailyMissions(userId);
 }
 
+async function recalculateLevel(userId: number): Promise<void> {
+  const [user] = await sql`SELECT points, level FROM users WHERE id = ${userId}`;
+  if (!user) return;
+  const computedLevel = Math.floor(user.points / 100) + 1;
+  if (computedLevel !== user.level) {
+    await sql`UPDATE users SET level = ${computedLevel} WHERE id = ${userId}`;
+  }
+}
+
 async function updateStreak(userId: number): Promise<void> {
   const today = new Date().toISOString().split("T")[0];
 
@@ -256,6 +265,7 @@ async function handleDashboard(req: Request): Promise<Response> {
     const me = await getCurrentUser(userId);
     if (!me) throw Object.assign(new Error("المستخدم غير موجود"), { status: 404 });
 
+    const currentLevelMin = (me.level - 1) * 100;
     const nextLevelPoints = me.level * 100;
     const allStudents = await sql`SELECT id, points FROM users WHERE role = 'student' ORDER BY points DESC`;
     const rank = allStudents.findIndex((s: any) => s.id === userId) + 1;
@@ -306,7 +316,7 @@ async function handleDashboard(req: Request): Promise<Response> {
     };
 
     return {
-      user: me, nextLevelPoints, rank, weeklyMinutes, focusGoalMinutes,
+      user: me, currentLevelMin, nextLevelPoints, rank, weeklyMinutes, focusGoalMinutes,
       schedule: scheduleItems, grades, attendance: attendanceItems, missions,
       notifications, activity, examPrediction,
     };
@@ -1178,6 +1188,7 @@ async function handleQuizzes(req: Request, parts: string[]): Promise<Response> {
       const [attempt] = await sql`INSERT INTO quiz_attempts (quiz_id, user_id, score, total, duration_sec, answers, passed) VALUES (${id}, ${userId}, ${score}, ${total}, ${durationSec || 0}, ${JSON.stringify(ans)}, ${passed}) RETURNING *`;
       const pointsAwarded = Math.floor(score / 5) + (passed ? 10 : 0);
       await sql`UPDATE users SET points = points + ${pointsAwarded} WHERE id = ${userId}`;
+      try { await recalculateLevel(userId); } catch (e) { console.error("[recalculateLevel]", e); }
       const questionDetails = questions.map((qq: any) => {
         const userAns = ans.find((a: any) => a.questionId === qq.id);
         return { questionId: qq.id, text: qq.text, options: qq.options, correctIndex: qq.correct_index, explanation: qq.explanation, points: qq.points, userChosen: userAns?.chosen ?? -1, correct: userAns?.correct ?? false };
@@ -1516,6 +1527,7 @@ async function handleSkills(req: Request, parts: string[]): Promise<Response> {
         const progress = all.length ? done / all.length : 0;
         await sql`UPDATE skill_tracks SET progress = ${progress} WHERE id = ${lesson.track_id}`;
         await sql`UPDATE users SET points = points + 5 WHERE id = ${userId}`;
+        try { await recalculateLevel(userId); } catch (e) { console.error("[recalculateLevel]", e); }
       }
       return { ok: true };
     });
@@ -1533,6 +1545,7 @@ async function handleGames(req: Request, parts: string[]): Promise<Response> {
       if (!gameKey || typeof score !== "number") throw Object.assign(new Error("بيانات ناقصة"), { status: 400 });
       const [row] = await sql`INSERT INTO game_scores (user_id, game_key, score, duration_ms) VALUES (${userId}, ${gameKey}, ${score}, ${durationMs ?? 0}) RETURNING *`;
       await sql`UPDATE users SET points = points + ${Math.floor(score / 10)} WHERE id = ${userId}`;
+      try { await recalculateLevel(userId); } catch (e) { console.error("[recalculateLevel]", e); }
       return row;
     });
   }
@@ -1628,6 +1641,7 @@ async function handleActivity(req: Request): Promise<Response> {
       `;
 
       await sql`UPDATE users SET points = points + ${earnedPoints} WHERE id = ${userId}`;
+      try { await recalculateLevel(userId); } catch (e) { console.error("[recalculateLevel]", e); }
 
       if (minutes >= 30) {
         await sql`INSERT INTO notifications (user_id, title, body, type) VALUES (${userId}, '📚 مذاكرة مسجلة', ${`تم تسجيل ${minutes} دقيقة مذاكرة. حصلت على ${earnedPoints} نقطة.`}, 'info')`;
@@ -1646,22 +1660,6 @@ async function handleActivity(req: Request): Promise<Response> {
       try { await updateStreak(userId); } catch (e) { console.error("[streak update]", e); }
 
       return record;
-    });
-  }
-  return jsonError("Not Found", 404);
-}
-        if (existing.minutes_studied + minutes >= 120 && prevMinutes < 120) {
-          await sql`INSERT INTO notifications (user_id, title, body, type) VALUES (${userId}, '🔥 ساعتين مذاكرة!', 'يوم مميز! واصل التقدم.', 'success')`;
-        }
-        const [updated] = await sql`SELECT * FROM activity WHERE id = ${existing.id}`;
-        return updated;
-      }
-      const [row] = await sql`INSERT INTO activity (user_id, date, minutes_studied, points_earned) VALUES (${userId}, ${today}, ${minutes}, ${earnedPoints}) RETURNING *`;
-      await sql`UPDATE users SET points = points + ${earnedPoints} WHERE id = ${userId}`;
-      if (minutes >= 30) {
-        await sql`INSERT INTO notifications (user_id, title, body, type) VALUES (${userId}, '📚 مذاكرة مسجلة', ${`تم تسجيل ${minutes} دقيقة مذاكرة. حصلت على ${earnedPoints} نقطة.`}, 'info')`;
-      }
-      return row;
     });
   }
   return jsonError("Not Found", 404);
@@ -2334,6 +2332,7 @@ async function handleDailyMissionsRoute(req: Request, parts: string[]): Promise<
       await sql`UPDATE daily_missions SET completed = true WHERE id = ${missionId}`;
       await sql`UPDATE users SET points = points + ${mission.points} WHERE id = ${userId}`;
 
+      try { await recalculateLevel(userId); } catch (e) { console.error("[recalculateLevel]", e); }
       try { await updateStreak(userId); } catch (e) { console.error("[streak update]", e); }
 
       await sql`INSERT INTO notifications (user_id, title, body, type) VALUES (${userId}, '✅ مهمة مكتملة', ${`أكملت "${mission.title}" وحصلت على ${mission.points} نقطة`}, 'success')`;

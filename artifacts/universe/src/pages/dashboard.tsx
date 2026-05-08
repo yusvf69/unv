@@ -107,7 +107,7 @@ export default function Dashboard() {
     );
   };
 
-  const progressPercentage = (dashboard.user.points / (dashboard.user.points + dashboard.nextLevelPoints)) * 100;
+  const progressPercentage = ((dashboard.user.points - (dashboard.user.level - 1) * 100) / 100) * 100;
 
   return (
     <div className="container mx-auto px-3 sm:px-4 py-4 sm:py-8 space-y-4 sm:space-y-8">

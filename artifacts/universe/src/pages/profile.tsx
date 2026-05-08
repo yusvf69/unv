@@ -294,8 +294,8 @@ export default function Profile() {
               <div className="p-4 bg-muted/30 rounded-xl">
                 <div className="text-sm text-muted-foreground mb-1">النقاط الحالية</div>
                 <div className="text-3xl font-bold">{me.points}</div>
-                <div className="text-xs text-muted-foreground mt-1">الهدف التالي: {(me.level + 1) * 500} نقطة</div>
-                <Progress value={(me.points / ((me.level + 1) * 500)) * 100} className="h-1.5 mt-2" />
+                <div className="text-xs text-muted-foreground mt-1">متبقي {Math.max(0, me.level * 100 - me.points)} نقطة للمستوى القادم</div>
+                <Progress value={((me.points - (me.level - 1) * 100) / 100) * 100} className="h-1.5 mt-2" />
               </div>
               <div className="p-4 bg-muted/30 rounded-xl">
                 <div className="text-sm text-muted-foreground mb-1">المهام المكتملة</div>
@@ -314,9 +314,9 @@ export default function Profile() {
                 <div className="text-sm text-muted-foreground mb-1">المستوى</div>
                 <div className="text-3xl font-bold">{me.level}</div>
                 <div className="text-xs text-muted-foreground mt-1">
-                  {me.points} / {(me.level + 1) * 500} نقطة
+                  {me.points} / {me.level * 100} نقطة
                 </div>
-                <Progress value={(me.points / ((me.level + 1) * 500)) * 100} className="h-1.5 mt-2" />
+                <Progress value={((me.points - (me.level - 1) * 100) / 100) * 100} className="h-1.5 mt-2" />
               </div>
               <div className="p-4 bg-muted/30 rounded-xl">
                 <div className="text-sm text-muted-foreground mb-1">وقت المذاكرة هذا الأسبوع</div>
