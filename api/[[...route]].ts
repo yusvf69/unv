@@ -218,10 +218,15 @@ async function getDailyMissions(userId: number) {
 async function updateStreak(userId: number): Promise<void> {
   const today = new Date().toISOString().split("T")[0];
 
-  const [existing] = await sql`SELECT id FROM activity WHERE user_id = ${userId} AND date = ${today}`;
-  if (!existing) {
-    await sql`INSERT INTO activity (user_id, date, minutes_studied, points_earned) VALUES (${userId}, ${today}, 0, 0)`;
-  }
+  try { await sql`CREATE UNIQUE INDEX IF NOT EXISTS idx_activity_user_date ON activity (user_id, date)`; } catch {}
+
+  try {
+    await sql`
+      INSERT INTO activity (user_id, date, minutes_studied, points_earned)
+      VALUES (${userId}, ${today}, 0, 0)
+      ON CONFLICT (user_id, date) DO NOTHING
+    `;
+  } catch (e) { console.error("[updateStreak] insert activity:", e); }
 
   const dates = await sql`
     SELECT DISTINCT date FROM activity
@@ -233,7 +238,8 @@ async function updateStreak(userId: number): Promise<void> {
   const checkDate = new Date();
   for (const row of dates) {
     const expected = checkDate.toISOString().split("T")[0];
-    if (row.date === expected) {
+    const rowDate = typeof row.date === "string" ? row.date : new Date(row.date).toISOString().split("T")[0];
+    if (rowDate === expected) {
       streak++;
       checkDate.setDate(checkDate.getDate() - 1);
     } else break;
@@ -1609,17 +1615,41 @@ async function handleActivity(req: Request): Promise<Response> {
       const { minutes } = body;
       if (!minutes || minutes <= 0) throw Object.assign(new Error("Invalid minutes"), { status: 400 });
       const today = new Date().toISOString().split("T")[0];
-      const [existing] = await sql`SELECT * FROM activity WHERE user_id = ${userId} AND date = ${today} LIMIT 1`;
       const earnedPoints = Math.floor(minutes / 10);
-      try { await updateStreak(userId); } catch (e) { console.error("[streak update]", e); }
 
-      if (existing) {
-        const prevMinutes = existing.minutes_studied;
-        await sql`UPDATE activity SET minutes_studied = minutes_studied + ${minutes}, points_earned = points_earned + ${earnedPoints} WHERE id = ${existing.id}`;
-        await sql`UPDATE users SET points = points + ${earnedPoints} WHERE id = ${userId}`;
-        if (existing.minutes_studied + minutes >= 60 && prevMinutes < 60) {
+      try { await sql`CREATE UNIQUE INDEX IF NOT EXISTS idx_activity_user_date ON activity (user_id, date)`; } catch {}
+
+      await sql`
+        INSERT INTO activity (user_id, date, minutes_studied, points_earned)
+        VALUES (${userId}, ${today}, ${minutes}, ${earnedPoints})
+        ON CONFLICT (user_id, date) DO UPDATE
+        SET minutes_studied = activity.minutes_studied + EXCLUDED.minutes_studied,
+            points_earned = activity.points_earned + EXCLUDED.points_earned
+      `;
+
+      await sql`UPDATE users SET points = points + ${earnedPoints} WHERE id = ${userId}`;
+
+      if (minutes >= 30) {
+        await sql`INSERT INTO notifications (user_id, title, body, type) VALUES (${userId}, '📚 مذاكرة مسجلة', ${`تم تسجيل ${minutes} دقيقة مذاكرة. حصلت على ${earnedPoints} نقطة.`}, 'info')`;
+      }
+
+      const [record] = await sql`SELECT * FROM activity WHERE user_id = ${userId} AND date = ${today}`;
+      if (record) {
+        if (record.minutes_studied >= 60 && record.minutes_studied - minutes < 60) {
           await sql`INSERT INTO notifications (user_id, title, body, type) VALUES (${userId}, '⏰ ساعة مذاكرة!', 'وصلت لساعة مذاكرة اليوم. استمر!', 'success')`;
         }
+        if (record.minutes_studied >= 120 && record.minutes_studied - minutes < 120) {
+          await sql`INSERT INTO notifications (user_id, title, body, type) VALUES (${userId}, '🔥 ساعتين مذاكرة!', 'يوم مميز! واصل التقدم.', 'success')`;
+        }
+      }
+
+      try { await updateStreak(userId); } catch (e) { console.error("[streak update]", e); }
+
+      return record;
+    });
+  }
+  return jsonError("Not Found", 404);
+}
         if (existing.minutes_studied + minutes >= 120 && prevMinutes < 120) {
           await sql`INSERT INTO notifications (user_id, title, body, type) VALUES (${userId}, '🔥 ساعتين مذاكرة!', 'يوم مميز! واصل التقدم.', 'success')`;
         }
