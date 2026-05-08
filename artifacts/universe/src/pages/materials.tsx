@@ -15,6 +15,7 @@ import {
   useMeV2,
 } from "@/lib/api";
 import { useToast } from "@/hooks/use-toast";
+import { formatISODate, formatISODateTime } from "@/lib/dates";
 
 function formatSize(bytes: number): string {
   if (!bytes) return "—";
@@ -74,7 +75,7 @@ function FileCard({ f }: { f: any }) {
           <div className="font-bold text-sm truncate">{f.name}</div>
           <div className="text-xs text-muted-foreground mt-0.5 flex items-center gap-3 flex-wrap">
             <span>{formatSize(f.sizeBytes)}</span>
-            <span className="flex items-center gap-1"><Calendar className="h-3 w-3" /> {new Date(f.createdAt).toLocaleDateString("ar-EG")}</span>
+            <span className="flex items-center gap-1"><Calendar className="h-3 w-3" /> {formatISODate(f.createdAt)}</span>
           </div>
           <div className="text-[11px] text-muted-foreground mt-1">رفع: {f.uploadedByName}</div>
         </div>
@@ -110,7 +111,7 @@ function FileCard({ f }: { f: any }) {
                     {c.authorRole && <span className="text-[9px] bg-primary/15 text-primary px-1.5 py-0.5 rounded-full">{c.authorRole}</span>}
                   </div>
                   <div className="mt-0.5 break-words">{c.body}</div>
-                  <div className="text-[10px] text-muted-foreground mt-1">{new Date(c.createdAt).toLocaleString("ar-EG")}</div>
+                  <div className="text-[10px] text-muted-foreground mt-1">{formatISODateTime(c.createdAt)}</div>
                 </div>
               </div>
             ))}

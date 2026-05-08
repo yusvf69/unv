@@ -22,6 +22,7 @@ import {
 } from "@/lib/api";
 import { useToast } from "@/hooks/use-toast";
 import FileUpload from "@/components/file-upload";
+import { formatISODate } from "@/lib/dates";
 
 const CATEGORIES = ["إعلان", "حدث", "بحث", "نجاح طلابي", "إنجاز", "زراعي"];
 
@@ -138,7 +139,7 @@ export default function AdminNews() {
                     {n.category}
                   </span>
                   <StatusBadge s={n.status} />
-                  <span className="text-[10px] sm:text-xs text-muted-foreground">{new Date(n.publishedAt).toLocaleDateString("ar-EG")}</span>
+                  <span className="text-[10px] sm:text-xs text-muted-foreground">{formatISODate(n.publishedAt)}</span>
                   <span className="text-[10px] sm:text-xs text-muted-foreground">— بقلم {n.author}</span>
                 </div>
                 <h3 className="font-bold text-sm sm:text-base">{n.title}</h3>

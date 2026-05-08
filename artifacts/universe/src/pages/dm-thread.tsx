@@ -5,6 +5,7 @@ import { ArrowLeft, Send, Loader2, MessageCircle, UserX } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { useDmWith, useSendDm } from "@/lib/api";
+import { formatISOTime } from "@/lib/dates";
 
 export default function DmThread() {
   const { id } = useParams();
@@ -63,7 +64,7 @@ export default function DmThread() {
             <div className={`max-w-[75%] rounded-2xl px-4 py-2 text-sm shadow-sm ${m.fromMe ? "bg-primary text-primary-foreground" : "bg-card border"}`}>
               {m.body}
               <div className={`text-[10px] mt-1 ${m.fromMe ? "opacity-70" : "text-muted-foreground"}`}>
-                {new Date(m.createdAt).toLocaleTimeString("ar-EG", { hour: "2-digit", minute: "2-digit" })}
+                {formatISOTime(m.createdAt)}
               </div>
             </div>
           </motion.div>

@@ -27,6 +27,7 @@ import {
 } from "@/lib/api";
 import FileUpload from "@/components/file-upload";
 import { useToast } from "@/hooks/use-toast";
+import { formatISODate } from "@/lib/dates";
 
 function formatSize(bytes: number): string {
   if (!bytes) return "—";
@@ -137,7 +138,7 @@ export default function StudentSummariesPage() {
                 </div>
                 <div className="flex-1 min-w-0">
                   <h3 className="font-bold text-sm leading-tight line-clamp-2">{s.name}</h3>
-                  <div className="text-xs text-muted-foreground mt-1">{formatSize(s.sizeBytes)} · {new Date(s.createdAt).toLocaleDateString("ar-EG")}</div>
+                  <div className="text-xs text-muted-foreground mt-1">{formatSize(s.sizeBytes)} · {formatISODate(s.createdAt)}</div>
                 </div>
                 {me && s.uploadedById === me.id && (
                   <Button size="icon" variant="ghost" onClick={() => onDelete(s.id)} disabled={deleting === s.id}>

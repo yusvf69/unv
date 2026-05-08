@@ -23,6 +23,7 @@ import { useGetMe } from "@workspace/api-client-react";
 import { useProposals, api, type AdminProposal } from "@/lib/api";
 import { useQueryClient } from "@tanstack/react-query";
 import { useToast } from "@/hooks/use-toast";
+import { formatISODateTime } from "@/lib/dates";
 
 const ACTION_LABEL: Record<string, string> = {
   create: "إضافة",
@@ -183,7 +184,7 @@ export default function AdminProposalsPage() {
                       </span>
                     </div>
                     <div className="text-[10px] sm:text-xs text-muted-foreground mt-1 sm:mt-1.5">
-                      اقترحه: <strong>{p.proposerName}</strong> ({p.proposerRole}) · {new Date(p.createdAt).toLocaleString("ar-EG")}
+                      اقترحه: <strong>{p.proposerName}</strong> ({p.proposerRole}) · {formatISODateTime(p.createdAt)}
                     </div>
                     {p.reason && (
                       <div className="text-xs sm:text-sm mt-2 bg-muted/40 rounded-lg p-2">

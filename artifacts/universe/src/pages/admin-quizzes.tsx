@@ -15,6 +15,7 @@ import {
   useAdminQuizzes, useToggleQuiz, useQuizAttempts, useMeV2,
   useAdminCourses, api, useAdminQuizAttemptDetail,
 } from "@/lib/api";
+import { formatISODateTime } from "@/lib/dates";
 import { useToast } from "@/hooks/use-toast";
 
 function useCreateQuiz() {
@@ -186,7 +187,7 @@ export default function AdminQuizzes() {
                     )}
                     <div className="flex-1 min-w-0">
                       <div className="font-bold text-xs sm:text-sm truncate">{a.userName || `User #${a.userId}`}</div>
-                      <div className="text-[10px] sm:text-xs text-muted-foreground">{new Date(a.completedAt).toLocaleString("ar-EG")} · {a.userGroup ? `G${a.userGroup}` : ""}</div>
+                      <div className="text-[10px] sm:text-xs text-muted-foreground">{formatISODateTime(a.completedAt)} · {a.userGroup ? `G${a.userGroup}` : ""}</div>
                     </div>
                     <div className={`text-xs sm:text-sm font-bold ${pct >= 80 ? "text-emerald-600" : pct >= 50 ? "text-amber-600" : "text-destructive"}`}>
                       {a.score}/{a.total} ({pct}%)

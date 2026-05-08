@@ -4,6 +4,7 @@ import { MessageSquare, ArrowLeft, Eye, Users, Clock } from "lucide-react";
 import { useMeV2, useAdminDmThreads, useAdminDmConversation } from "@/lib/api";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
+import { formatISODate, formatISOTime } from "@/lib/dates";
 
 export default function AdminDmMonitor() {
   const { data: me } = useMeV2();
@@ -22,7 +23,7 @@ export default function AdminDmMonitor() {
     if (diff < 60000) return "الآن";
     if (diff < 3600000) return `${Math.floor(diff / 60000)} د`;
     if (diff < 86400000) return `${Math.floor(diff / 3600000)} س`;
-    return d.toLocaleDateString("ar-EG");
+    return formatISODate(d.toISOString());
   };
 
   return (
@@ -136,7 +137,7 @@ export default function AdminDmMonitor() {
                           {m.body}
                         </div>
                         <div className={`text-[10px] text-muted-foreground mt-0.5 ${isUserA ? "text-start" : "text-end"}`}>
-                          {new Date(m.createdAt).toLocaleTimeString("ar-EG", { hour: "2-digit", minute: "2-digit" })}
+                          {formatISOTime(m.createdAt)}
                         </div>
                       </div>
                     </motion.div>

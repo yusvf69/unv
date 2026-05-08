@@ -1,6 +1,7 @@
 import { useListNews } from "@workspace/api-client-react";
 import { useTranslation, globalI18n } from "@/lib/i18n";
 import { Link } from "wouter";
+import { formatISODate } from "@/lib/dates";
 
 export default function News() {
   const { data: news, isLoading } = useListNews();
@@ -28,7 +29,7 @@ export default function News() {
               <p className="text-xs sm:text-sm text-muted-foreground line-clamp-3 mb-3 sm:mb-4">{item.excerpt}</p>
               <div className="flex justify-between items-center text-[10px] sm:text-xs text-muted-foreground mt-auto">
                 <span>{item.author}</span>
-                <span>{new Date(item.publishedAt).toLocaleDateString()}</span>
+                <span>{formatISODate(item.publishedAt)}</span>
               </div>
             </div>
           </Link>

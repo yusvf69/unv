@@ -4,6 +4,8 @@ import { Calendar, Clock, MapPin, Bell, BookOpen, Filter } from "lucide-react";
 import { Link } from "wouter";
 import { useEvents, useMeV2 } from "@/lib/api";
 import { Button } from "@/components/ui/button";
+import { formatShortMonth, formatTimeWithWeekday } from "@/lib/dates";
+import { useTranslation, globalI18n } from "@/lib/i18n";
 
 const KIND_LABELS: Record<string, string> = {
   exam: "امتحان",
@@ -33,6 +35,7 @@ function timeUntil(d: Date): string {
 }
 
 export default function Events() {
+  const t = useTranslation(globalI18n);
   const { data: me } = useMeV2();
   const { data: events = [], isLoading } = useEvents();
   const [filter, setFilter] = useState<"all" | "upcoming" | "past">("upcoming");
@@ -57,7 +60,7 @@ export default function Events() {
       <motion.div initial={{ opacity: 0, y: -10 }} animate={{ opacity: 1, y: 0 }} className="mb-4 sm:mb-6 flex items-start justify-between gap-2 sm:gap-3 flex-wrap">
         <div>
           <h1 className="text-xl sm:text-3xl md:text-4xl font-serif font-bold flex items-center gap-2 sm:gap-3">
-            <Bell className="h-6 w-6 sm:h-8 sm:w-8 text-primary" /> الأحداث والامتحانات
+            <Bell className="h-6 w-6 sm:h-8 sm:w-8 text-primary" /> {t("eventsTitle")}
           </h1>
           <p className="text-xs sm:text-sm text-muted-foreground mt-1 sm:mt-2">
             كل المواعيد المهمة لسنتك ومجموعتك في مكان واحد — امتحانات، تسليمات، ورش، وأكثر.
@@ -78,7 +81,7 @@ export default function Events() {
               onClick={() => setFilter(f)}
               className={`px-2.5 sm:px-4 py-1 sm:py-1.5 text-[10px] sm:text-xs font-medium rounded-full transition ${filter === f ? "bg-primary text-primary-foreground shadow" : "text-muted-foreground"}`}
             >
-              {f === "upcoming" ? "القادم" : f === "past" ? "المنتهي" : "الكل"}
+              {f === "upcoming" ? t("upcoming") : f === "past" ? t("past") : t("all")}
             </button>
           ))}
         </div>
@@ -97,7 +100,7 @@ export default function Events() {
         )}
       </div>
 
-      {isLoading && <p className="text-center text-muted-foreground py-8 text-sm">جاري التحميل...</p>}
+      {isLoading && <p className="text-center text-muted-foreground py-8 text-sm">{t("loading")}</p>}
       {!isLoading && filtered.length === 0 && (
         <div className="text-center py-12 sm:py-16 bg-card border rounded-xl sm:rounded-2xl">
           <Calendar className="h-8 w-8 sm:h-12 sm:w-12 mx-auto text-muted-foreground mb-2 sm:mb-3" />
@@ -122,7 +125,7 @@ export default function Events() {
               >
                 <div className={`w-full sm:w-16 flex-shrink-0 rounded-xl bg-gradient-to-br ${color} text-white text-center py-2 sm:py-3`}>
                   <div className="text-xl sm:text-2xl font-bold leading-none">{due.getDate()}</div>
-                  <div className="text-[9px] sm:text-[10px] uppercase mt-0.5 sm:mt-1 opacity-90">{due.toLocaleString("ar-EG", { month: "short" })}</div>
+                  <div className="text-[9px] sm:text-[10px] mt-0.5 sm:mt-1 opacity-90">{formatShortMonth(due)}</div>
                 </div>
                 <div className="flex-1 min-w-0">
                   <div className="flex items-center gap-1.5 sm:gap-2 mb-1 flex-wrap">
@@ -143,7 +146,7 @@ export default function Events() {
                   {e.description && <p className="text-xs sm:text-sm text-muted-foreground mt-1">{e.description}</p>}
                   <div className="text-xs text-muted-foreground mt-1.5 sm:mt-2 flex flex-wrap items-center gap-2 sm:gap-3">
                     <span className="inline-flex items-center gap-1">
-                      <Clock className="h-3 w-3 sm:h-3.5 sm:w-3.5" /> {due.toLocaleString("ar-EG", { hour: "2-digit", minute: "2-digit", weekday: "long" })}
+                      <Clock className="h-3 w-3 sm:h-3.5 sm:w-3.5" /> {formatTimeWithWeekday(due)}
                     </span>
                     {e.location && (
                       <span className="inline-flex items-center gap-1">

@@ -3,6 +3,8 @@ import { motion } from "framer-motion";
 import { Calendar, Clock, MapPin, User as UserIcon, ChevronLeft, ChevronRight, FileText, AlertCircle, Award, Bell } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { useMyGroupSchedule, useMyExamSchedule, useMeV2 } from "@/lib/api";
+import { formatDateFull, formatMonth, formatShortDate, formatShortDateYear } from "@/lib/dates";
+import { useTranslation, globalI18n } from "@/lib/i18n";
 
 const DAYS = ["السبت", "الأحد", "الاثنين", "الثلاثاء", "الأربعاء", "الخميس", "الجمعة"];
 const JS_TO_AR: Record<number, string> = { 6: "السبت", 0: "الأحد", 1: "الاثنين", 2: "الثلاثاء", 3: "الأربعاء", 4: "الخميس", 5: "الجمعة" };
@@ -52,6 +54,7 @@ export default function Schedule() {
   const [scheduleCursor, setScheduleCursor] = useState(new Date());
   const [examCursor, setExamCursor] = useState(new Date());
   const [upcomingAlerts, setUpcomingAlerts] = useState<any[]>([]);
+  const t = useTranslation(globalI18n);
 
   const byDay = useMemo(() => {
     const m: Record<string, typeof rows> = {};
@@ -91,7 +94,7 @@ export default function Schedule() {
     <div className="container mx-auto px-3 sm:px-4 py-4 sm:py-8 max-w-6xl">
       <motion.div initial={{ opacity: 0, y: -10 }} animate={{ opacity: 1, y: 0 }} className="mb-4 sm:mb-6">
         <h1 className="text-2xl sm:text-3xl md:text-4xl font-serif font-bold flex items-center gap-3">
-          <Calendar className="h-6 w-6 sm:h-8 sm:w-8 text-primary" /> الجداول
+          <Calendar className="h-6 w-6 sm:h-8 sm:w-8 text-primary" /> {t("scheduleTitle")}
         </h1>
         <p className="text-xs sm:text-sm text-muted-foreground mt-2">
           {me?.groupName ? `مجموعة G${me.groupName}` : ""} {me?.yearInCollege ? `— السنة ${me.yearInCollege}` : ""}.
@@ -104,13 +107,13 @@ export default function Schedule() {
           onClick={() => setTab("schedule")}
           className={`px-4 sm:px-5 py-1.5 sm:py-2 rounded-full text-xs sm:text-sm font-bold flex items-center gap-2 transition shrink-0 whitespace-nowrap ${tab === "schedule" ? "bg-primary text-primary-foreground" : "bg-muted hover:bg-muted/80"}`}
         >
-          <Clock className="h-3.5 w-3.5 sm:h-4 sm:w-4" /> جدول المحاضرات
+          <Clock className="h-3.5 w-3.5 sm:h-4 sm:w-4" /> {t("lectureSchedule")}
         </button>
         <button
           onClick={() => setTab("exams")}
           className={`px-4 sm:px-5 py-1.5 sm:py-2 rounded-full text-xs sm:text-sm font-bold flex items-center gap-2 transition shrink-0 whitespace-nowrap ${tab === "exams" ? "bg-primary text-primary-foreground" : "bg-muted hover:bg-muted/80"}`}
         >
-          <FileText className="h-3.5 w-3.5 sm:h-4 sm:w-4" /> جدول الامتحانات
+          <FileText className="h-3.5 w-3.5 sm:h-4 sm:w-4" /> {t("examSchedule")}
         </button>
       </div>
 
@@ -132,7 +135,7 @@ export default function Schedule() {
       {tab === "schedule" ? (
         <>
           {scheduleLoading ? (
-            <p className="text-center text-muted-foreground py-12">جاري التحميل...</p>
+            <p className="text-center text-muted-foreground py-12">{t("loading")}</p>
           ) : rows.length === 0 ? (
             <div className="text-center py-16 bg-card border rounded-2xl">
               <Calendar className="h-12 w-12 mx-auto text-muted-foreground mb-3" />
@@ -140,17 +143,17 @@ export default function Schedule() {
             </div>
           ) : scheduleView === "day" ? (
             <>
-              <ViewToggle view={scheduleView} setView={setScheduleView} />
+              <ViewToggle view={scheduleView} setView={setScheduleView} t={t} />
               <DayView day={scheduleTodayName} items={byDay[scheduleTodayName] ?? []} cursor={scheduleCursor} setCursor={setScheduleCursor} />
             </>
           ) : scheduleView === "week" ? (
             <>
-              <ViewToggle view={scheduleView} setView={setScheduleView} />
+              <ViewToggle view={scheduleView} setView={setScheduleView} t={t} />
               <WeekView byDay={byDay} />
             </>
           ) : (
             <>
-              <ViewToggle view={scheduleView} setView={setScheduleView} />
+              <ViewToggle view={scheduleView} setView={setScheduleView} t={t} />
               <MonthView byDay={byDay} cursor={scheduleCursor} setCursor={setScheduleCursor} />
             </>
           )}
@@ -158,14 +161,14 @@ export default function Schedule() {
       ) : (
         <>
           {examLoading ? (
-            <p className="text-center text-muted-foreground py-12">جاري التحميل...</p>
+            <p className="text-center text-muted-foreground py-12">{t("loading")}</p>
           ) : exams.length === 0 ? (
             <div className="text-center py-16 bg-card border rounded-2xl">
               <Award className="h-12 w-12 mx-auto text-muted-foreground mb-3" />
               <p className="text-muted-foreground">لم يتم نشر جدول الامتحانات بعد.</p>
             </div>
           ) : (
-            <ExamScheduleView exams={exams} view={examView} setView={setExamView} cursor={examCursor} setCursor={setExamCursor} />
+            <ExamScheduleView exams={exams} view={examView} setView={setExamView} cursor={examCursor} setCursor={setExamCursor} t={t} />
           )}
         </>
       )}
@@ -173,7 +176,7 @@ export default function Schedule() {
   );
 }
 
-function ViewToggle({ view, setView }: { view: ViewMode; setView: (v: ViewMode) => void }) {
+function ViewToggle({ view, setView, t }: { view: ViewMode; setView: (v: ViewMode) => void; t: (key: string) => string }) {
   return (
     <div className="inline-flex bg-muted rounded-full p-1 mb-4">
       {(["day", "week", "month"] as const).map((v) => (
@@ -182,14 +185,14 @@ function ViewToggle({ view, setView }: { view: ViewMode; setView: (v: ViewMode) 
           onClick={() => setView(v)}
           className={`px-4 py-1.5 text-xs font-medium rounded-full transition ${view === v ? "bg-primary text-primary-foreground shadow" : "text-muted-foreground"}`}
         >
-          {v === "day" ? "يوم" : v === "week" ? "أسبوع" : "شهر"}
+          {v === "day" ? t("day") : v === "week" ? t("week") : t("month")}
         </button>
       ))}
     </div>
   );
 }
 
-function ExamScheduleView({ exams, view, setView, cursor, setCursor }: { exams: any[]; view: ViewMode; setView: (v: ViewMode) => void; cursor: Date; setCursor: (d: Date) => void }) {
+function ExamScheduleView({ exams, view, setView, cursor, setCursor, t }: { exams: any[]; view: ViewMode; setView: (v: ViewMode) => void; cursor: Date; setCursor: (d: Date) => void; t: (key: string) => string }) {
   const todayName = JS_TO_AR[cursor.getDay()];
   const shift = (n: number) => {
     const d = new Date(cursor);
@@ -222,16 +225,16 @@ function ExamScheduleView({ exams, view, setView, cursor, setCursor }: { exams: 
         })}
       </div>
 
-      <ViewToggle view={view} setView={setView} />
+      <ViewToggle view={view} setView={setView} t={t} />
 
       <div className="flex items-center justify-between mb-4 bg-card border rounded-xl p-3">
         <Button size="sm" variant="ghost" onClick={() => shift(-1)}><ChevronRight className="h-4 w-4" /></Button>
         <div className="text-center">
           <div className="font-bold text-lg">{view === "day" ? todayName : view === "month" ? "" : "الأسبوع الحالي"}</div>
           <div className="text-xs text-muted-foreground">
-            {view === "day" && cursor.toLocaleDateString("ar-EG", { weekday: "long", year: "numeric", month: "long", day: "numeric" })}
-            {view === "week" && (() => { const { start, end } = getWeekRange(cursor); return `${start.toLocaleDateString("ar-EG", { month: "short", day: "numeric" })} — ${end.toLocaleDateString("ar-EG", { month: "short", day: "numeric", year: "numeric" })}`; })()}
-            {view === "month" && cursor.toLocaleDateString("ar-EG", { year: "numeric", month: "long" })}
+            {view === "day" && formatDateFull(cursor)}
+            {view === "week" && (() => { const { start, end } = getWeekRange(cursor); return `${formatShortDate(start)} — ${formatShortDateYear(end)}`; })()}
+            {view === "month" && formatMonth(cursor)}
           </div>
         </div>
         <Button size="sm" variant="ghost" onClick={() => shift(1)}><ChevronLeft className="h-4 w-4" /></Button>
@@ -339,7 +342,7 @@ function DayView({ day, items, cursor, setCursor }: { day: string; items: any[];
         <Button size="sm" variant="ghost" onClick={() => shift(-1)}><ChevronRight className="h-4 w-4" /></Button>
         <div className="text-center">
           <div className="font-bold text-lg">{day}</div>
-          <div className="text-xs text-muted-foreground">{cursor.toLocaleDateString("ar-EG", { weekday: "long", year: "numeric", month: "long", day: "numeric" })}</div>
+          <div className="text-xs text-muted-foreground">{formatDateFull(cursor)}</div>
         </div>
         <Button size="sm" variant="ghost" onClick={() => shift(1)}><ChevronLeft className="h-4 w-4" /></Button>
       </div>
@@ -386,7 +389,7 @@ function MonthView({ byDay, cursor, setCursor }: { byDay: Record<string, any[]>;
     <div>
       <div className="flex items-center justify-between mb-4 bg-card border rounded-xl p-3">
         <Button size="sm" variant="ghost" onClick={() => shift(-1)}><ChevronRight className="h-4 w-4" /></Button>
-        <div className="font-bold">{cursor.toLocaleDateString("ar-EG", { year: "numeric", month: "long" })}</div>
+        <div className="font-bold">{formatMonth(cursor)}</div>
         <Button size="sm" variant="ghost" onClick={() => shift(1)}><ChevronLeft className="h-4 w-4" /></Button>
       </div>
       <div className="grid grid-cols-7 gap-1 text-center text-xs font-bold text-muted-foreground mb-1">

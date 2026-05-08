@@ -10,6 +10,7 @@ import { Form, FormField, FormItem, FormLabel, FormControl } from "@/components/
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
+import { formatISODate } from "@/lib/dates";
 
 export default function Complaints() {
   const { data: complaints, isLoading } = useListComplaints();
@@ -163,7 +164,7 @@ export default function Complaints() {
                   </div>
                   <div>
                     <h4 className="font-bold text-lg">{complaint.subject}</h4>
-                    <div className="text-xs text-muted-foreground uppercase tracking-wider">{complaint.category} • {new Date(complaint.createdAt).toLocaleDateString()}</div>
+                    <div className="text-xs text-muted-foreground uppercase tracking-wider">{complaint.category} • {formatISODate(complaint.createdAt)}</div>
                   </div>
                 </div>
                 {getStatusBadge(complaint.status)}

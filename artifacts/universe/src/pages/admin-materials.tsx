@@ -14,6 +14,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
+import { formatISODate } from "@/lib/dates";
 
 export default function AdminMaterials() {
   const { data: me } = useMeV2();
@@ -248,7 +249,7 @@ export default function AdminMaterials() {
                             ) : (
                               <>
                                 <div className="font-bold text-xs sm:text-sm truncate cursor-pointer hover:text-primary" onClick={() => { setEditingFileId(f.id); setEditFileName(f.name); }}>{f.name}</div>
-                                <div className="text-[10px] sm:text-xs text-muted-foreground">{(f.sizeBytes / 1024).toFixed(0)}KB · {f.uploadedByName} · {new Date(f.createdAt).toLocaleDateString("ar-EG")}</div>
+                                <div className="text-[10px] sm:text-xs text-muted-foreground">{(f.sizeBytes / 1024).toFixed(0)}KB · {f.uploadedByName} · {formatISODate(f.createdAt)}</div>
                               </>
                             )}
                           </div>

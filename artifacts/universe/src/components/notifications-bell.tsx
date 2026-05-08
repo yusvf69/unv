@@ -8,6 +8,7 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { useNotifications, useMarkAllRead, type NotificationItem } from "@/lib/api";
+import { formatISODateTime } from "@/lib/dates";
 
 function iconFor(t: string) {
   if (t === "success") return <Sparkles className="h-4 w-4 text-emerald-600" />;
@@ -73,7 +74,7 @@ export default function NotificationsBell() {
                   <div className="font-semibold text-sm leading-snug">{n.title}</div>
                   <div className="text-xs text-muted-foreground mt-0.5 leading-relaxed">{n.body}</div>
                   <div className="text-[10px] text-muted-foreground/70 mt-1">
-                    {new Date(n.createdAt).toLocaleString("ar-EG")}
+                    {formatISODateTime(n.createdAt)}
                   </div>
                 </div>
                 {!n.read && <span className="h-2 w-2 rounded-full bg-secondary mt-2" />}

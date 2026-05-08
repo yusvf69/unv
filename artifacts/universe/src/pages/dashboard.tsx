@@ -10,9 +10,10 @@ import { Badge } from "@/components/ui/badge";
 import { motion } from "framer-motion";
 import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, LineChart, Line } from "recharts";
 import { useState, useEffect } from "react";
+import { AR_DAYS, AR_SHORT_DAYS } from "@/lib/dates";
 
-const DAY_NAMES = ["الأحد", "الاثنين", "الثلاثاء", "الأربعاء", "الخميس", "الجمعة", "السبت"];
-const AR_WEEKDAYS = ["أحد", "إثنين", "ثلاثاء", "أربعاء", "خميس", "جمعة", "سبت"];
+const AR_WEEKDAYS = AR_SHORT_DAYS;
+const DAY_NAMES = AR_DAYS;
 
 function getGreeting(name: string) {
   const h = new Date().getHours();
@@ -65,7 +66,7 @@ export default function Dashboard() {
   };
 
   if (isLoading) {
-    return <div className="p-8 text-center">Loading...</div>;
+    return <div className="p-8 text-center">{t("loading")}</div>;
   }
 
   if (!dashboard) return null;
@@ -82,8 +83,10 @@ export default function Dashboard() {
       dayLabel: AR_WEEKDAYS[d.getDay()],
     };
   });
-  const totalWeeklyPoints = weeklyData.reduce((sum, a) => sum + a.pointsEarned, 0);
-  const avgDaily = weeklyData.length > 0 ? Math.round(weeklyData.reduce((sum, a) => sum + a.minutesStudied, 0) / 7) : 0;
+  const totalWeeklyPoints = weeklyData.reduce((sum, a) => sum + (a.pointsEarned || 0), 0);
+  const avgDaily = weeklyData.length > 0
+    ? Math.round(weeklyData.reduce((sum, a) => sum + (a.minutesStudied || 0), 0) / 7)
+    : 0;
 
   const handleCompleteMission = (missionId: number) => {
     const queryKey = getGetDashboardQueryKey();
@@ -151,17 +154,17 @@ export default function Dashboard() {
         <div className="flex items-center gap-2 sm:gap-4 bg-card px-3 sm:px-4 py-2 rounded-2xl shadow-sm border border-border w-full sm:w-auto justify-center">
           <div className="text-center px-2 sm:px-4 border-e border-border">
             <div className="text-xl sm:text-2xl font-bold text-secondary">{dashboard.user.level}</div>
-            <div className="text-[10px] sm:text-xs text-muted-foreground uppercase tracking-wider">Level</div>
+            <div className="text-[10px] sm:text-xs text-muted-foreground uppercase tracking-wider">{t("level")}</div>
           </div>
           <div className="text-center px-2 sm:px-4 border-e border-border">
             <div className="text-xl sm:text-2xl font-bold text-accent">{dashboard.user.points}</div>
-            <div className="text-[10px] sm:text-xs text-muted-foreground uppercase tracking-wider">Points</div>
+            <div className="text-[10px] sm:text-xs text-muted-foreground uppercase tracking-wider">{t("points")}</div>
           </div>
           <div className="text-center px-2 sm:px-4">
             <div className="text-xl sm:text-2xl font-bold text-orange-500 flex items-center justify-center gap-1">
               🔥 {dashboard.user.streak}
             </div>
-            <div className="text-[10px] sm:text-xs text-muted-foreground uppercase tracking-wider">Streak</div>
+            <div className="text-[10px] sm:text-xs text-muted-foreground uppercase tracking-wider">{t("streak")}</div>
           </div>
         </div>
       </div>
@@ -220,7 +223,7 @@ export default function Dashboard() {
           <CardHeader>
             <CardTitle className="flex items-center gap-2">
               <CheckSquare className="w-5 h-5 text-primary" />
-              Daily Missions
+              {t("dailyMissions")}
             </CardTitle>
           </CardHeader>
           <CardContent className="space-y-4">
@@ -253,7 +256,7 @@ export default function Dashboard() {
           <CardHeader>
             <CardTitle className="flex items-center gap-2">
               <Clock className="w-5 h-5 text-primary" />
-              Study Focus
+              {t("studyFocus")}
             </CardTitle>
             <CardDescription>{dashboard.weeklyMinutes} / {dashboard.focusGoalMinutes} دقيقة هذا الأسبوع</CardDescription>
           </CardHeader>
@@ -264,15 +267,15 @@ export default function Dashboard() {
             <div className="grid grid-cols-3 gap-2 sm:gap-3 mb-4 sm:mb-6">
               <div className="bg-muted/30 rounded-lg p-2 sm:p-3 text-center">
                 <div className="text-base sm:text-lg font-bold text-primary">{dashboard.weeklyMinutes}</div>
-                <div className="text-[10px] text-muted-foreground">دقيقة مذاكرة</div>
+                <div className="text-[10px] text-muted-foreground">{t("minutesStudied")}</div>
               </div>
               <div className="bg-muted/30 rounded-lg p-2 sm:p-3 text-center">
                 <div className="text-base sm:text-lg font-bold text-accent">+{totalWeeklyPoints}</div>
-                <div className="text-[10px] text-muted-foreground">نقاط مكتسبة</div>
+                <div className="text-[10px] text-muted-foreground">{t("pointsEarned")}</div>
               </div>
               <div className="bg-muted/30 rounded-lg p-2 sm:p-3 text-center">
                 <div className="text-base sm:text-lg font-bold">{avgDaily} د</div>
-                <div className="text-[10px] text-muted-foreground">متوسط يومي</div>
+                <div className="text-[10px] text-muted-foreground">{t("dailyAverage")}</div>
               </div>
             </div>
 
@@ -294,7 +297,7 @@ export default function Dashboard() {
                 disabled={logActivity.isPending}
                 className="text-xs sm:text-sm"
               >
-                {isRunning ? <><Square className="me-1 h-3 w-3 sm:h-3.5 sm:w-3.5" /> إيقاف</> : <><Play className="me-1 h-3 w-3 sm:h-3.5 sm:w-3.5" /> ابدأ</>}
+                {isRunning ? <><Square className="me-1 h-3 w-3 sm:h-3.5 sm:w-3.5" /> {t("stop")}</> : <><Play className="me-1 h-3 w-3 sm:h-3.5 sm:w-3.5" /> {t("start")}</>}
               </Button>
             </div>
 
@@ -314,7 +317,7 @@ export default function Dashboard() {
           <CardHeader>
             <CardTitle className="flex items-center gap-2">
               <CalendarIcon className="w-5 h-5 text-primary" />
-              جدول اليوم — {DAY_NAMES[Number(today)]}
+              {t("todaySchedule")} — {DAY_NAMES[Number(today)]}
             </CardTitle>
             <CardDescription>{todaysClasses.length > 0 ? `${todaysClasses.length} محاضرة لمجموعتك` : "يوم خفيف بدون محاضرات لمجموعتك"}</CardDescription>
           </CardHeader>

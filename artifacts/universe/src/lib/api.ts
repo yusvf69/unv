@@ -1,4 +1,5 @@
 import { useQuery, useMutation, useQueryClient, type UseQueryOptions } from "@tanstack/react-query";
+import { getGetDashboardQueryKey } from "@workspace/api-client-react";
 
 const API_BASE = "/api";
 
@@ -628,7 +629,7 @@ export function useLogStudyActivity() {
   return useMutation({
     mutationFn: (minutes: number) => api.post("/v2/activity/log", { minutes }),
     onSuccess: () => {
-      qc.invalidateQueries({ queryKey: ["dashboard"] });
+      qc.invalidateQueries({ queryKey: getGetDashboardQueryKey() });
       qc.invalidateQueries({ queryKey: ["me"] });
       qc.invalidateQueries({ queryKey: ["v2", "users"] });
     },

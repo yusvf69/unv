@@ -10,6 +10,7 @@ import { useMeV2, useUpdateProfile, useAchievements, useMyGroupSchedule, useMyEx
 import { useGetDashboard } from "@workspace/api-client-react";
 import FileUpload from "@/components/file-upload";
 import { Link } from "wouter";
+import { useTranslation, globalI18n } from "@/lib/i18n";
 
 const SPECIALIZATIONS = [
   "شعبه عامه",
@@ -26,6 +27,7 @@ const SPECIALIZATIONS = [
 type ProfileTab = "account" | "schedule" | "tasks" | "progress" | "goals";
 
 export default function Profile() {
+  const t = useTranslation(globalI18n);
   const { data: me } = useMeV2();
   const update = useUpdateProfile();
   const { data: achievements } = useAchievements();
@@ -190,7 +192,7 @@ export default function Profile() {
       {tab === "schedule" && (
         <div className="space-y-4 sm:space-y-6">
           <div className="bg-card border rounded-2xl p-4 sm:p-6">
-            <h2 className="font-bold text-lg sm:text-xl mb-4 flex items-center gap-2"><Clock className="h-5 w-5 text-primary" /> جدول المحاضرات</h2>
+            <h2 className="font-bold text-lg sm:text-xl mb-4 flex items-center gap-2"><Clock className="h-5 w-5 text-primary" /> {t("lectureSchedule")}</h2>
             {schedule.length === 0 ? (
               <p className="text-muted-foreground text-center py-4">لم يُحدَّد جدول لمجموعتك بعد</p>
             ) : (
@@ -211,7 +213,7 @@ export default function Profile() {
           </div>
 
           <div className="bg-card border rounded-2xl p-4 sm:p-6">
-            <h2 className="font-bold text-lg sm:text-xl mb-4 flex items-center gap-2"><Calendar className="h-5 w-5 text-rose-500" /> جدول الامتحانات</h2>
+            <h2 className="font-bold text-lg sm:text-xl mb-4 flex items-center gap-2"><Calendar className="h-5 w-5 text-rose-500" /> {t("examSchedule")}</h2>
             {exams.length === 0 ? (
               <p className="text-muted-foreground text-center py-4">لم يتم نشر جدول الامتحانات بعد</p>
             ) : (

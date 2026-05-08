@@ -8,6 +8,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { useMeV2, useEvents, useCreateEvent, useDeleteEvent } from "@/lib/api";
 import { useToast } from "@/hooks/use-toast";
+import { formatDate, formatTime } from "@/lib/dates";
 
 const KINDS = [
   { value: "exam", label: "امتحان" },
@@ -104,7 +105,7 @@ export default function AdminEvents() {
                 </div>
                 <h3 className="font-bold text-sm sm:text-base truncate">{e.title}</h3>
                 <p className="text-xs text-muted-foreground mt-1">
-                  {new Date(e.dueAt).toLocaleString("ar-EG")}{e.location ? ` — ${e.location}` : ""}
+                  {(() => { const d = new Date(e.dueAt); return `${formatDate(d)} ${formatTime(d)}`; })()}{e.location ? ` — ${e.location}` : ""}
                 </p>
               </div>
               <Button size="icon" variant="ghost" onClick={() => remove1(e.id)} className="h-8 w-8 flex-shrink-0">

@@ -2,6 +2,7 @@ import { useGetNews, getGetNewsQueryKey } from "@workspace/api-client-react";
 import { useParams, Link } from "wouter";
 import { ChevronRight, ChevronLeft, Calendar, User } from "lucide-react";
 import { useLanguage } from "@/hooks/use-language";
+import { formatISODate } from "@/lib/dates";
 
 export default function NewsDetail() {
   const { id } = useParams<{ id: string }>();
@@ -45,7 +46,7 @@ export default function NewsDetail() {
             </div>
             <div className="flex items-center gap-2">
               <Calendar className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
-              <span>{new Date(article.publishedAt).toLocaleDateString()}</span>
+              <span>{formatISODate(article.publishedAt)}</span>
             </div>
           </div>
           

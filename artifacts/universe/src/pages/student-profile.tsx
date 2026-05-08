@@ -5,6 +5,7 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { useUserProfile, useMeV2, useToggleFollow, useDeleteForumPost, useDeleteTalent, useDeleteForumReply, useDeleteTalentComment } from "@/lib/api";
 import { useState } from "react";
+import { formatISODate } from "@/lib/dates";
 
 export default function StudentProfile() {
   const { id } = useParams<{ id: string }>();
@@ -116,7 +117,7 @@ export default function StudentProfile() {
                   <Link href={`/forum/${p.id}`} className="flex-1">
                     <h3 className="font-bold">{p.title}</h3>
                     <p className="text-sm text-muted-foreground mt-1 line-clamp-2">{p.body}</p>
-                    <div className="text-xs text-muted-foreground mt-2">{new Date(p.createdAt).toLocaleDateString("ar-EG")}</div>
+                    <div className="text-xs text-muted-foreground mt-2">{formatISODate(p.createdAt)}</div>
                   </Link>
                   {isAdmin && (
                     <Button size="sm" variant="ghost" className="text-destructive" onClick={() => deleteForumPost.mutate(p.id)}>
@@ -166,7 +167,7 @@ export default function StudentProfile() {
               <motion.div key={s.id} initial={{ opacity: 0, y: 4 }} animate={{ opacity: 1, y: 0 }} className="bg-card border rounded-xl p-4 flex items-center justify-between">
                 <div>
                   <h3 className="font-bold">{s.name}</h3>
-                  <div className="text-xs text-muted-foreground mt-1">{new Date(s.createdAt).toLocaleDateString("ar-EG")} · {s.likes} لايك · {s.views} مشاهدة</div>
+                  <div className="text-xs text-muted-foreground mt-1">{formatISODate(s.createdAt)} · {s.likes} لايك · {s.views} مشاهدة</div>
                 </div>
                 <a href={s.url} target="_blank" rel="noreferrer" className="text-sm text-primary hover:underline">فتح</a>
               </motion.div>

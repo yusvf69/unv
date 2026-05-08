@@ -7,6 +7,7 @@ import { useState, useEffect } from "react";
 import { useQueryClient } from "@tanstack/react-query";
 import { useMeV2, useDeleteForumReply, useDeleteForumPost } from "@/lib/api";
 import { api } from "@/lib/api";
+import { formatISODateTime, formatISODate } from "@/lib/dates";
 
 export default function ForumDetail() {
   const { id } = useParams<{ id: string }>();
@@ -73,7 +74,7 @@ export default function ForumDetail() {
             <div className="flex items-center justify-between mb-4">
               <div className="flex items-center gap-3">
                 <span className="bg-secondary/10 text-secondary px-3 py-1 rounded-full text-xs font-bold uppercase tracking-wider">{post.category}</span>
-                <span className="text-sm text-muted-foreground">{new Date(post.createdAt).toLocaleString("ar-EG")}</span>
+                <span className="text-sm text-muted-foreground">{formatISODateTime(post.createdAt)}</span>
               </div>
               {isAdmin && (
                 <Button size="sm" variant="ghost" className="text-destructive" onClick={() => deletePost.mutate(postId)}>
@@ -125,7 +126,7 @@ export default function ForumDetail() {
                   </div>
                   <span className="text-xs font-medium">{reply.author.name}</span>
                   <span className="text-xs text-muted-foreground mx-1">•</span>
-                  <span className="text-xs text-muted-foreground">{new Date(reply.createdAt).toLocaleDateString("ar-EG")}</span>
+                  <span className="text-xs text-muted-foreground">{formatISODate(reply.createdAt)}</span>
                 </Link>
                 <div className="flex items-center gap-2">
                   <div className="flex items-center gap-1 text-xs font-medium text-muted-foreground">

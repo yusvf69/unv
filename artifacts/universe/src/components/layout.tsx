@@ -48,17 +48,17 @@ export default function Layout({ children }: { children: ReactNode }) {
 
   const appLinks = [
     { href: "/dashboard", label: t("dashboard") },
-    { href: "/schedule", label: "الجدول" },
+    { href: "/schedule", label: t("schedule") },
     { href: "/courses", label: t("courses") },
-    { href: "/materials", label: "ملفات المواد" },
-    { href: "/summaries", label: "ملخصات الطلبة" },
+    { href: "/materials", label: t("materials") },
+    { href: "/summaries", label: t("summaries") },
     { href: "/staff", label: t("staff") },
-    { href: "/events", label: "الأحداث" },
+    { href: "/events", label: t("events") },
     { href: "/quizzes", label: t("quizzes") },
     { href: "/skills", label: t("skills") },
     { href: "/forum", label: t("forum") },
     { href: "/games", label: t("games") },
-    { href: "/students", label: "الطلاب" },
+    { href: "/students", label: t("students") },
     { href: "/leaderboard", label: t("leaderboard") },
     { href: "/talents", label: t("talents") },
   ];
@@ -116,7 +116,7 @@ export default function Layout({ children }: { children: ReactNode }) {
           </div>
 
           <div className="flex items-center gap-0.5 sm:gap-1">
-            <Button variant="ghost" size="icon" onClick={toggleTheme} title={theme === "dark" ? "وضع فاتح" : "وضع غامق"} className="h-8 w-8 sm:h-10 sm:w-10">
+            <Button variant="ghost" size="icon" onClick={toggleTheme} title={theme === "dark" ? t("lightMode") : t("darkMode")} className="h-8 w-8 sm:h-10 sm:w-10">
               {theme === "dark" ? <Sun className="h-4 w-4 sm:h-5 sm:w-5" /> : <Moon className="h-4 w-4 sm:h-5 sm:w-5" />}
             </Button>
             <Button variant="ghost" onClick={toggleLang} className="font-medium text-xs sm:text-sm w-10 sm:w-12 h-8 sm:h-10">
@@ -125,7 +125,7 @@ export default function Layout({ children }: { children: ReactNode }) {
 
             {user && (
               <Link href="/messages">
-                <Button variant="ghost" size="icon" className="relative h-8 w-8 sm:h-10 sm:w-10" title="الرسائل">
+                  <Button variant="ghost" size="icon" className="relative h-8 w-8 sm:h-10 sm:w-10" title={t("messages")}>
                   <MessageCircle className="h-4 w-4 sm:h-5 sm:w-5" />
                   {meV2 && meV2.unreadDmCount > 0 && (
                     <span className="absolute -top-1 -end-1 bg-destructive text-destructive-foreground text-[10px] font-bold w-4 h-4 rounded-full flex items-center justify-center">
@@ -165,7 +165,7 @@ export default function Layout({ children }: { children: ReactNode }) {
                   <DropdownMenuItem asChild><Link href="/profile" className="cursor-pointer w-full flex items-center"><UserIcon className="me-2 h-4 w-4" /><span>{t("profile")}</span></Link></DropdownMenuItem>
                   <DropdownMenuSeparator />
                   <DropdownMenuItem onClick={handleLogout} className="text-destructive focus:text-destructive cursor-pointer">
-                    <LogOut className="me-2 h-4 w-4" /><span>تسجيل خروج</span>
+                    <LogOut className="me-2 h-4 w-4" /><span>{t("logout")}</span>
                   </DropdownMenuItem>
                 </DropdownMenuContent>
               </DropdownMenu>
