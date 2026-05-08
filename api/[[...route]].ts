@@ -119,6 +119,129 @@ async function applyProposal(p: any) {
   }
 }
 
+// --- Daily Missions Helpers ---
+
+const DEFAULT_MISSIONS = [
+  { title: "ذاكر ساعة واحدة", description: "60 دقيقة مذاكرة مركزة", points: 10, kind: "study" },
+  { title: "راجع ملخصاً", description: "اقرأ ملخصاً لأحد الدروس", points: 5, kind: "study" },
+  { title: "حل 10 أسئلة", description: "أجب عن 10 أسئلة من بنك الأسئلة", points: 15, kind: "quiz" },
+  { title: "شارك في المنتدى", description: "اكتب منشوراً أو رداً في المنتدى", points: 8, kind: "forum" },
+  { title: "أكمل اختباراً", description: "اختبر نفسك بنسبة 70%+", points: 20, kind: "quiz" },
+];
+
+async function ensureDailyMissionsTable() {
+  await sql`
+    CREATE TABLE IF NOT EXISTS daily_missions (
+      id SERIAL PRIMARY KEY,
+      user_id INT NOT NULL,
+      title TEXT NOT NULL,
+      description TEXT,
+      points INT NOT NULL DEFAULT 10,
+      kind TEXT NOT NULL DEFAULT 'study',
+      completed BOOLEAN NOT NULL DEFAULT false,
+      mission_date DATE NOT NULL DEFAULT CURRENT_DATE,
+      created_at TIMESTAMP DEFAULT NOW()
+    )
+  `;
+  try {
+    await sql`CREATE INDEX IF NOT EXISTS idx_daily_missions_user_date ON daily_missions (user_id, mission_date)`;
+  } catch {}
+}
+
+async function generateDailyMissions(userId: number): Promise<any[]> {
+  await ensureDailyMissionsTable();
+  const today = new Date().toISOString().split("T")[0];
+
+  const [user] = await sql`SELECT name, year_in_college, specialization, group_name FROM users WHERE id = ${userId}`;
+
+  let aiMissions: any[] | null = null;
+  const apiKey = process.env.OPENROUTER_API_KEY;
+  if (apiKey && user) {
+    try {
+      const prompt = `أنت مساعد UniVerse. أنشئ 5 مهام يومية لطالب كلية زراعية.
+بيانات الطالب:
+- الاسم: ${user.name || ""}
+- السنة: ${user.year_in_college || ""}
+- التخصص: ${user.specialization || ""}
+
+المهام يجب أن تكون متنوعة. أعد JSON array فقط:
+[{"title":"عنوان","description":"وصف","points":10,"kind":"study"}]
+الأنواع: study, quiz, forum, attendance, focus
+النقاط: بين 5 و 20`;
+      const res = await fetch("https://openrouter.ai/api/v1/chat/completions", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "Authorization": `Bearer ${apiKey}`,
+          "HTTP-Referer": "https://unv-api.vercel.app",
+          "X-Title": "UniVerse",
+        },
+        body: JSON.stringify({
+          model: "google/gemini-2.0-flash-lite-001",
+          messages: [{ role: "user", content: prompt }],
+          temperature: 0.8,
+          max_tokens: 1024,
+        }),
+      });
+      if (res.ok) {
+        const data = await res.json();
+        const text = data.choices?.[0]?.message?.content || "";
+        const jsonMatch = text.match(/\[[\s\S]*?\]/);
+        if (jsonMatch) {
+          aiMissions = JSON.parse(jsonMatch[0]);
+          if (!Array.isArray(aiMissions) || aiMissions.length === 0) aiMissions = null;
+        }
+      }
+    } catch (e) { console.error("[generateDailyMissions] AI error:", e); }
+  }
+
+  const missionData = (aiMissions || DEFAULT_MISSIONS).slice(0, 5);
+  const inserted: any[] = [];
+  for (const m of missionData) {
+    const [row] = await sql`
+      INSERT INTO daily_missions (user_id, title, description, points, kind, mission_date)
+      VALUES (${userId}, ${m.title}, ${m.description || ""}, ${m.points || 10}, ${m.kind || "study"}, ${today})
+      RETURNING *`;
+    inserted.push(row);
+  }
+  return inserted;
+}
+
+async function getDailyMissions(userId: number) {
+  await ensureDailyMissionsTable();
+  const today = new Date().toISOString().split("T")[0];
+  const existing = await sql`SELECT * FROM daily_missions WHERE user_id = ${userId} AND mission_date = ${today} ORDER BY id`;
+  if (existing.length > 0) return existing;
+  return await generateDailyMissions(userId);
+}
+
+async function updateStreak(userId: number): Promise<void> {
+  const today = new Date().toISOString().split("T")[0];
+
+  const [existing] = await sql`SELECT id FROM activity WHERE user_id = ${userId} AND date = ${today}`;
+  if (!existing) {
+    await sql`INSERT INTO activity (user_id, date, minutes_studied, points_earned) VALUES (${userId}, ${today}, 0, 0)`;
+  }
+
+  const dates = await sql`
+    SELECT DISTINCT date FROM activity
+    WHERE user_id = ${userId}
+    ORDER BY date DESC LIMIT 365
+  `;
+
+  let streak = 0;
+  const checkDate = new Date();
+  for (const row of dates) {
+    const expected = checkDate.toISOString().split("T")[0];
+    if (row.date === expected) {
+      streak++;
+      checkDate.setDate(checkDate.getDate() - 1);
+    } else break;
+  }
+
+  await sql`UPDATE users SET streak = ${streak} WHERE id = ${userId}`;
+}
+
 // --- Route Handlers by Domain ---
 
 async function handleDashboard(req: Request): Promise<Response> {
@@ -150,10 +273,10 @@ async function handleDashboard(req: Request): Promise<Response> {
     const attendance = await sql`SELECT date, minutes_studied FROM activity WHERE user_id = ${userId} ORDER BY date DESC LIMIT 7`;
     const attendanceItems = attendance.map((a: any) => ({ date: a.date, minutes: a.minutes_studied, present: a.minutes_studied > 0 }));
 
-    const openQuizzes = await sql`SELECT * FROM quizzes WHERE is_open = true ORDER BY created_at DESC LIMIT 5`;
-    const missions = openQuizzes.map((q: any) => ({
-      id: q.id, title: q.title, description: q.description || "", points: q.total_points || 100,
-      deadline: null, completed: false,
+    const missionRows = await getDailyMissions(userId);
+    const missions = missionRows.map((m: any) => ({
+      id: m.id, title: m.title, description: m.description || "", points: m.points,
+      kind: m.kind, completed: m.completed,
     }));
 
     const notifs = await sql`SELECT * FROM notifications WHERE user_id = ${userId} ORDER BY created_at DESC LIMIT 5`;
@@ -1488,6 +1611,8 @@ async function handleActivity(req: Request): Promise<Response> {
       const today = new Date().toISOString().split("T")[0];
       const [existing] = await sql`SELECT * FROM activity WHERE user_id = ${userId} AND date = ${today} LIMIT 1`;
       const earnedPoints = Math.floor(minutes / 10);
+      try { await updateStreak(userId); } catch (e) { console.error("[streak update]", e); }
+
       if (existing) {
         const prevMinutes = existing.minutes_studied;
         await sql`UPDATE activity SET minutes_studied = minutes_studied + ${minutes}, points_earned = points_earned + ${earnedPoints} WHERE id = ${existing.id}`;
@@ -2156,22 +2281,38 @@ async function handleQuizById(quizId: number): Promise<Response> {
   });
 }
 
-async function handleMissions(req: Request, parts: string[]): Promise<Response> {
-  return handle(async () => {
-    const { userId } = requireAuth(req.headers);
-    if (!parts[1]) {
-      const quizzes = await sql`SELECT * FROM quizzes WHERE is_open = true ORDER BY created_at DESC LIMIT 20`;
-      return quizzes.map((q: any) => ({
-        id: q.id, title: q.title, description: q.description || "",
-        points: q.total_points || 100, deadline: null, completed: false,
+async function handleDailyMissionsRoute(req: Request, parts: string[]): Promise<Response> {
+  const { userId } = requireAuth(req.headers);
+
+  if (!parts[1]) {
+    return handle(async () => {
+      const rows = await getDailyMissions(userId);
+      return rows.map((m: any) => ({
+        id: m.id, title: m.title, description: m.description || "",
+        points: m.points, kind: m.kind, completed: m.completed,
       }));
-    }
-    if (parts[2] === "complete") {
+    });
+  }
+
+  if (parts[2] === "complete") {
+    return handle(async () => {
       const missionId = Number(parts[1]);
-      return { ok: true };
-    }
-    return jsonError("Not Found", 404);
-  });
+      const [mission] = await sql`SELECT * FROM daily_missions WHERE id = ${missionId} AND user_id = ${userId}`;
+      if (!mission) throw Object.assign(new Error("المهمة غير موجودة"), { status: 404 });
+      if (mission.completed) return { id: mission.id, title: mission.title, description: mission.description, points: mission.points, kind: mission.kind, completed: true };
+
+      await sql`UPDATE daily_missions SET completed = true WHERE id = ${missionId}`;
+      await sql`UPDATE users SET points = points + ${mission.points} WHERE id = ${userId}`;
+
+      try { await updateStreak(userId); } catch (e) { console.error("[streak update]", e); }
+
+      await sql`INSERT INTO notifications (user_id, title, body, type) VALUES (${userId}, '✅ مهمة مكتملة', ${`أكملت "${mission.title}" وحصلت على ${mission.points} نقطة`}, 'success')`;
+
+      return { id: mission.id, title: mission.title, description: mission.description, points: mission.points, kind: mission.kind, completed: true };
+    });
+  }
+
+  return jsonError("Not Found", 404);
 }
 
 async function handleComplaints(req: Request): Promise<Response> {
@@ -3026,8 +3167,10 @@ async function handleRequest(request: Request): Promise<Response> {
     "POST /ai/chat": () => handleAiChat(request),
 
     // Missions
-    "GET /missions": () => handleMissions(request, ["missions"]),
-    "POST /missions/:id/complete": () => handleMissions(request, ["missions", parts[1], "complete"]),
+    "GET /missions": () => handleDailyMissionsRoute(request, ["missions"]),
+    "POST /missions/:id/complete": () => handleDailyMissionsRoute(request, ["missions", parts[1], "complete"]),
+    "GET /v2/missions": () => handleDailyMissionsRoute(request, ["missions"]),
+    "POST /v2/missions/:id/complete": () => handleDailyMissionsRoute(request, ["missions", parts[2], "complete"]),
 
     // Lecture quizzes
     "POST /lecture-quizzes/:id/submit": () => handleLectureQuizSubmit(request, ["lecture-quizzes", parts[1], "submit"]),
