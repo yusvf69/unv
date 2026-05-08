@@ -219,6 +219,10 @@ async function handleAuth(req: Request, parts: string[]): Promise<Response> {
       const [emailExists] = await sql`SELECT id FROM users WHERE email = ${email} LIMIT 1`;
       if (emailExists) throw Object.assign(new Error("الإيميل ده مسجل قبل كده"), { status: 409 });
 
+      const normalizedPhone = phone.replace(/[^0-9]/g, "").replace(/^0/, "+2");
+      const [phoneExists] = await sql`SELECT id FROM users WHERE phone = ${normalizedPhone} LIMIT 1`;
+      if (phoneExists) throw Object.assign(new Error("الرقم ده مسجل قبل كده"), { status: 409 });
+
       const hashedPassword = await bcrypt.hash(password, 10);
       let uniqueCode = generateUniqueCode();
       let codeExists = true;
@@ -335,6 +339,146 @@ async function handleAuth(req: Request, parts: string[]): Promise<Response> {
 
       await sql`UPDATE verification_codes SET verified = true WHERE id = ${row.id}`;
       return { verified: true };
+    });
+  }
+
+  if (action === "check-user") {
+    return handle(async () => {
+      let { email, phone } = await req.json();
+      if (!email && !phone) throw Object.assign(new Error("الإيميل أو الرقم مطلوب"), { status: 400 });
+      if (email) {
+        const [existing] = await sql`SELECT id, email FROM users WHERE email = ${email} LIMIT 1`;
+        if (existing) return { exists: true, field: "email" };
+      }
+      if (phone) {
+        phone = phone.replace(/[^0-9]/g, "");
+        if (phone.startsWith("0")) phone = "+2" + phone;
+        else if (!phone.startsWith("+")) phone = "+" + phone;
+        const [existing] = await sql`SELECT id, phone FROM users WHERE phone = ${phone} LIMIT 1`;
+        if (existing) return { exists: true, field: "phone" };
+      }
+      return { exists: false };
+    });
+  }
+
+  if (action === "forgot-password") {
+    return handle(async () => {
+      let { email, phone } = await req.json();
+      if (!email && !phone) throw Object.assign(new Error("الإيميل أو الرقم مطلوب"), { status: 400 });
+
+      let user;
+      if (phone) {
+        phone = phone.replace(/[^0-9]/g, "");
+        if (phone.startsWith("0")) phone = "+2" + phone;
+        else if (!phone.startsWith("+")) phone = "+" + phone;
+        [user] = await sql`SELECT * FROM users WHERE phone = ${phone} LIMIT 1`;
+      }
+      if (email && !user) {
+        [user] = await sql`SELECT * FROM users WHERE email = ${email} LIMIT 1`;
+      }
+      if (!user) throw Object.assign(new Error("لا يوجد حساب بهذا البريد/الرقم"), { status: 404 });
+
+      const code = Math.floor(100000 + Math.random() * 900000).toString();
+      const expiresAt = new Date(Date.now() + 10 * 60 * 1000).toISOString();
+      const results: string[] = [];
+
+      if (user.email) {
+        const m = getMailer();
+        if (m) {
+          try {
+            await m.sendMail({
+              from: `"UniVerse" <${process.env.GMAIL_USER}>`,
+              to: user.email,
+              subject: "كود استعاده كلمة المرور - UniVerse",
+              html: `<div style="font-family:sans-serif;padding:24px;max-width:480px;margin:auto"><h2 style="color:#16a34a">استعاده كلمة المرور</h2><p>كود استعاده كلمة المرور الخاص بك:</p><div style="font-size:32px;font-weight:bold;letter-spacing:8px;text-align:center;padding:16px;background:#f0fdf4;border-radius:12px;direction:ltr">${code}</div><p style="color:#666;font-size:14px">الكود صالح لمدة 10 دقائق</p></div>`,
+            });
+            results.push("email");
+          } catch (e) { console.error("[forgot-password] email error:", e); }
+        }
+      }
+
+      if (user.phone) {
+        const ultraMsgToken = process.env.ULTRAMSG_TOKEN;
+        const ultraMsgId = process.env.ULTRAMSG_INSTANCE_ID;
+        if (ultraMsgToken && ultraMsgId) {
+          try {
+            await fetch(`https://api.ultramsg.com/${ultraMsgId}/messages/chat`, {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({
+                token: ultraMsgToken,
+                to: user.phone,
+                body: `كود استعاده كلمه المرور UniVerse: ${code}\nصالح لمدة 10 دقائق`,
+              }),
+            });
+            results.push("whatsapp");
+          } catch (e) { console.error("[forgot-password] whatsapp error:", e); }
+        }
+      }
+
+      if (results.length === 0) throw Object.assign(new Error("فشل إرسال الكود، حاول مرة أخرى"), { status: 500 });
+
+      await sql`DELETE FROM verification_codes WHERE (email = ${user.email || ""} OR phone = ${user.phone || ""}) AND verified = false`;
+      await sql`INSERT INTO verification_codes (email, phone, code, type, expires_at) VALUES (${user.email || null}, ${user.phone || null}, ${code}, 'password_reset', ${expiresAt})`;
+      return { sentTo: results, identifier: user.email || user.phone };
+    });
+  }
+
+  if (action === "verify-reset-code") {
+    return handle(async () => {
+      let { email, phone, code } = await req.json();
+      if (!code) throw Object.assign(new Error("الكود مطلوب"), { status: 400 });
+
+      if (phone) {
+        phone = phone.replace(/[^0-9]/g, "");
+        if (phone.startsWith("0")) phone = "+2" + phone;
+        else if (!phone.startsWith("+")) phone = "+" + phone;
+      }
+
+      const [row] = await sql`
+        SELECT * FROM verification_codes 
+        WHERE (email = ${email || ""} OR phone = ${phone || ""}) 
+        AND code = ${code} AND verified = false AND type = 'password_reset'
+        AND expires_at > NOW() 
+        ORDER BY created_at DESC LIMIT 1`;
+      if (!row) throw Object.assign(new Error("الكود غير صحيح أو منتهي الصلاحية"), { status: 400 });
+
+      await sql`UPDATE verification_codes SET verified = true WHERE id = ${row.id}`;
+      return { verified: true };
+    });
+  }
+
+  if (action === "reset-password") {
+    return handle(async () => {
+      let { email, phone, code, newPassword } = await req.json();
+      if (!newPassword || newPassword.length < 6) throw Object.assign(new Error("كلمة المرور الجديدة لازم تكون 6 حروف على الأقل"), { status: 400 });
+
+      if (phone) {
+        phone = phone.replace(/[^0-9]/g, "");
+        if (phone.startsWith("0")) phone = "+2" + phone;
+        else if (!phone.startsWith("+")) phone = "+" + phone;
+      }
+
+      const [row] = await sql`
+        SELECT * FROM verification_codes 
+        WHERE (email = ${email || ""} OR phone = ${phone || ""}) 
+        AND code = ${code} AND verified = true AND type = 'password_reset'
+        AND expires_at > NOW() 
+        ORDER BY created_at DESC LIMIT 1`;
+      if (!row) throw Object.assign(new Error("الكود غير صحيح أو منتهي الصلاحية"), { status: 400 });
+
+      const hashedPassword = await bcrypt.hash(newPassword, 10);
+      if (email) await sql`UPDATE users SET password = ${hashedPassword} WHERE email = ${email}`;
+      else if (phone) await sql`UPDATE users SET password = ${hashedPassword} WHERE phone = ${phone}`;
+
+      await sql`DELETE FROM verification_codes WHERE id = ${row.id}`;
+
+      let user;
+      if (email) [user] = await sql`SELECT id, role FROM users WHERE email = ${email} LIMIT 1`;
+      else [user] = await sql`SELECT id, role FROM users WHERE phone = ${phone} LIMIT 1`;
+
+      const token = generateToken(user.id, user.role);
+      return { userId: user.id, role: user.role, token, message: "تم تغيير كلمة المرور بنجاح" };
     });
   }
 
@@ -2571,6 +2715,14 @@ async function handleRequest(request: Request): Promise<Response> {
     "POST /v2/auth/verify-code": () => handleAuth(request, parts),
     "POST /auth/resend-code": () => handleAuth(request, parts),
     "POST /v2/auth/resend-code": () => handleAuth(request, parts),
+    "POST /auth/check-user": () => handleAuth(request, parts),
+    "POST /v2/auth/check-user": () => handleAuth(request, parts),
+    "POST /auth/forgot-password": () => handleAuth(request, parts),
+    "POST /v2/auth/forgot-password": () => handleAuth(request, parts),
+    "POST /auth/verify-reset-code": () => handleAuth(request, parts),
+    "POST /v2/auth/verify-reset-code": () => handleAuth(request, parts),
+    "POST /auth/reset-password": () => handleAuth(request, parts),
+    "POST /v2/auth/reset-password": () => handleAuth(request, parts),
 
     // Me
     "GET /me": () => handleMe(request),

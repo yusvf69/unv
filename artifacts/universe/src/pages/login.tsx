@@ -2,7 +2,7 @@ import { useState, useCallback, useEffect } from "react";
 import { useLocation } from "wouter";
 import { useQueryClient } from "@tanstack/react-query";
 import { motion, AnimatePresence } from "framer-motion";
-import { Leaf, Mail, Phone, User, Loader2, CheckCircle2, Shield, GraduationCap, Sprout, Eye, EyeOff, AlertCircle } from "lucide-react";
+import { Leaf, Mail, Phone, User, Loader2, CheckCircle2, Shield, GraduationCap, Sprout, Eye, EyeOff, AlertCircle, KeyRound } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -49,6 +49,15 @@ export default function Login() {
   const [whatsappCode, setWhatsappCode] = useState("");
   const [resendTimer, setResendTimer] = useState(0);
   const [resendLoading, setResendLoading] = useState(false);
+  const [existingUserError, setExistingUserError] = useState<string | null>(null);
+
+  // Forgot password state
+  const [showForgotPassword, setShowForgotPassword] = useState(false);
+  const [forgotStep, setForgotStep] = useState<"identifier" | "code" | "newPassword">("identifier");
+  const [forgotIdentifier, setForgotIdentifier] = useState("");
+  const [forgotCode, setForgotCode] = useState("");
+  const [forgotNewPassword, setForgotNewPassword] = useState("");
+  const [forgotLoading, setForgotLoading] = useState(false);
 
   const checkUsername = useCallback(async (un: string) => {
     if (un.length < 4) {
@@ -87,6 +96,19 @@ export default function Login() {
     if (verifyStep === "idle") {
       setVerifyStep("sending");
       try {
+        const checkRes = await fetch("/api/v2/auth/check-user", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ email, phone }),
+        });
+        const checkData = await checkRes.json();
+        if (checkData.exists) {
+          setVerifyStep("idle");
+          const field = checkData.field === "email" ? "البريد الإلكتروني" : "رقم الهاتف";
+          setExistingUserError(`${field} مسجل بالفعل. سجل دخول بدلاً من ذلك.`);
+          return;
+        }
+
         const res = await fetch("/api/v2/auth/send-verification", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
@@ -95,6 +117,7 @@ export default function Login() {
         const data = await res.json();
         if (!res.ok) throw new Error(data.error || "فشل الإرسال");
         setVerifyStep("sent");
+        setExistingUserError(null);
         toast({ title: "تم الإرسال", description: "تحقق من بريدك وواتساب" });
       } catch (err) {
         setVerifyStep("idle");
@@ -333,6 +356,12 @@ export default function Login() {
 
               {verifyStep === "idle" ? (
                 <>
+                  {existingUserError && (
+                    <div className="sm:col-span-2 bg-amber-50 border border-amber-200 rounded-xl p-3 text-center">
+                      <p className="text-sm text-amber-700 font-medium mb-2">{existingUserError}</p>
+                      <button type="button" onClick={() => { setMode("login"); setExistingUserError(null); }} className="text-sm text-primary underline font-medium">تسجيل دخول</button>
+                    </div>
+                  )}
                   <Button type="submit" className="sm:col-span-2 w-full h-10 sm:h-11 bg-gradient-to-r from-primary to-secondary text-sm" disabled={usernameStatus.checking}>
                     <Mail className="me-2 h-4 w-4" /> تأكيد البريد والواتساب
                   </Button>
@@ -373,6 +402,110 @@ export default function Login() {
                 </div>
               )}
             </motion.form>
+          ) : showForgotPassword ? (
+            <motion.div key="forgot" initial={{ opacity: 0, x: 20 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: -20 }} className="space-y-3 sm:space-y-4 max-w-md mx-auto py-2 sm:py-4">
+              <div className="text-center mb-4">
+                <KeyRound className="h-10 w-10 text-primary mx-auto mb-2" />
+                <h2 className="text-lg font-bold">استعاده كلمة المرور</h2>
+                <p className="text-xs text-muted-foreground">هنتحقق من هويتك ونبعتلك كود</p>
+              </div>
+
+              {forgotStep === "identifier" && (
+                <div className="space-y-3">
+                  <div className="space-y-1.5">
+                    <Label className="flex items-center gap-1.5 text-xs"><Mail className="h-3.5 w-3.5" /> البريد الإلكتروني أو رقم الهاتف</Label>
+                    <Input type="text" value={forgotIdentifier} onChange={(e) => setForgotIdentifier(e.target.value)} placeholder="you@example.com أو 01xxxxxxxxx" className="h-10 sm:h-11 text-sm" />
+                  </div>
+                  <Button onClick={async () => {
+                    if (!forgotIdentifier) { toast({ title: "أدخل البريد أو رقم الهاتف", variant: "destructive" }); return; }
+                    setForgotLoading(true);
+                    try {
+                      const isEmail = forgotIdentifier.includes("@");
+                      const body = isEmail ? { email: forgotIdentifier } : { phone: forgotIdentifier };
+                      const res = await fetch("/api/v2/auth/forgot-password", {
+                        method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body),
+                      });
+                      const data = await res.json();
+                      if (!res.ok) throw new Error(data.error || "فشل الإرسال");
+                      setForgotStep("code");
+                      toast({ title: "تم الإرسال", description: "تحقق من بريدك أو واتساب" });
+                    } catch (err) { toast({ title: "خطأ", description: (err as Error).message, variant: "destructive" }); }
+                    finally { setForgotLoading(false); }
+                  }} disabled={forgotLoading} className="w-full h-10 sm:h-11 bg-gradient-to-r from-primary to-secondary text-sm">
+                    {forgotLoading ? <><Loader2 className="me-2 h-4 w-4 animate-spin" /> جاري...</> : "إرسال كود الاستعاده"}
+                  </Button>
+                </div>
+              )}
+
+              {forgotStep === "code" && (
+                <div className="space-y-3">
+                  <p className="text-xs text-muted-foreground text-center">تم إرسال الكود إلى {forgotIdentifier}</p>
+                  <div className="space-y-1.5">
+                    <Label className="text-xs">كود الاستعاده</Label>
+                    <Input value={forgotCode} onChange={(e) => setForgotCode(e.target.value)} placeholder="أدخل الكود" className="h-10 text-center text-lg tracking-widest" maxLength={6} />
+                  </div>
+                  <Button onClick={async () => {
+                    if (!forgotCode) { toast({ title: "أدخل الكود", variant: "destructive" }); return; }
+                    setForgotLoading(true);
+                    try {
+                      const isEmail = forgotIdentifier.includes("@");
+                      const body = isEmail ? { email: forgotIdentifier, code: forgotCode } : { phone: forgotIdentifier, code: forgotCode };
+                      const res = await fetch("/api/v2/auth/verify-reset-code", {
+                        method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body),
+                      });
+                      const data = await res.json();
+                      if (!res.ok) throw new Error(data.error || "الكود غلط");
+                      setForgotStep("newPassword");
+                      toast({ title: "تم التأكيد", description: "الكود صحيح، أدخل كلمة المرور الجديدة" });
+                    } catch (err) { toast({ title: "خطأ", description: (err as Error).message, variant: "destructive" }); }
+                    finally { setForgotLoading(false); }
+                  }} disabled={forgotLoading} className="w-full h-10 text-sm">
+                    {forgotLoading ? <><Loader2 className="me-2 h-4 w-4 animate-spin" /> جاري...</> : "تأكيد الكود"}
+                  </Button>
+                </div>
+              )}
+
+              {forgotStep === "newPassword" && (
+                <div className="space-y-3">
+                  <div className="space-y-1.5">
+                    <Label className="flex items-center gap-1.5 text-xs"><Shield className="h-3.5 w-3.5" /> كلمة المرور الجديدة</Label>
+                    <div className="relative">
+                      <Input key={showPassword ? "visible" : "hidden"} type={showPassword ? "text" : "password"} value={forgotNewPassword} onChange={(e) => setForgotNewPassword(e.target.value)} placeholder="6 حروف على الأقل" className="h-10 ps-10" />
+                      <button type="button" onClick={() => setShowPassword(!showPassword)} className="absolute start-2 top-1/2 -translate-y-1/2 text-muted-foreground z-10 cursor-pointer">
+                        {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                      </button>
+                    </div>
+                  </div>
+                  <Button onClick={async () => {
+                    if (!forgotNewPassword || forgotNewPassword.length < 6) { toast({ title: "كلمة المرور لازم تكون 6 حروف على الأقل", variant: "destructive" }); return; }
+                    setForgotLoading(true);
+                    try {
+                      const isEmail = forgotIdentifier.includes("@");
+                      const body = isEmail ? { email: forgotIdentifier, code: forgotCode, newPassword: forgotNewPassword } : { phone: forgotIdentifier, code: forgotCode, newPassword: forgotNewPassword };
+                      const res = await fetch("/api/v2/auth/reset-password", {
+                        method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body),
+                      });
+                      const data = await res.json();
+                      if (!res.ok) throw new Error(data.error || "فشل");
+                      if (data.token) localStorage.setItem("uv_token", data.token);
+                      queryClient.invalidateQueries();
+                      setShowForgotPassword(false);
+                      setForgotStep("identifier");
+                      setForgotIdentifier("");
+                      setForgotCode("");
+                      setForgotNewPassword("");
+                      toast({ title: "تم تغيير كلمة المرور", description: "هتتحول للصفحة الرئيسية" });
+                      setTimeout(() => setLocation("/"), 900);
+                    } catch (err) { toast({ title: "خطأ", description: (err as Error).message, variant: "destructive" }); }
+                    finally { setForgotLoading(false); }
+                  }} disabled={forgotLoading} className="w-full h-10 sm:h-11 bg-gradient-to-r from-emerald-500 to-green-600 text-sm">
+                    {forgotLoading ? <><Loader2 className="me-2 h-4 w-4 animate-spin" /> جاري...</> : "تغيير كلمة المرور وتسجيل الدخول"}
+                  </Button>
+                </div>
+              )}
+
+              <button type="button" onClick={() => { setShowForgotPassword(false); setForgotStep("identifier"); setForgotIdentifier(""); setForgotCode(""); setForgotNewPassword(""); }} className="text-xs text-muted-foreground underline block mx-auto">العوده لتسجيل الدخول</button>
+            </motion.div>
           ) : (
             <motion.form key="login" initial={{ opacity: 0, x: 20 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: -20 }} onSubmit={submitLogin} noValidate className="space-y-3 sm:space-y-4 max-w-md mx-auto py-2 sm:py-4">
               <div className="space-y-1.5">
@@ -387,6 +520,9 @@ export default function Login() {
                     {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
                   </button>
                 </div>
+              </div>
+              <div className="text-start">
+                <button type="button" onClick={() => setShowForgotPassword(true)} className="text-xs text-primary underline">هل نسيت الباسورد؟</button>
               </div>
               <Button type="submit" className="w-full h-10 sm:h-11 bg-gradient-to-r from-primary to-secondary text-sm">
                 تسجيل الدخول
