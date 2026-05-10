@@ -165,7 +165,7 @@ export default function Home() {
                     size="lg"
                     className="bg-gradient-to-r from-primary to-secondary text-primary-foreground shadow-xl shadow-primary/30 hover:shadow-2xl hover:shadow-primary/40 transition-all rounded-full px-8 h-12"
                   >
-                    لوحة المعلومات
+                    {t("dashboard")}
                     <ArrowLeft className="me-2 h-5 w-5" />
                   </Button>
                 </Link>
@@ -177,7 +177,7 @@ export default function Home() {
                     size="lg"
                     className="bg-gradient-to-r from-primary to-secondary text-primary-foreground shadow-xl shadow-primary/30 hover:shadow-2xl hover:shadow-primary/40 transition-all rounded-full px-8 h-12"
                   >
-                    تسجيل الدخول
+                    {t("login")}
                     <LogIn className="me-2 h-5 w-5" />
                   </Button>
                 </Link>
@@ -187,7 +187,7 @@ export default function Home() {
                     variant="outline"
                     className="rounded-full px-8 h-12 border-2"
                   >
-                    إنشاء حساب جديد
+                    {t("signup")}
                     <UserPlus className="me-2 h-5 w-5" />
                   </Button>
                 </Link>
@@ -211,13 +211,13 @@ export default function Home() {
       <section className="container mx-auto px-3 sm:px-4 py-10 sm:py-16">
         <div className="grid grid-cols-2 gap-3 sm:gap-4">
           {[
-            { icon: GraduationCap, value: feed.stats.students, label: "طالب", color: "from-primary to-primary/60" },
-            { icon: BookOpen, value: feed.stats.staff, label: "عضو هيئة تدريس", color: "from-secondary to-secondary/60" },
-            { icon: Beaker, value: feed.stats.courses, label: "مقرر دراسي", color: "from-accent to-accent/60" },
-            { icon: Award, value: feed.stats.researchProjects, label: "مشروع بحثي", color: "from-emerald-600 to-emerald-400" },
+            { icon: GraduationCap, value: feed.stats.students, labelKey: "statStudents", color: "from-primary to-primary/60" },
+            { icon: BookOpen, value: feed.stats.staff, labelKey: "statStaff", color: "from-secondary to-secondary/60" },
+            { icon: Beaker, value: feed.stats.courses, labelKey: "statCourses", color: "from-accent to-accent/60" },
+            { icon: Award, value: feed.stats.researchProjects, labelKey: "statProjects", color: "from-emerald-600 to-emerald-400" },
           ].map((stat, i) => (
             <motion.div
-              key={stat.label}
+              key={stat.labelKey}
               initial={{ opacity: 0, y: 30 }}
               whileInView={{ opacity: 1, y: 0 }}
               viewport={{ once: true }}
@@ -230,7 +230,7 @@ export default function Home() {
               <div className="text-2xl sm:text-4xl font-bold tabular-nums">
                 <AnimatedCounter value={stat.value} />
               </div>
-              <div className="text-xs sm:text-sm opacity-90 mt-1">{stat.label}</div>
+              <div className="text-xs sm:text-sm opacity-90 mt-1">{t(stat.labelKey)}</div>
             </motion.div>
           ))}
         </div>
@@ -251,7 +251,7 @@ export default function Home() {
               </div>
               <div>
                 <div className="text-[10px] sm:text-xs uppercase tracking-wider text-muted-foreground font-bold mb-1">
-                  كلمة العميد
+                  {t("deanMessage")}
                 </div>
                 <h2 className="text-lg sm:text-2xl md:text-3xl font-serif font-bold">{feed.dean.name}</h2>
               </div>
@@ -267,7 +267,7 @@ export default function Home() {
           <h2 className="text-2xl sm:text-3xl md:text-4xl font-serif font-bold">{t("news")}</h2>
           <Link href="/news">
             <Button variant="ghost" className="gap-2 text-sm">
-              عرض الكل
+              {t("viewAll")}
               <ArrowLeft className="h-4 w-4" />
             </Button>
           </Link>
