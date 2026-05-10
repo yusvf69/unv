@@ -1,6 +1,7 @@
 import { useRef, useState } from "react";
 import { Upload, X, Loader2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { globalI18n, useTranslation } from "@/lib/i18n";
 
 interface FileMeta { name: string; type: string; size: number }
 interface Props {
@@ -18,10 +19,11 @@ export default function FileUpload({
   onChange,
   accept = "image/*",
   maxSizeKb = 800,
-  label = "اختر ملف من جهازك",
+  label,
   imageOnly = true,
   className = "",
 }: Props) {
+  const t = useTranslation(globalI18n);
   const ref = useRef<HTMLInputElement>(null);
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState<string | null>(null);
@@ -46,13 +48,13 @@ export default function FileUpload({
         const dataUrl = await readAsDataUrl(file);
         const sizeKb = Math.ceil((dataUrl.length * 3) / 4 / 1024);
         if (sizeKb > maxSizeKb) {
-          setErr(`الملف كبير (${sizeKb} كيلوبايت). الحد الأقصى ${maxSizeKb}.`);
+          setErr(t("fileTooLarge").replace("{sizeKb}", String(sizeKb)).replace("{maxSizeKb}", String(maxSizeKb)));
           return;
         }
         onChange(dataUrl, meta);
       }
     } catch (e: any) {
-      setErr(e?.message || "فشل تحميل الملف");
+      setErr(e?.message === "readFailed" || e?.message === "invalidImage" ? t(e.message) : t("uploadFailed"));
     } finally {
       setBusy(false);
     }
@@ -75,7 +77,7 @@ export default function FileUpload({
           {imageOnly ? (
             <img src={value} alt="uploaded" className="rounded-xl w-full max-h-64 object-cover border" />
           ) : (
-            <div className="rounded-xl border p-4 text-sm bg-muted/30">ملف محمّل</div>
+            <div className="rounded-xl border p-4 text-sm bg-muted/30">{t("fileLoaded")}</div>
           )}
           <Button
             type="button"
@@ -96,8 +98,8 @@ export default function FileUpload({
           disabled={busy}
         >
           {busy ? <Loader2 className="h-6 w-6 animate-spin" /> : <Upload className="h-6 w-6" />}
-          <span className="text-sm">{label}</span>
-          <span className="text-xs text-muted-foreground">حد أقصى {maxSizeKb} كيلوبايت</span>
+          <span className="text-sm">{label ?? t("selectFile")}</span>
+          <span className="text-xs text-muted-foreground">{t("maxSize").replace("{maxSizeKb}", String(maxSizeKb))}</span>
         </Button>
       )}
       {err && <p className="text-xs text-destructive mt-2">{err}</p>}
@@ -109,7 +111,7 @@ function readAsDataUrl(file: File): Promise<string> {
   return new Promise((res, rej) => {
     const r = new FileReader();
     r.onload = () => res(r.result as string);
-    r.onerror = () => rej(new Error("فشل قراءة الملف"));
+    r.onerror = () => rej(new Error("readFailed"));
     r.readAsDataURL(file);
   });
 }
@@ -119,7 +121,7 @@ async function compressImage(file: File, maxW: number, maxH: number, quality: nu
   const img = new Image();
   await new Promise<void>((res, rej) => {
     img.onload = () => res();
-    img.onerror = () => rej(new Error("صورة غير صالحة"));
+    img.onerror = () => rej(new Error("invalidImage"));
     img.src = dataUrl;
   });
   let { width, height } = img;

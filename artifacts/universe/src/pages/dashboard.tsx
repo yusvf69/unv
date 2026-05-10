@@ -15,13 +15,13 @@ import { AR_DAYS, AR_SHORT_DAYS } from "@/lib/dates";
 const AR_WEEKDAYS = AR_SHORT_DAYS;
 const DAY_NAMES = AR_DAYS;
 
-function getGreeting(name: string) {
+function getGreeting(name: string, t: (key: string) => string) {
   const h = new Date().getHours();
-  if (h < 5) return `ليلة هادئة، ${name}`;
-  if (h < 12) return `صباح الخير، ${name}`;
-  if (h < 17) return `مرحباً ${name}، يومك زرع لمستقبل أخضر`;
-  if (h < 21) return `مساء الخير، ${name}`;
-  return `بقية ليلتك سعيدة، ${name}`;
+  if (h < 5) return `${t("nightGreeting")}${name}`;
+  if (h < 12) return `${t("morningGreeting")}${name}`;
+  if (h < 17) return `${t("afternoonGreeting")}${name}${t("afternoonGreetingSuffix")}`;
+  if (h < 21) return `${t("eveningGreeting")}${name}`;
+  return `${t("lateNightGreeting")}${name}`;
 }
 
 export default function Dashboard() {
@@ -73,7 +73,7 @@ export default function Dashboard() {
 
   const today = new Date().getDay();
   const todaysClasses = groupSchedule.filter((s) => s.dayNumber === today).sort((a, b) => a.startTime.localeCompare(b.startTime));
-  const aiTip = dashboard.examPrediction.recommendations[0] || "نظّم وقتك وحدّد ٣ أهداف يومية صغيرة.";
+  const aiTip = dashboard.examPrediction.recommendations[0] || t("organizeTime");
 
   // Prepare weekly activity data with Arabic labels
   const weeklyData = (dashboard.activity ?? []).map((a) => {
@@ -121,7 +121,7 @@ export default function Dashboard() {
             animate={{ opacity: 1, y: 0 }}
             className="text-2xl sm:text-3xl md:text-4xl font-serif font-bold bg-gradient-to-r from-primary to-secondary bg-clip-text text-transparent"
           >
-            {getGreeting(dashboard.user.name)}
+            {getGreeting(dashboard.user.name, t)}
           </motion.h1>
           <motion.div
             initial={{ opacity: 0 }}
@@ -130,10 +130,10 @@ export default function Dashboard() {
             className="mt-2 text-sm bg-gradient-to-r from-primary/10 to-secondary/10 border border-primary/15 rounded-2xl p-3 flex items-start gap-2 max-w-xl"
           >
             <Sparkles className="h-4 w-4 text-primary mt-0.5 flex-shrink-0" />
-            <span><strong className="text-primary">نصيحة الذكاء الاصطناعي:</strong> {aiTip}</span>
+            <span><strong className="text-primary">{t("aiTipLabel")}</strong> {aiTip}</span>
           </motion.div>
           <div className="flex items-center gap-2 mt-2 flex-wrap">
-            <p className="text-muted-foreground text-sm">نظرة سريعة على يومك</p>
+            <p className="text-muted-foreground text-sm">{t("quickDayOverview")}</p>
             {(dashboard.user as any).groupName && (
               <motion.span
                 initial={{ scale: 0 }}
@@ -141,7 +141,7 @@ export default function Dashboard() {
                 transition={{ delay: 0.2, type: "spring" }}
                 className="text-xs bg-primary/15 text-primary px-2.5 py-1 rounded-full font-bold"
               >
-                مجموعة {(dashboard.user as any).groupName}
+                {t("groupLabel")} {(dashboard.user as any).groupName}
               </motion.span>
             )}
             {(dashboard.user as any).department && (
@@ -258,7 +258,7 @@ export default function Dashboard() {
               <Clock className="w-5 h-5 text-primary" />
               {t("studyFocus")}
             </CardTitle>
-            <CardDescription>{dashboard.weeklyMinutes} / {dashboard.focusGoalMinutes} دقيقة هذا الأسبوع</CardDescription>
+            <CardDescription>{dashboard.weeklyMinutes} / {dashboard.focusGoalMinutes} {t("minutesThisWeek")}</CardDescription>
           </CardHeader>
           <CardContent>
             <Progress value={(dashboard.weeklyMinutes / dashboard.focusGoalMinutes) * 100} className="h-2 mb-4" />
@@ -274,7 +274,7 @@ export default function Dashboard() {
                 <div className="text-[10px] text-muted-foreground">{t("pointsEarned")}</div>
               </div>
               <div className="bg-muted/30 rounded-lg p-2 sm:p-3 text-center">
-                <div className="text-base sm:text-lg font-bold">{avgDaily} د</div>
+                <div className="text-base sm:text-lg font-bold">{avgDaily} {t("minShort")}</div>
                 <div className="text-[10px] text-muted-foreground">{t("dailyAverage")}</div>
               </div>
             </div>
@@ -286,7 +286,7 @@ export default function Dashboard() {
                 <div>
                   <div className="text-xl sm:text-2xl font-bold tabular-nums">{formatTime(seconds)}</div>
                   <div className="text-[10px] sm:text-xs text-muted-foreground">
-                    {isRunning ? "جاري المذاكرة..." : "اضغط لبدء المذاكرة"}
+                    {isRunning ? t("studyingInProgress") : t("pressToStartStudying")}
                   </div>
                 </div>
               </div>
@@ -319,7 +319,7 @@ export default function Dashboard() {
               <CalendarIcon className="w-5 h-5 text-primary" />
               {t("todaySchedule")} — {DAY_NAMES[Number(today)]}
             </CardTitle>
-            <CardDescription>{todaysClasses.length > 0 ? `${todaysClasses.length} محاضرة لمجموعتك` : "يوم خفيف بدون محاضرات لمجموعتك"}</CardDescription>
+            <CardDescription>{todaysClasses.length > 0 ? `${todaysClasses.length} ${t("todayClasses")}` : t("lightDay")}</CardDescription>
           </CardHeader>
           <CardContent>
             <div className="space-y-3">
@@ -347,13 +347,13 @@ export default function Dashboard() {
               )) : groupSchedule.length === 0 ? (
                 <div className="text-center py-8 text-muted-foreground flex flex-col items-center">
                   <CalendarIcon className="w-12 h-12 mb-2 opacity-20" />
-                  <p className="text-sm">لم يُحدَّد جدول لمجموعتك بعد.</p>
-                  <p className="text-xs mt-1">اطلب من الإدارة إضافة الجدول.</p>
+                  <p className="text-sm">{t("noSchedule")}</p>
+                  <p className="text-xs mt-1">{t("noScheduleContact")}</p>
                 </div>
               ) : (
                 <div className="text-center py-8 text-muted-foreground flex flex-col items-center">
                   <CalendarIcon className="w-12 h-12 mb-2 opacity-20" />
-                  <p className="text-sm">يوم بدون محاضرات لمجموعتك. استثمره بقوة!</p>
+                  <p className="text-sm">{t("freeDay")}</p>
                 </div>
               )}
             </div>

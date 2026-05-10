@@ -8,21 +8,32 @@ import { Label } from "@/components/ui/label";
 import { useToast } from "@/hooks/use-toast";
 import { useForumPosts, useCreatePost, useUpvotePost, useForumReplies, useReplyToPost, useMeV2, useDeleteForumReply, useDeleteForumPost } from "@/lib/api";
 import { Link } from "wouter";
+import { useTranslation, globalI18n } from "@/lib/i18n";
 
 const CATEGORIES = ["عام", "محاضرات", "اختبارات", "أبحاث", "أنشطة", "اقتراحات"];
 
-function timeAgo(iso: string): string {
+const CATEGORY_LABELS: Record<string, string> = {
+  "عام": "catGeneral",
+  "محاضرات": "catLectures",
+  "اختبارات": "catQuizzes",
+  "أبحاث": "catResearch",
+  "أنشطة": "catActivities",
+  "اقتراحات": "catProposals",
+};
+
+function timeAgo(iso: string, t: (key: string) => string): string {
   const diff = Date.now() - new Date(iso).getTime();
   const m = Math.floor(diff / 60000);
-  if (m < 1) return "الآن";
-  if (m < 60) return `منذ ${m}د`;
+  if (m < 1) return t("now");
+  if (m < 60) return t("timeAgoMin").replace("{m}", String(m));
   const h = Math.floor(m / 60);
-  if (h < 24) return `منذ ${h}س`;
-  return `منذ ${Math.floor(h / 24)}ي`;
+  if (h < 24) return t("timeAgoHour").replace("{h}", String(h));
+  return t("timeAgoDay").replace("{d}", String(Math.floor(h / 24)));
 }
 
 function PostCard({ post }: { post: any }) {
   const me = useMeV2();
+  const t = useTranslation(globalI18n);
   const deleteReply = useDeleteForumReply();
   const deletePost = useDeleteForumPost();
   const [open, setOpen] = useState(false);
@@ -54,11 +65,11 @@ function PostCard({ post }: { post: any }) {
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-2 flex-wrap">
               <Link href={`/students/${post.authorId}`} className="font-bold text-sm hover:text-primary transition">
-                {post.authorName || `مستخدم #${post.authorId}`}
+                {post.authorName || t("userWithId").replace("{id}", String(post.authorId))}
               </Link>
               {post.authorGroup && <span className="text-[10px] bg-primary/10 text-primary px-1.5 py-0.5 rounded font-bold">G{post.authorGroup}</span>}
-              <span className="text-xs text-muted-foreground">· {timeAgo(post.createdAt)}</span>
-              <span className="text-xs bg-secondary/10 text-secondary px-2 py-0.5 rounded-full">{post.category}</span>
+              <span className="text-xs text-muted-foreground">· {timeAgo(post.createdAt, t)}</span>
+              <span className="text-xs bg-secondary/10 text-secondary px-2 py-0.5 rounded-full">{t(CATEGORY_LABELS[post.category] ?? post.category)}</span>
             </div>
             {isAdmin && (
               <Button size="sm" variant="ghost" className="text-destructive h-8 w-8 p-0 shrink-0" onClick={() => deletePost.mutate(post.id)}>
@@ -78,7 +89,7 @@ function PostCard({ post }: { post: any }) {
           <ThumbsUp className="h-3.5 w-3.5" /> {post.upvotes}
         </Button>
         <Button size="sm" variant="ghost" onClick={() => setOpen(!open)} className="gap-1 text-xs">
-          <MessageSquare className="h-3.5 w-3.5" /> {post.repliesCount} ردود
+          <MessageSquare className="h-3.5 w-3.5" /> {post.repliesCount} {t("replies")}
           {open ? <ChevronUp className="h-3 w-3" /> : <ChevronDown className="h-3 w-3" />}
         </Button>
       </div>
@@ -98,9 +109,9 @@ function PostCard({ post }: { post: any }) {
                 <div className="flex-1 bg-muted/30 rounded-lg p-2.5">
                   <div className="flex items-center justify-between">
                     <div className="flex items-center gap-2">
-                      <span className="font-bold text-xs">{r.authorName || "مستخدم"}</span>
+                      <span className="font-bold text-xs">{r.authorName || t("user")}</span>
                       {r.authorRole && r.authorRole !== "student" && <span className="text-[10px] bg-primary/10 text-primary px-1.5 py-0.5 rounded font-bold">{r.authorRole}</span>}
-                      <span className="text-xs text-muted-foreground">· {timeAgo(r.createdAt)}</span>
+                      <span className="text-xs text-muted-foreground">· {timeAgo(r.createdAt, t)}</span>
                     </div>
                     {isAdmin && (
                       <Button size="sm" variant="ghost" className="text-destructive h-6 w-6 p-0" onClick={() => deleteReply.mutate(r.id)}>
@@ -114,13 +125,13 @@ function PostCard({ post }: { post: any }) {
             ))}
             {me.data && (
               <form onSubmit={submit} className="flex gap-2 mt-2">
-                <Input value={text} onChange={(e) => setText(e.target.value)} placeholder="اكتب ردك..." className="text-sm" />
+                <Input value={text} onChange={(e) => setText(e.target.value)} placeholder={t("writeReply")} className="text-sm" />
                 <Button type="submit" size="sm" disabled={reply.isPending || !text.trim()}>
                   {reply.isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : <Send className="h-4 w-4" />}
                 </Button>
               </form>
             )}
-            {!me.data && <p className="text-xs text-muted-foreground text-center">سجّل دخولك للرد</p>}
+            {!me.data && <p className="text-xs text-muted-foreground text-center">{t("loginToReply")}</p>}
           </motion.div>
         )}
       </AnimatePresence>
@@ -131,6 +142,7 @@ function PostCard({ post }: { post: any }) {
 export default function Forum() {
   const { data: posts = [], isLoading } = useForumPosts();
   const { data: me } = useMeV2();
+  const t = useTranslation(globalI18n);
   const create = useCreatePost();
   const { toast } = useToast();
   const [showForm, setShowForm] = useState(false);
@@ -142,15 +154,15 @@ export default function Forum() {
   const submit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!title.trim() || !body.trim()) {
-      toast({ title: "العنوان والمحتوى مطلوبان", variant: "destructive" });
+      toast({ title: t("titleBodyRequired"), variant: "destructive" });
       return;
     }
     try {
       await create.mutateAsync({ title: title.trim(), body: body.trim(), category });
-      toast({ title: "تم نشر الموضوع" });
+      toast({ title: t("postPublished") });
       setTitle(""); setBody(""); setShowForm(false);
     } catch (e) {
-      toast({ title: "خطأ", description: (e as Error).message, variant: "destructive" });
+      toast({ title: t("error"), description: (e as Error).message, variant: "destructive" });
     }
   };
 
@@ -161,27 +173,27 @@ export default function Forum() {
       <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between mb-4 sm:mb-8 gap-3">
         <div>
           <h1 className="text-2xl sm:text-4xl font-serif font-bold flex items-center gap-3">
-            <MessageSquare className="h-6 w-6 sm:h-8 sm:w-8 text-primary" /> المنتدى
+            <MessageSquare className="h-6 w-6 sm:h-8 sm:w-8 text-primary" /> {t("forum")}
           </h1>
-          <p className="text-muted-foreground text-xs sm:text-sm mt-1">شارك، ناقش، وتعلم مع زملائك.</p>
+          <p className="text-muted-foreground text-xs sm:text-sm mt-1">{t("forumSubtitle")}</p>
         </div>
-        <Button onClick={() => setNewDialog(true)} className="rounded-full w-full sm:w-auto">
-          <Plus className="me-2 h-4 w-4" /> منشور جديد
+        <Button onClick={() => setShowForm(true)} className="rounded-full w-full sm:w-auto">
+          <Plus className="me-2 h-4 w-4" /> {t("newPost")}
         </Button>
       </div>
 
       <div className="flex gap-2 mb-4 sm:mb-6 overflow-x-auto pb-2">
         {["الكل", ...CATEGORIES].map((c) => (
           <button key={c} onClick={() => setCategory(c)} className={`px-3 sm:px-4 py-1.5 sm:py-2 rounded-full text-xs sm:text-sm font-bold shrink-0 transition whitespace-nowrap ${category === c ? "bg-primary text-primary-foreground" : "bg-muted hover:bg-muted/80"}`}>
-            {c}
+            {c === "الكل" ? t("all") : t(CATEGORY_LABELS[c] ?? c)}
           </button>
         ))}
       </div>
 
       <div className="flex gap-2 flex-wrap mb-4">
-        <Button size="sm" variant={!filter ? "default" : "outline"} onClick={() => setFilter(null)}>الكل</Button>
+        <Button size="sm" variant={!filter ? "default" : "outline"} onClick={() => setFilter(null)}>{t("all")}</Button>
         {CATEGORIES.map((c) => (
-          <Button key={c} size="sm" variant={filter === c ? "default" : "outline"} onClick={() => setFilter(c)}>{c}</Button>
+          <Button key={c} size="sm" variant={filter === c ? "default" : "outline"} onClick={() => setFilter(c)}>{t(CATEGORY_LABELS[c] ?? c)}</Button>
         ))}
       </div>
 
@@ -193,31 +205,31 @@ export default function Forum() {
             className="bg-card border-2 border-primary/20 rounded-2xl p-4 mb-4 space-y-3 overflow-hidden"
           >
             <div>
-              <Label className="text-xs">العنوان</Label>
-              <Input value={title} onChange={(e) => setTitle(e.target.value)} placeholder="عنوان مختصر" />
+              <Label className="text-xs">{t("title")}</Label>
+              <Input value={title} onChange={(e) => setTitle(e.target.value)} placeholder={t("shortTitle")} />
             </div>
             <div>
-              <Label className="text-xs">المحتوى</Label>
-              <Textarea value={body} onChange={(e) => setBody(e.target.value)} rows={4} placeholder="اشرح فكرتك بالتفصيل..." />
+              <Label className="text-xs">{t("content")}</Label>
+              <Textarea value={body} onChange={(e) => setBody(e.target.value)} rows={4} placeholder={t("explainDetail")} />
             </div>
             <div>
-              <Label className="text-xs">القسم</Label>
+              <Label className="text-xs">{t("section")}</Label>
               <select value={category} onChange={(e) => setCategory(e.target.value)} className="w-full h-10 rounded-md border bg-background px-3 text-sm">
-                {CATEGORIES.map((c) => <option key={c} value={c}>{c}</option>)}
+                {CATEGORIES.map((c) => <option key={c} value={c}>{t(CATEGORY_LABELS[c] ?? c)}</option>)}
               </select>
             </div>
             <Button type="submit" disabled={create.isPending}>
-              {create.isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : "نشر"}
+              {create.isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : t("publish")}
             </Button>
           </motion.form>
         )}
       </AnimatePresence>
 
-      {isLoading && <p className="text-center text-muted-foreground py-12">جاري التحميل...</p>}
+      {isLoading && <p className="text-center text-muted-foreground py-12">{t("loading")}</p>}
       {!isLoading && !visible.length && (
         <div className="text-center py-16 border-2 border-dashed rounded-2xl">
           <MessageSquare className="h-12 w-12 mx-auto text-muted-foreground mb-3" />
-          <p className="text-muted-foreground">لا توجد مواضيع بعد. كن أول من يبدأ النقاش!</p>
+          <p className="text-muted-foreground">{t("noTopics")}</p>
         </div>
       )}
 

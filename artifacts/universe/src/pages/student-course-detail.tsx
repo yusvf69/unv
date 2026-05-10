@@ -20,6 +20,7 @@ import {
   LectureFull,
   LectureVideo,
 } from "@/lib/api";
+import { useTranslation, globalI18n } from "@/lib/i18n";
 
 function extractYoutubeId(url: string | null | undefined): string | null {
   if (!url) return null;
@@ -30,6 +31,7 @@ function extractYoutubeId(url: string | null | undefined): string | null {
 function VideoPlayer({ video, completed, onWatch, loading }: { video: LectureVideo; completed: boolean; onWatch: () => void; loading?: boolean }) {
   const ytId = extractYoutubeId(video.youtubeUrl);
   if (!ytId) return null;
+  const t = useTranslation(globalI18n);
   return (
     <div className="border rounded-xl overflow-hidden bg-black">
       <iframe
@@ -47,10 +49,10 @@ function VideoPlayer({ video, completed, onWatch, loading }: { video: LectureVid
           <span className="text-sm font-bold">{video.title}</span>
         </div>
         {completed ? (
-          <span className="text-xs text-green-600 flex items-center gap-1"><CheckCircle className="h-3.5 w-3.5" /> تمت المشاهدة</span>
+          <span className="text-xs text-green-600 flex items-center gap-1"><CheckCircle className="h-3.5 w-3.5" /> {t("watched")}</span>
         ) : (
           <Button size="sm" variant="outline" onClick={onWatch} disabled={loading}>
-            {loading ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <><Play className="h-3.5 w-3.5 me-1" /> حدد كمكتمل</>}
+            {loading ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <><Play className="h-3.5 w-3.5 me-1" /> {t("markAsComplete")}</>}
           </Button>
         )}
       </div>
@@ -62,6 +64,7 @@ function PdfViewer({ pdf }: { pdf: { name: string; url: string } }) {
   const [open, setOpen] = useState(false);
   const [loading, setLoading] = useState(false);
   const isDataUrl = pdf.url.startsWith("data:");
+  const t = useTranslation(globalI18n);
 
   const handleOpen = () => {
     setLoading(true);
@@ -75,11 +78,11 @@ function PdfViewer({ pdf }: { pdf: { name: string; url: string } }) {
         <FileText className="h-5 w-5 text-primary" />
         <span className="text-sm flex-1 truncate">{pdf.name}</span>
         <Button size="sm" variant="outline" onClick={handleOpen} disabled={loading}>
-          {loading ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <><Eye className="h-3.5 w-3.5 me-1" /> عرض</>}
+          {loading ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <><Eye className="h-3.5 w-3.5 me-1" /> {t("view")}</>}
         </Button>
         <a href={pdf.url} download={pdf.name} target="_blank" rel="noreferrer">
           <Button size="sm" variant="outline">
-            <Download className="h-3.5 w-3.5 me-1" /> تحميل
+            <Download className="h-3.5 w-3.5 me-1" /> {t("download")}
           </Button>
         </a>
       </div>
@@ -104,6 +107,7 @@ function QuizTaking({ quiz, questions }: { quiz: any; questions: any[] }) {
   const { toast } = useToast();
   const [answers, setAnswers] = useState<Record<number, number>>({});
   const [result, setResult] = useState<{ score: number; total: number; passed: boolean; details: any[] } | null>(null);
+  const t = useTranslation(globalI18n);
 
   const handleSubmit = async () => {
     const ansArr = questions.map((q) => ({ questionId: q.id, chosenIndex: answers[q.id] ?? -1 }));
@@ -111,7 +115,7 @@ function QuizTaking({ quiz, questions }: { quiz: any; questions: any[] }) {
       const res = await submit.mutateAsync({ quizId: quiz.id, answers: ansArr });
       setResult(res as { score: number; total: number; passed: boolean; details: any[] });
     } catch (e) {
-      toast({ title: "خطأ", description: (e as Error).message, variant: "destructive" });
+      toast({ title: t("error"), description: (e as Error).message, variant: "destructive" });
     }
   };
 
@@ -123,22 +127,22 @@ function QuizTaking({ quiz, questions }: { quiz: any; questions: any[] }) {
             {result.score}/{result.total}
           </div>
           <div className="text-sm text-muted-foreground mt-2">
-            {result.passed ? "✅ ممتاز! نجحت في الاختبار" : "❌ حاول مرة أخرى"}
+            {result.passed ? t("quizPassed") : t("tryAgain")}
           </div>
-          <Button onClick={() => setResult(null)} className="mt-3" variant="outline">حاول مرة أخرى</Button>
+          <Button onClick={() => setResult(null)} className="mt-3" variant="outline">{t("tryAgain")}</Button>
         </div>
         {result.details.map((d, qi) => (
           <div key={d.questionId} className={`p-3 rounded-xl border ${d.correct ? "bg-green-50 border-green-200" : "bg-red-50 border-red-200"}`}>
             <div className="flex items-center gap-2 mb-1">
               <span className={`text-xs font-bold px-2 py-0.5 rounded-full ${d.correct ? "bg-green-200 text-green-800" : "bg-red-200 text-red-800"}`}>
-                {d.correct ? "✅ صح" : "❌ غلط"}
+                {d.correct ? t("correctShort") : t("incorrectShort")}
               </span>
               <span className="font-bold text-sm">{qi + 1}. {d.text}</span>
             </div>
             <div className="text-xs text-muted-foreground mt-1">
-              إجابتك: <span className={d.correct ? "text-green-700" : "text-red-700"}>{d.options[d.userChosen] || "لم تجب"}</span>
+              {t("yourAnswer")}: <span className={d.correct ? "text-green-700" : "text-red-700"}>{d.options[d.userChosen] || t("didNotAnswer")}</span>
               {!d.correct && (
-                <span className="text-green-700 ms-3">الإجابة الصحيحة: {d.options[d.correctIndex]}</span>
+                <span className="text-green-700 ms-3">{t("correctAnswer")}: {d.options[d.correctIndex]}</span>
               )}
             </div>
             {d.explanation && (
@@ -166,7 +170,7 @@ function QuizTaking({ quiz, questions }: { quiz: any; questions: any[] }) {
         </div>
       ))}
       <Button onClick={handleSubmit} disabled={Object.keys(answers).length < questions.length || submit.isPending} className="w-full">
-        {submit.isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : <><Send className="me-2 h-4 w-4" /> إرسال الإجابات</>}
+        {submit.isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : <><Send className="me-2 h-4 w-4" /> {t("submitAnswers")}</>}
       </Button>
     </div>
   );
@@ -177,6 +181,7 @@ function LectureCard({ lecture, videoProgress }: { lecture: LectureFull; videoPr
   const [open, setOpen] = useState(false);
   const [quizTakeDialog, setQuizTakeDialog] = useState<number | null>(null);
   const [markingWatched, setMarkingWatched] = useState<number | null>(null);
+  const t = useTranslation(globalI18n);
 
   const isVideoCompleted = (videoId: number) => videoProgress[videoId] || false;
 
@@ -194,7 +199,7 @@ function LectureCard({ lecture, videoProgress }: { lecture: LectureFull; videoPr
         {lecture.type === "lecture" ? <BookOpen className="h-5 w-5 text-primary shrink-0" /> : <FileText className="h-5 w-5 text-secondary shrink-0" />}
         <h3 className="font-bold text-lg flex-1">{lecture.title}</h3>
         <span className={`text-xs px-2 py-0.5 rounded-full ${lecture.type === "lecture" ? "bg-primary/10 text-primary" : "bg-secondary/10 text-secondary"}`}>
-          {lecture.type === "lecture" ? "محاضرة" : "سكشن"}
+          {lecture.type === "lecture" ? t("lecture") : t("sectionType")}
         </span>
         <ExpandIcon className="w-5 h-5 text-muted-foreground shrink-0" />
       </button>
@@ -204,7 +209,7 @@ function LectureCard({ lecture, videoProgress }: { lecture: LectureFull; videoPr
           {/* Videos */}
           {lecture.videos.length > 0 && (
             <div className="space-y-3">
-              <h4 className="text-sm font-bold flex items-center gap-1"><Video className="h-4 w-4" /> الفيديوهات ({lecture.videos.length})</h4>
+              <h4 className="text-sm font-bold flex items-center gap-1"><Video className="h-4 w-4" /> {t("videos")} ({lecture.videos.length})</h4>
               <div className="space-y-3">
                 {lecture.videos.map((v) => (
                   <VideoPlayer key={v.id} video={v} completed={isVideoCompleted(v.id)} onWatch={() => handleMarkWatched(v.id)} loading={markingWatched === v.id} />
@@ -216,7 +221,7 @@ function LectureCard({ lecture, videoProgress }: { lecture: LectureFull; videoPr
           {/* PDFs */}
           {lecture.pdfs.length > 0 && (
             <div className="space-y-2">
-              <h4 className="text-sm font-bold flex items-center gap-1"><FileText className="h-4 w-4" /> الملفات ({lecture.pdfs.length})</h4>
+              <h4 className="text-sm font-bold flex items-center gap-1"><FileText className="h-4 w-4" /> {t("files")} ({lecture.pdfs.length})</h4>
               {lecture.pdfs.map((p) => (
                 <PdfViewer key={p.id} pdf={{ name: p.name, url: p.url }} />
               ))}
@@ -226,16 +231,16 @@ function LectureCard({ lecture, videoProgress }: { lecture: LectureFull; videoPr
           {/* Quizzes */}
           {lecture.quizzes.length > 0 && (
             <div className="space-y-2">
-              <h4 className="text-sm font-bold flex items-center gap-1"><HelpCircle className="h-4 w-4" /> الاختبارات ({lecture.quizzes.length})</h4>
+              <h4 className="text-sm font-bold flex items-center gap-1"><HelpCircle className="h-4 w-4" /> {t("quizzes")} ({lecture.quizzes.length})</h4>
               {lecture.quizzes.map((q) => (
                 <div key={q.id} className="p-3 border rounded-xl">
                   <div className="flex items-center justify-between">
                     <div className="flex items-center gap-2">
                       <HelpCircle className="h-4 w-4 text-primary" />
                       <span className="font-bold text-sm">{q.title}</span>
-                      <span className="text-xs text-muted-foreground">({q.questions.length} سؤال)</span>
+                      <span className="text-xs text-muted-foreground">({q.questions.length} {t("question")})</span>
                     </div>
-                    <Button size="sm" variant="outline" onClick={() => setQuizTakeDialog(q.id)}>حل الاختبار</Button>
+                    <Button size="sm" variant="outline" onClick={() => setQuizTakeDialog(q.id)}>{t("solveQuiz")}</Button>
                   </div>
                 </div>
               ))}
@@ -247,10 +252,10 @@ function LectureCard({ lecture, videoProgress }: { lecture: LectureFull; videoPr
       {/* Take Quiz Dialog */}
       <Dialog open={quizTakeDialog !== null} onOpenChange={() => setQuizTakeDialog(null)}>
         <DialogContent className="max-w-2xl max-h-[80vh] overflow-y-auto">
-          <DialogHeader><DialogTitle>حل الاختبار</DialogTitle></DialogHeader>
+          <DialogHeader><DialogTitle>{t("solveQuiz")}</DialogTitle></DialogHeader>
           {quizTakeDialog && (() => {
             const quiz = lecture.quizzes.find((q) => q.id === quizTakeDialog);
-            if (!quiz || !quiz.questions.length) return <p className="text-center text-muted-foreground py-4">لا توجد أسئلة بعد</p>;
+            if (!quiz || !quiz.questions.length) return <p className="text-center text-muted-foreground py-4">{t("noQuestionsYet")}</p>;
             return <QuizTaking quiz={quiz} questions={quiz.questions} />;
           })()}
         </DialogContent>
@@ -268,6 +273,7 @@ export default function StudentCourseDetail() {
   const { data: videoProgressRaw } = useCourseVideoProgress(courseId);
 
   const [tab, setTab] = useState<"all" | "lecture" | "section">("all");
+  const t = useTranslation(globalI18n);
 
   const videoProgress: Record<number, boolean> = {};
   if (videoProgressRaw) videoProgressRaw.forEach((vp) => { videoProgress[vp.videoId] = vp.completed; });
@@ -276,28 +282,28 @@ export default function StudentCourseDetail() {
   const lectureCount = lectures.filter((l) => l.type === "lecture").length;
   const sectionCount = lectures.filter((l) => l.type === "section").length;
 
-  if (!courseId) return <div className="p-12 text-center text-muted-foreground">مقرر غير موجود</div>;
+  if (!courseId) return <div className="p-12 text-center text-muted-foreground">{t("courseNotFound")}</div>;
 
   return (
     <div className="container mx-auto px-4 py-8 max-w-5xl">
       <div className="flex items-center gap-3 mb-6">
-        <Button variant="ghost" size="sm" onClick={() => navigate("/courses")}><ArrowLeft className="h-4 w-4 me-1" /> رجوع</Button>
-        <h1 className="text-2xl font-serif font-bold flex-1">المقرر</h1>
+        <Button variant="ghost" size="sm" onClick={() => navigate("/courses")}><ArrowLeft className="h-4 w-4 me-1" /> {t("back")}</Button>
+        <h1 className="text-2xl font-serif font-bold flex-1">{t("courseLabel")}</h1>
       </div>
 
       {/* Progress Bar */}
       {progress && (
         <div className="mb-6 p-4 bg-card border rounded-2xl">
           <div className="flex items-center justify-between mb-2">
-            <span className="text-sm font-bold">تقدم المقرر</span>
+            <span className="text-sm font-bold">{t("courseProgress")}</span>
             <span className="text-sm font-bold text-primary">{progress.percent}%</span>
           </div>
           <div className="w-full bg-muted rounded-full h-3">
             <div className="bg-primary h-3 rounded-full transition-all" style={{ width: `${progress.percent}%` }} />
           </div>
           <div className="flex items-center gap-4 mt-2 text-xs text-muted-foreground">
-            <span>فيديوهات: {progress.videos.filter((v) => v.completed).length}/{progress.videos.length}</span>
-            <span>اختبارات: {progress.quizzes.filter((q) => q.completed).length}/{progress.quizzes.length}</span>
+            <span>{t("videosLabel")} {progress.videos.filter((v) => v.completed).length}/{progress.videos.length}</span>
+            <span>{t("quizzesLabel")} {progress.quizzes.filter((q) => q.completed).length}/{progress.quizzes.length}</span>
           </div>
         </div>
       )}
@@ -305,9 +311,9 @@ export default function StudentCourseDetail() {
       {/* Tabs */}
       <div className="flex gap-2 mb-6">
         {[
-          { key: "all" as const, label: `الكل (${lectures.length})` },
-          { key: "lecture" as const, label: `محاضرات (${lectureCount})` },
-          { key: "section" as const, label: `سكاشن (${sectionCount})` },
+          { key: "all" as const, label: `${t("all")} (${lectures.length})` },
+          { key: "lecture" as const, label: `${t("lecturesLabel")} (${lectureCount})` },
+          { key: "section" as const, label: `${t("sectionsLabel")} (${sectionCount})` },
         ].map((t) => (
           <button
             key={t.key}
@@ -321,7 +327,7 @@ export default function StudentCourseDetail() {
 
       {/* Lectures */}
       <div className="space-y-6">
-        {filtered.length === 0 && <div className="text-center text-muted-foreground py-12">لا توجد محاضرات بعد.</div>}
+        {filtered.length === 0 && <div className="text-center text-muted-foreground py-12">{t("noLecturesYet")}</div>}
         {filtered.map((l) => (
           <LectureCard key={l.id} lecture={l} videoProgress={videoProgress} />
         ))}

@@ -13,110 +13,56 @@ import { useState } from "react";
 
 const FAQ_ITEMS = [
   {
-    category: "الحساب والتسجيل",
+    categoryKey: "faqCatAccount",
     questions: [
-      {
-        q: "كيف يمكنني إنشاء حساب في المنصة؟",
-        a: "يمكنك التسجيل عبر صفحة تسجيل الدخول باستخدام بريدك الإلكتروني الجامعي. ستحتاج لإدخال اسمك، بريدك الإلكتروني، رقم هاتفك، وكلمة مرور قوية. بعد التسجيل، سيتم إرسال رمز تأكيد لبريدك الإلكتروني.",
-      },
-      {
-        q: "نسيت كلمة المرور، ماذا أفعل؟",
-        a: "من صفحة تسجيل الدخول، اختر 'نسيت كلمة المرور' وأدخل بريدك الإلكتروني المسجل. سيتم إرسال رابط إعادة تعيين كلمة المرور لبريدك.",
-      },
-      {
-        q: "هل يمكنني تغيير بياناتي الشخصية؟",
-        a: "نعم، من صفحة الملف الشخصي يمكنك تعديل اسمك، صورتك الشخصية، رقم هاتفك، وغيرها من البيانات.",
-      },
+      { qKey: "faqQ1", aKey: "faqA1" },
+      { qKey: "faqQ2", aKey: "faqA2" },
+      { qKey: "faqQ3", aKey: "faqA3" },
     ],
   },
   {
-    category: "المقررات الدراسية",
+    categoryKey: "faqCatCourses",
     questions: [
-      {
-        q: "كيف أجد المقررات الدراسية الخاصة بي؟",
-        a: "من صفحة 'المقررات' ستظهر قائمة بجميع المقررات المتاحة. يمكنك اختيار مقرك لمشاهدة المحاضرات، ملفات المواد، والفيديوهات التعليمية.",
-      },
-      {
-        q: "هل يمكنني تحميل ملفات المواد؟",
-        a: "نعم، من صفحة المحاضرات يمكنك تحميل ملفات PDF الخاصة بكل محاضرة. كما يمكنك مشاهدة الفيديوهات التعليمية مباشرة من المنصة.",
-      },
-      {
-        q: "كيف أتابع تقدمي في المقرر؟",
-        a: "من لوحة المعلومات، يمكنك رؤية نسبة تقدمك في كل مقرر دراسي، بالإضافة إلى عدد المحاضرات التي شاهدتها والملفات التي حملتها.",
-      },
+      { qKey: "faqQ4", aKey: "faqA4" },
+      { qKey: "faqQ5", aKey: "faqA5" },
+      { qKey: "faqQ6", aKey: "faqA6" },
     ],
   },
   {
-    category: "الجدول الدراسي",
+    categoryKey: "faqCatSchedule",
     questions: [
-      {
-        q: "كيف أعرف جدول المحاضرات الخاص بي؟",
-        a: "من صفحة 'الجدول' يمكنك مشاهدة جدول المحاضرات والامتحانات الخاصة بمجموعتك الدراسية. يعرض الجدول أيام الأسبوع مع أوقات المحاضرات وأسماء القاعات.",
-      },
-      {
-        q: "ماذا أفعل إذا كان الجدول غير محدث؟",
-        a: "في حال وجود أي خطأ أو نقص في الجدول، يمكنك التواصل مع الإدارة عبر صفحة 'الشكاوى' أو مراسلة الدعم الفني.",
-      },
+      { qKey: "faqQ7", aKey: "faqA7" },
+      { qKey: "faqQ8", aKey: "faqA8" },
     ],
   },
   {
-    category: "الاختبارات",
+    categoryKey: "faqCatQuizzes",
     questions: [
-      {
-        q: "كيف أشارك في الاختبارات؟",
-        a: "من صفحة 'الاختبارات' ستظهر قائمة بالاختبارات المتاحة. اختر الاختبار الذي تريد وابدأ الإجابة. تأكد من اتصالك الجيد بالإنترنت قبل البدء.",
-      },
-      {
-        q: "هل يمكنني رؤية نتائج اختباراتي السابقة؟",
-        a: "نعم، بعد إتمام الاختبار يمكنك رؤية نتيجتك فوراً. كما يمكنك العودة لاحقاً لمراجعة إجاباتك ونتائجك من نفس الصفحة.",
-      },
+      { qKey: "faqQ9", aKey: "faqA9" },
+      { qKey: "faqQ10", aKey: "faqA10" },
     ],
   },
   {
-    category: "النقاط والمستويات",
+    categoryKey: "faqCatPointsLevels",
     questions: [
-      {
-        q: "كيف أحصل على النقاط؟",
-        a: "يمكنك كسب النقاط بعدة طرق: إتمام المهام اليومية، المشاركة في المنتدى، حل الاختبارات، مشاهدة المحاضرات، وتحميل الملخصات.",
-      },
-      {
-        q: "ما هي فائدة المستويات؟",
-        a: "كلما زادت نقاطك، ارتفع مستواك. المستويات تعكس نشاطك وتفاعلك في المنصة، وتفتح لك ميزات جديدة وتقديراً بين زملائك.",
-      },
-      {
-        q: "كيف أشارك في لوحة الشرف؟",
-        a: "لوحة الشرف تعرض الطلاب الأكثر نشاطاً بناءً على نقاطهم. كلما زاد نشاطك، زادت فرصك في الظهور في لوحة الشرف.",
-      },
+      { qKey: "faqQ11", aKey: "faqA11" },
+      { qKey: "faqQ12", aKey: "faqA12" },
+      { qKey: "faqQ13", aKey: "faqA13" },
     ],
   },
   {
-    category: "التواصل والدعم",
+    categoryKey: "faqCatContact",
     questions: [
-      {
-        q: "كيف أتواصل مع الدعم الفني؟",
-        a: "يمكنك التواصل معنا عبر صفحة 'الشكاوى والتواصل'، أو عبر بوت التليجرام، أو جروب التليجرام، أو الواتساب. فريق الدعم يرد خلال 24-48 ساعة عمل.",
-      },
-      {
-        q: "كيف أبلغ عن مشكلة تقنية؟",
-        a: "يمكنك الإبلاغ عن المشاكل التقنية من صفحة 'الإبلاغ عن مشكلة تقنية' أو عبر صفحة التواصل. يرجى تقديم وصف تفصيلي للمشكلة مع صور إن أمكن.",
-      },
-      {
-        q: "هل يمكنني اقتراح ميزات جديدة؟",
-        a: "بالتأكيد! نرحب باقتراحاتك دائماً. يمكنك إرسال اقتراحاتك عبر صفحة التواصل، وسيتم دراستها من قبل فريق التطوير.",
-      },
+      { qKey: "faqQ14", aKey: "faqA14" },
+      { qKey: "faqQ15", aKey: "faqA15" },
+      { qKey: "faqQ16", aKey: "faqA16" },
     ],
   },
   {
-    category: "المواهب والمهارات",
+    categoryKey: "faqCatTalentsSkills",
     questions: [
-      {
-        q: "كيف أشارك مواهبي في المنصة؟",
-        a: "من صفحة 'المواهب' يمكنك إنشاء منشور يعرض موهبتك. يمكنك إضافة صور وفيديو ووصف لموهبتك ليطلع عليها زملاؤك.",
-      },
-      {
-        q: "ما هي مسارات المهارات؟",
-        a: "مسارات المهارات هي دورات تدريبية قصيرة داخل المنصة تغطي مواضيع مختلفة. يمكنك الالتحاق بها وتطوير مهاراتك والحصول على شهادات إتمام.",
-      },
+      { qKey: "faqQ17", aKey: "faqA17" },
+      { qKey: "faqQ18", aKey: "faqA18" },
     ],
   },
 ];
@@ -129,7 +75,7 @@ export default function FAQ() {
     ...cat,
     questions: cat.questions.filter(
       (item) =>
-        item.q.includes(search) || item.a.includes(search) || !search,
+        t(item.qKey).includes(search) || t(item.aKey).includes(search) || !search,
     ),
   })).filter((cat) => cat.questions.length > 0);
 
@@ -148,14 +94,14 @@ export default function FAQ() {
           {t("faq")}
         </h1>
         <p className="text-sm sm:text-lg text-muted-foreground max-w-2xl mx-auto">
-          إجابات لأكثر الأسئلة شيوعاً عن منصة UniVerse
+          {t("faqSubtitle")}
         </p>
       </motion.div>
 
       <div className="relative max-w-md mx-auto mb-8 sm:mb-10">
         <Search className="absolute right-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
         <Input
-          placeholder="ابحث في الأسئلة..."
+          placeholder={t("faqSearchPlaceholder")}
           value={search}
           onChange={(e) => setSearch(e.target.value)}
           className="h-10 sm:h-11 pr-10 text-sm"
@@ -170,7 +116,7 @@ export default function FAQ() {
       >
         {filtered.map((cat, i) => (
           <motion.div
-            key={cat.category}
+            key={cat.categoryKey}
             initial={{ opacity: 0, y: 20 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ delay: 0.05 * i }}
@@ -178,16 +124,16 @@ export default function FAQ() {
             <Card>
               <CardContent className="p-4 sm:p-6">
                 <h2 className="text-lg sm:text-xl font-bold mb-4 text-primary">
-                  {cat.category}
+                  {t(cat.categoryKey)}
                 </h2>
                 <Accordion type="multiple" className="w-full">
                   {cat.questions.map((item, j) => (
                     <AccordionItem key={j} value={`${i}-${j}`}>
                       <AccordionTrigger className="text-xs sm:text-sm text-start">
-                        {item.q}
+                        {t(item.qKey)}
                       </AccordionTrigger>
                       <AccordionContent className="text-xs sm:text-sm text-muted-foreground leading-relaxed">
-                        {item.a}
+                        {t(item.aKey)}
                       </AccordionContent>
                     </AccordionItem>
                   ))}
@@ -205,16 +151,16 @@ export default function FAQ() {
         className="mt-8 sm:mt-10 text-center p-6 sm:p-8 bg-gradient-to-br from-primary/5 to-secondary/5 rounded-2xl border border-primary/10"
       >
         <MessageCircle className="h-8 w-8 text-primary mx-auto mb-3" />
-        <h3 className="text-base sm:text-lg font-bold mb-2">لم تجد إجابتك؟</h3>
+        <h3 className="text-base sm:text-lg font-bold mb-2">{t("faqNotFound")}</h3>
         <p className="text-xs sm:text-sm text-muted-foreground mb-4">
-          فريق الدعم لدينا جاهز لمساعدتك
+          {t("faqSupportReady")}
         </p>
         <a
           href="/complaints"
           className="inline-flex items-center gap-2 px-4 py-2 bg-primary text-primary-foreground rounded-lg text-sm font-medium hover:bg-primary/90 transition-colors"
         >
           <MessageCircle className="h-4 w-4" />
-          تواصل معنا
+          {t("faqContactUs")}
         </a>
       </motion.div>
     </div>

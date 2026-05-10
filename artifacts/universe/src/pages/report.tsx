@@ -21,19 +21,19 @@ import { useMeV2, api } from "@/lib/api";
 import { useToast } from "@/hooks/use-toast";
 
 const PROBLEM_TYPES = [
-  { value: "bug", label: "خلل تقني", icon: Bug },
-  { value: "ui", label: "مشكلة في الواجهة", icon: Monitor },
-  { value: "mobile", label: "مشكلة في الجوال", icon: Smartphone },
-  { value: "performance", label: "بطء في الأداء", icon: Globe },
-  { value: "login", label: "مشكلة في تسجيل الدخول", icon: AlertTriangle },
-  { value: "other", label: "أخرى", icon: Flag },
+  { value: "bug", label: "reportLabelBug", icon: Bug },
+  { value: "ui", label: "reportLabelUi", icon: Monitor },
+  { value: "mobile", label: "reportLabelMobile", icon: Smartphone },
+  { value: "performance", label: "reportLabelPerformance", icon: Globe },
+  { value: "login", label: "reportLabelLogin", icon: AlertTriangle },
+  { value: "other", label: "reportLabelOther", icon: Flag },
 ];
 
 const SEVERITY_LEVELS = [
-  { value: "low", label: "بسيطة" },
-  { value: "medium", label: "متوسطة" },
-  { value: "high", label: "عالية" },
-  { value: "critical", label: "حرجة" },
+  { value: "low", label: "reportSeverityLow" },
+  { value: "medium", label: "reportSeverityMedium" },
+  { value: "high", label: "reportSeverityHigh" },
+  { value: "critical", label: "reportSeverityCritical" },
 ];
 
 export default function Report() {
@@ -61,11 +61,11 @@ export default function Report() {
     setIsSubmitting(true);
     try {
       const detail = [
-        data.description && `**الوصف:** ${data.description}`,
-        data.steps && `**خطوات إعادة الإنتاج:** ${data.steps}`,
-        data.expected && `**النتيجة المتوقعة:** ${data.expected}`,
-        data.actual && `**النتيجة الفعلية:** ${data.actual}`,
-        data.severity && `**الأولوية:** ${SEVERITY_LEVELS.find((s) => s.value === data.severity)?.label}`,
+        data.description && `**${t("reportEmailDesc")}** ${data.description}`,
+        data.steps && `**${t("reportEmailSteps")}** ${data.steps}`,
+        data.expected && `**${t("reportEmailExpected")}** ${data.expected}`,
+        data.actual && `**${t("reportEmailActual")}** ${data.actual}`,
+        data.severity && `**${t("reportEmailPriority")}** ${t(SEVERITY_LEVELS.find((s) => s.value === data.severity)?.label || "")}`,
       ]
         .filter(Boolean)
         .join("\n");
@@ -79,15 +79,15 @@ export default function Report() {
       });
 
       toast({
-        title: "تم الإبلاغ بنجاح ✅",
-        description: "شكراً لك! فريق الدعم سيراجع المشكلة في أقرب وقت.",
+        title: t("reportSuccessTitle"),
+        description: t("reportSuccessDesc"),
       });
       form.reset();
       setIsSubmitted(true);
     } catch (e) {
       toast({
-        title: "خطأ في الإرسال",
-        description: (e as Error).message || "حاول مرة أخرى لاحقاً",
+        title: t("reportErrorTitle"),
+        description: (e as Error).message || t("reportErrorDesc"),
         variant: "destructive",
       });
     } finally {
@@ -106,16 +106,16 @@ export default function Report() {
           <div className="inline-flex items-center justify-center w-16 h-16 sm:w-20 sm:h-20 rounded-full bg-green-100 dark:bg-green-900/30 mb-6">
             <CheckCircle2 className="h-8 w-8 sm:h-10 sm:w-10 text-green-600 dark:text-green-400" />
           </div>
-          <h1 className="text-2xl sm:text-3xl font-bold mb-2">تم استلام البلاغ!</h1>
+          <h1 className="text-2xl sm:text-3xl font-bold mb-2">{t("reportReceivedTitle")}</h1>
           <p className="text-sm sm:text-base text-muted-foreground mb-6 max-w-md mx-auto">
-            شكراً لمساعدتك في تحسين المنصة. فريق التقنية سيراجع المشكلة ويتواصل معك إن لزم الأمر.
+            {t("reportReceivedDesc")}
           </p>
           <div className="flex gap-3 justify-center">
             <Button variant="outline" onClick={() => setIsSubmitted(false)}>
-              الإبلاغ عن مشكلة أخرى
+              {t("reportAnother")}
             </Button>
             <Button onClick={() => (window.location.href = "/")}>
-              العودة للرئيسية
+              {t("reportBackHome")}
             </Button>
           </div>
         </motion.div>
@@ -138,7 +138,7 @@ export default function Report() {
           {t("reportProblem")}
         </h1>
         <p className="text-sm sm:text-base text-muted-foreground max-w-2xl">
-          واجهت مشكلة تقنية؟ أخبرنا بها وسنعمل على حلها في أسرع وقت.
+          {t("reportPageDesc")}
         </p>
       </motion.div>
 
@@ -151,10 +151,10 @@ export default function Report() {
           <CardHeader>
             <CardTitle className="flex items-center gap-2 text-lg">
               <Bug className="h-5 w-5 text-destructive" />
-              تفاصيل المشكلة
+              {t("reportDetailsTitle")}
             </CardTitle>
             <CardDescription>
-              كلما زادت التفاصيل، كان من الأسهل حل المشكلة بسرعة.
+              {t("reportDetailsDesc")}
             </CardDescription>
           </CardHeader>
           <CardContent>
@@ -166,10 +166,10 @@ export default function Report() {
                     name="name"
                     render={({ field }) => (
                       <FormItem>
-                        <FormLabel className="text-xs sm:text-sm">الاسم</FormLabel>
+                        <FormLabel className="text-xs sm:text-sm">{t("reportFormName")}</FormLabel>
                         <FormControl>
                           <Input
-                            placeholder={me?.name || "اسمك"}
+                            placeholder={me?.name || t("reportPlaceholderName")}
                             className="h-9 sm:h-10 text-sm"
                             {...field}
                           />
@@ -182,7 +182,7 @@ export default function Report() {
                     name="email"
                     render={({ field }) => (
                       <FormItem>
-                        <FormLabel className="text-xs sm:text-sm">البريد الإلكتروني</FormLabel>
+                        <FormLabel className="text-xs sm:text-sm">{t("reportFormEmail")}</FormLabel>
                         <FormControl>
                           <Input
                             type="email"
@@ -202,7 +202,7 @@ export default function Report() {
                     name="type"
                     render={({ field }) => (
                       <FormItem>
-                        <FormLabel className="text-xs sm:text-sm">نوع المشكلة</FormLabel>
+                        <FormLabel className="text-xs sm:text-sm">{t("reportFormType")}</FormLabel>
                         <Select onValueChange={field.onChange} defaultValue={field.value}>
                           <FormControl>
                             <SelectTrigger className="h-9 sm:h-10 text-sm">
@@ -210,11 +210,11 @@ export default function Report() {
                             </SelectTrigger>
                           </FormControl>
                           <SelectContent>
-                            {PROBLEM_TYPES.map((t) => (
-                              <SelectItem key={t.value} value={t.value}>
+                            {PROBLEM_TYPES.map((p) => (
+                              <SelectItem key={p.value} value={p.value}>
                                 <div className="flex items-center gap-2">
-                                  <t.icon className="h-3.5 w-3.5" />
-                                  <span>{t.label}</span>
+                                  <p.icon className="h-3.5 w-3.5" />
+                                  <span>{t(p.label)}</span>
                                 </div>
                               </SelectItem>
                             ))}
@@ -228,7 +228,7 @@ export default function Report() {
                     name="severity"
                     render={({ field }) => (
                       <FormItem>
-                        <FormLabel className="text-xs sm:text-sm">درجة التأثير</FormLabel>
+                        <FormLabel className="text-xs sm:text-sm">{t("reportFormSeverity")}</FormLabel>
                         <Select onValueChange={field.onChange} defaultValue={field.value}>
                           <FormControl>
                             <SelectTrigger className="h-9 sm:h-10 text-sm">
@@ -240,7 +240,7 @@ export default function Report() {
                               <SelectItem key={s.value} value={s.value}>
                                 <div className="flex items-center gap-2">
                                   <AlertTriangle className="h-3.5 w-3.5" />
-                                  <span>{s.label}</span>
+                                  <span>{t(s.label)}</span>
                                 </div>
                               </SelectItem>
                             ))}
@@ -254,10 +254,10 @@ export default function Report() {
                     name="subject"
                     render={({ field }) => (
                       <FormItem>
-                        <FormLabel className="text-xs sm:text-sm">عنوان المشكلة</FormLabel>
+                        <FormLabel className="text-xs sm:text-sm">{t("reportFormSubject")}</FormLabel>
                         <FormControl>
                           <Input
-                            placeholder="ملخص مختصر"
+                            placeholder={t("reportPlaceholderSubject")}
                             className="h-9 sm:h-10 text-sm"
                             {...field}
                           />
@@ -272,10 +272,10 @@ export default function Report() {
                   name="description"
                   render={({ field }) => (
                     <FormItem>
-                      <FormLabel className="text-xs sm:text-sm">وصف المشكلة</FormLabel>
+                      <FormLabel className="text-xs sm:text-sm">{t("reportFormDescription")}</FormLabel>
                       <FormControl>
                         <Textarea
-                          placeholder="صِف المشكلة بالتفصيل..."
+                          placeholder={t("reportPlaceholderDesc")}
                           className="min-h-[100px] text-sm"
                           {...field}
                         />
@@ -290,10 +290,10 @@ export default function Report() {
                     name="steps"
                     render={({ field }) => (
                       <FormItem>
-                        <FormLabel className="text-xs sm:text-sm">خطوات إعادة الإنتاج</FormLabel>
+                        <FormLabel className="text-xs sm:text-sm">{t("reportFormSteps")}</FormLabel>
                         <FormControl>
                           <Textarea
-                            placeholder="1. اذهب إلى..."
+                            placeholder={t("reportPlaceholderSteps")}
                             className="min-h-[80px] text-sm"
                             {...field}
                           />
@@ -306,10 +306,10 @@ export default function Report() {
                     name="expected"
                     render={({ field }) => (
                       <FormItem>
-                        <FormLabel className="text-xs sm:text-sm">النتيجة المتوقعة</FormLabel>
+                        <FormLabel className="text-xs sm:text-sm">{t("reportFormExpected")}</FormLabel>
                         <FormControl>
                           <Textarea
-                            placeholder="ماذا كان يجب أن يحدث؟"
+                            placeholder={t("reportPlaceholderExpected")}
                             className="min-h-[80px] text-sm"
                             {...field}
                           />
@@ -322,10 +322,10 @@ export default function Report() {
                     name="actual"
                     render={({ field }) => (
                       <FormItem>
-                        <FormLabel className="text-xs sm:text-sm">النتيجة الفعلية</FormLabel>
+                        <FormLabel className="text-xs sm:text-sm">{t("reportFormActual")}</FormLabel>
                         <FormControl>
                           <Textarea
-                            placeholder="ماذا حدث بالفعل؟"
+                            placeholder={t("reportPlaceholderActual")}
                             className="min-h-[80px] text-sm"
                             {...field}
                           />
@@ -338,13 +338,13 @@ export default function Report() {
                 <div className="flex items-center justify-between pt-2">
                   <div className="flex items-center gap-2 text-xs text-muted-foreground">
                     <AlertTriangle className="h-3.5 w-3.5" />
-                    <span>سيتم إرسال تأكيد لبريدك الإلكتروني</span>
+                    <span>{t("reportEmailConfirm")}</span>
                   </div>
                   <Button type="submit" disabled={isSubmitting}>
                     {isSubmitting ? (
-                      <><Loader2 className="me-1.5 h-4 w-4 animate-spin" /> جاري الإرسال...</>
+                      <><Loader2 className="me-1.5 h-4 w-4 animate-spin" /> {t("reportSending")}</>
                     ) : (
-                      <><Send className="me-1.5 h-4 w-4" /> إرسال البلاغ</>
+                      <><Send className="me-1.5 h-4 w-4" /> {t("reportSubmit")}</>
                     )}
                   </Button>
                 </div>

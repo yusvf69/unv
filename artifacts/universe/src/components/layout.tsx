@@ -121,7 +121,7 @@ export default function Layout({ children }: { children: ReactNode }) {
               {theme === "dark" ? <Sun className="h-4 w-4 sm:h-5 sm:w-5" /> : <Moon className="h-4 w-4 sm:h-5 sm:w-5" />}
             </Button>
             <Button variant="ghost" onClick={toggleLang} className="font-medium text-xs sm:text-sm w-10 sm:w-12 h-8 sm:h-10">
-              {lang === "ar" ? "EN" : "عربي"}
+              {t("langToggle")}
             </Button>
 
             {user && (

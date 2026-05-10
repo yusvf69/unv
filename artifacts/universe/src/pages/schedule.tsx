@@ -6,24 +6,6 @@ import { useMyGroupSchedule, useMyExamSchedule, useMeV2 } from "@/lib/api";
 import { formatDateFull, formatMonth, formatShortDate, formatShortDateYear } from "@/lib/dates";
 import { useTranslation, globalI18n } from "@/lib/i18n";
 
-const DAYS = ["السبت", "الأحد", "الاثنين", "الثلاثاء", "الأربعاء", "الخميس", "الجمعة"];
-const JS_TO_AR: Record<number, string> = { 6: "السبت", 0: "الأحد", 1: "الاثنين", 2: "الثلاثاء", 3: "الأربعاء", 4: "الخميس", 5: "الجمعة" };
-
-const TYPE_LABEL: Record<string, string> = { lecture: "محاضرة", lab: "معمل", practical: "تدريب" };
-const TYPE_COLOR: Record<string, string> = {
-  lecture: "from-primary/20 to-primary/5 border-primary/30",
-  lab: "from-secondary/20 to-secondary/5 border-secondary/30",
-  practical: "from-accent/30 to-accent/10 border-accent/40",
-};
-
-const EXAM_TYPE_LABEL: Record<string, string> = { midterm: "نصفي", final: "نهائي", quiz: "اختبار", practical: "عملي" };
-const EXAM_TYPE_COLOR: Record<string, string> = {
-  midterm: "from-amber-500/20 to-amber-500/5 border-amber-500/30",
-  final: "from-red-500/20 to-red-500/5 border-red-500/30",
-  quiz: "from-blue-500/20 to-blue-500/5 border-blue-500/30",
-  practical: "from-green-500/20 to-green-500/5 border-green-500/30",
-};
-
 type ViewMode = "day" | "week" | "month";
 type TabMode = "schedule" | "exams";
 
@@ -56,11 +38,28 @@ export default function Schedule() {
   const [upcomingAlerts, setUpcomingAlerts] = useState<any[]>([]);
   const t = useTranslation(globalI18n);
 
+  const days = [t("sat"), t("sun"), t("mon"), t("tue"), t("wed"), t("thu"), t("fri")];
+  const daysShort = [t("satShort"), t("sunShort"), t("monShort"), t("tueShort"), t("wedShort"), t("thuShort"), t("friShort")];
+  const jsToAr: Record<number, string> = { 6: t("sat"), 0: t("sun"), 1: t("mon"), 2: t("tue"), 3: t("wed"), 4: t("thu"), 5: t("fri") };
+  const typeLabel: Record<string, string> = { lecture: t("lecture"), lab: t("lab"), practical: t("tutorial") };
+  const typeColor: Record<string, string> = {
+    lecture: "from-primary/20 to-primary/5 border-primary/30",
+    lab: "from-secondary/20 to-secondary/5 border-secondary/30",
+    practical: "from-accent/30 to-accent/10 border-accent/40",
+  };
+  const examTypeLabel: Record<string, string> = { midterm: t("midterm"), final: t("final"), quiz: t("quizType"), practical: t("practical") };
+  const examTypeColor: Record<string, string> = {
+    midterm: "from-amber-500/20 to-amber-500/5 border-amber-500/30",
+    final: "from-red-500/20 to-red-500/5 border-red-500/30",
+    quiz: "from-blue-500/20 to-blue-500/5 border-blue-500/30",
+    practical: "from-green-500/20 to-green-500/5 border-green-500/30",
+  };
+
   const byDay = useMemo(() => {
     const m: Record<string, typeof rows> = {};
-    for (const d of DAYS) m[d] = [];
+    for (const d of days) m[d] = [];
     for (const r of rows) {
-      const day = r.day in m ? r.day : DAYS.find((d) => r.day.includes(d.replace("ال", ""))) || r.day;
+      const day = r.day in m ? r.day : days.find((d) => r.day.includes(d.replace("ال", ""))) || r.day;
       m[day] ||= [];
       m[day].push(r);
     }
@@ -88,7 +87,7 @@ export default function Schedule() {
     setUpcomingAlerts(alerts);
   }, [exams]);
 
-  const scheduleTodayName = JS_TO_AR[scheduleCursor.getDay()];
+  const scheduleTodayName = jsToAr[scheduleCursor.getDay()];
 
   return (
     <div className="container mx-auto px-3 sm:px-4 py-4 sm:py-8 max-w-6xl">
@@ -97,7 +96,7 @@ export default function Schedule() {
           <Calendar className="h-6 w-6 sm:h-8 sm:w-8 text-primary" /> {t("scheduleTitle")}
         </h1>
         <p className="text-xs sm:text-sm text-muted-foreground mt-2">
-          {me?.groupName ? `مجموعة G${me.groupName}` : ""} {me?.yearInCollege ? `— السنة ${me.yearInCollege}` : ""}.
+          {me?.groupName ? `${t("groupLabel")} G${me.groupName}` : ""} {me?.yearInCollege ? `— ${t("yearLabel")} ${me.yearInCollege}` : ""}.
         </p>
       </motion.div>
 
@@ -124,8 +123,8 @@ export default function Schedule() {
             <motion.div initial={{ opacity: 0, x: -10 }} animate={{ opacity: 1, x: 0 }} key={alert.id} className="bg-amber-500/10 border border-amber-500/30 rounded-xl p-3 flex items-center gap-3">
               <Bell className="h-5 w-5 text-amber-600 animate-pulse" />
               <div className="flex-1">
-                <div className="font-bold text-sm text-amber-800 dark:text-amber-300">تنبيه: امتحان {alert.courseTitle} بعد {alert.hoursLeft} ساعة {alert.minsLeft > 0 && `و ${alert.minsLeft} دقيقة`}!</div>
-                <div className="text-xs text-amber-700/80 dark:text-amber-400/80">القاعة: {alert.room} · {EXAM_TYPE_LABEL[alert.type]}</div>
+                <div className="font-bold text-sm text-amber-800 dark:text-amber-300">{t("examAlert")} {alert.courseTitle} {t("after")} {alert.hoursLeft} {t("hoursShort")} {alert.minsLeft > 0 && `${t("and")} ${alert.minsLeft} ${t("minuteShort")}`}!</div>
+                <div className="text-xs text-amber-700/80 dark:text-amber-400/80">{t("roomLabel")}: {alert.room} · {examTypeLabel[alert.type]}</div>
               </div>
             </motion.div>
           ))}
@@ -139,22 +138,22 @@ export default function Schedule() {
           ) : rows.length === 0 ? (
             <div className="text-center py-16 bg-card border rounded-2xl">
               <Calendar className="h-12 w-12 mx-auto text-muted-foreground mb-3" />
-              <p className="text-muted-foreground">لم يُحدَّد جدول لمجموعتك بعد. اطلب من الإدارة إضافته.</p>
+              <p className="text-muted-foreground">{t("noSchedule")}. {t("noScheduleContact")}.</p>
             </div>
           ) : scheduleView === "day" ? (
             <>
               <ViewToggle view={scheduleView} setView={setScheduleView} t={t} />
-              <DayView day={scheduleTodayName} items={byDay[scheduleTodayName] ?? []} cursor={scheduleCursor} setCursor={setScheduleCursor} />
+              <DayView day={scheduleTodayName} items={byDay[scheduleTodayName] ?? []} cursor={scheduleCursor} setCursor={setScheduleCursor} t={t} typeLabel={typeLabel} typeColor={typeColor} />
             </>
           ) : scheduleView === "week" ? (
             <>
               <ViewToggle view={scheduleView} setView={setScheduleView} t={t} />
-              <WeekView byDay={byDay} />
+              <WeekView byDay={byDay} days={days} daysShort={daysShort} t={t} typeLabel={typeLabel} typeColor={typeColor} />
             </>
           ) : (
             <>
               <ViewToggle view={scheduleView} setView={setScheduleView} t={t} />
-              <MonthView byDay={byDay} cursor={scheduleCursor} setCursor={setScheduleCursor} />
+              <MonthView byDay={byDay} cursor={scheduleCursor} setCursor={setScheduleCursor} days={days} daysShort={daysShort} jsToAr={jsToAr} t={t} />
             </>
           )}
         </>
@@ -165,10 +164,10 @@ export default function Schedule() {
           ) : exams.length === 0 ? (
             <div className="text-center py-16 bg-card border rounded-2xl">
               <Award className="h-12 w-12 mx-auto text-muted-foreground mb-3" />
-              <p className="text-muted-foreground">لم يتم نشر جدول الامتحانات بعد.</p>
+              <p className="text-muted-foreground">{t("noExams")}.</p>
             </div>
           ) : (
-            <ExamScheduleView exams={exams} view={examView} setView={setExamView} cursor={examCursor} setCursor={setExamCursor} t={t} />
+            <ExamScheduleView exams={exams} view={examView} setView={setExamView} cursor={examCursor} setCursor={setExamCursor} t={t} jsToAr={jsToAr} examTypeLabel={examTypeLabel} examTypeColor={examTypeColor} daysShort={daysShort} />
           )}
         </>
       )}
@@ -192,8 +191,8 @@ function ViewToggle({ view, setView, t }: { view: ViewMode; setView: (v: ViewMod
   );
 }
 
-function ExamScheduleView({ exams, view, setView, cursor, setCursor, t }: { exams: any[]; view: ViewMode; setView: (v: ViewMode) => void; cursor: Date; setCursor: (d: Date) => void; t: (key: string) => string }) {
-  const todayName = JS_TO_AR[cursor.getDay()];
+function ExamScheduleView({ exams, view, setView, cursor, setCursor, t, jsToAr, examTypeLabel, examTypeColor, daysShort }: { exams: any[]; view: ViewMode; setView: (v: ViewMode) => void; cursor: Date; setCursor: (d: Date) => void; t: (key: string) => string; jsToAr: Record<number, string>; examTypeLabel: Record<string, string>; examTypeColor: Record<string, string>; daysShort: string[] }) {
+  const todayName = jsToAr[cursor.getDay()];
   const shift = (n: number) => {
     const d = new Date(cursor);
     if (view === "day") d.setDate(d.getDate() + n);
@@ -214,7 +213,7 @@ function ExamScheduleView({ exams, view, setView, cursor, setCursor, t }: { exam
   return (
     <div>
       <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mb-6">
-        {Object.entries(EXAM_TYPE_LABEL).map(([key, label]) => {
+        {Object.entries(examTypeLabel).map(([key, label]) => {
           const count = exams.filter((e) => e.type === key).length;
           return (
             <div key={key} className="bg-card border rounded-xl p-3 text-center">
@@ -230,7 +229,7 @@ function ExamScheduleView({ exams, view, setView, cursor, setCursor, t }: { exam
       <div className="flex items-center justify-between mb-4 bg-card border rounded-xl p-3">
         <Button size="sm" variant="ghost" onClick={() => shift(-1)}><ChevronRight className="h-4 w-4" /></Button>
         <div className="text-center">
-          <div className="font-bold text-lg">{view === "day" ? todayName : view === "month" ? "" : "الأسبوع الحالي"}</div>
+          <div className="font-bold text-lg">{view === "day" ? todayName : view === "month" ? "" : t("currentWeek")}</div>
           <div className="text-xs text-muted-foreground">
             {view === "day" && formatDateFull(cursor)}
             {view === "week" && (() => { const { start, end } = getWeekRange(cursor); return `${formatShortDate(start)} — ${formatShortDateYear(end)}`; })()}
@@ -242,22 +241,22 @@ function ExamScheduleView({ exams, view, setView, cursor, setCursor, t }: { exam
 
       {view === "day" ? (
         displayExams.length === 0 ? (
-          <div className="text-center py-12 bg-card border rounded-2xl text-muted-foreground">لا توجد امتحانات في هذا اليوم. استخدم الأسهم للتنقل بين الأيام.</div>
+          <div className="text-center py-12 bg-card border rounded-2xl text-muted-foreground">{t("noExamsDay")}</div>
         ) : (
           <div className="space-y-3">
-            {displayExams.map((e, i) => <ExamCard key={e.id} exam={e} delay={i * 0.05} />)}
+            {displayExams.map((e, i) => <ExamCard key={e.id} exam={e} delay={i * 0.05} examTypeLabel={examTypeLabel} examTypeColor={examTypeColor} />)}
           </div>
         )
       ) : view === "week" ? (
-        <WeekViewExams exams={weekExams} cursor={cursor} />
+        <WeekViewExams exams={weekExams} cursor={cursor} jsToAr={jsToAr} examTypeLabel={examTypeLabel} examTypeColor={examTypeColor} t={t} />
       ) : (
-        <MonthViewExams exams={monthExams} cursor={cursor} />
+        <MonthViewExams exams={monthExams} cursor={cursor} daysShort={daysShort} examTypeLabel={examTypeLabel} examTypeColor={examTypeColor} t={t} />
       )}
     </div>
   );
 }
 
-function WeekViewExams({ exams, cursor }: { exams: any[]; cursor: Date }) {
+function WeekViewExams({ exams, cursor, jsToAr, examTypeLabel, examTypeColor, t }: { exams: any[]; cursor: Date; jsToAr: Record<number, string>; examTypeLabel: Record<string, string>; examTypeColor: Record<string, string>; t: (key: string) => string }) {
   const { start, end } = getWeekRange(cursor);
   const examsByDate = new Map<string, any[]>();
   for (const e of exams) { if (!e.date) continue; const key = e.date; if (!examsByDate.has(key)) examsByDate.set(key, []); examsByDate.get(key)!.push(e); }
@@ -270,9 +269,9 @@ function WeekViewExams({ exams, cursor }: { exams: any[]; cursor: Date }) {
         const dayExams = examsByDate.get(dateStr) ?? [];
         return (
           <div key={dateStr} className="bg-card border rounded-2xl p-3 min-h-[200px]">
-            <h3 className="font-bold text-sm mb-2 pb-2 border-b">{JS_TO_AR[d.getDay()]} {d.getDate()}</h3>
+            <h3 className="font-bold text-sm mb-2 pb-2 border-b">{jsToAr[d.getDay()]} {d.getDate()}</h3>
             <div className="space-y-2">
-              {dayExams.length ? dayExams.map((e) => <ExamCard key={e.id} exam={e} compact />) : <p className="text-xs text-muted-foreground text-center py-6">لا امتحانات</p>}
+              {dayExams.length ? dayExams.map((e) => <ExamCard key={e.id} exam={e} compact examTypeLabel={examTypeLabel} examTypeColor={examTypeColor} />) : <p className="text-xs text-muted-foreground text-center py-6">{t("noExamsShort")}</p>}
             </div>
           </div>
         );
@@ -281,7 +280,7 @@ function WeekViewExams({ exams, cursor }: { exams: any[]; cursor: Date }) {
   );
 }
 
-function MonthViewExams({ exams, cursor }: { exams: any[]; cursor: Date }) {
+function MonthViewExams({ exams, cursor, daysShort, examTypeLabel, examTypeColor, t }: { exams: any[]; cursor: Date; daysShort: string[]; examTypeLabel: Record<string, string>; examTypeColor: Record<string, string>; t: (key: string) => string }) {
   const year = cursor.getFullYear(), month = cursor.getMonth();
   const first = new Date(year, month, 1), last = new Date(year, month + 1, 0);
   const startOffset = (first.getDay() + 1) % 7;
@@ -293,7 +292,7 @@ function MonthViewExams({ exams, cursor }: { exams: any[]; cursor: Date }) {
   for (const e of exams) { if (!e.date) continue; if (!examsByDate.has(e.date)) examsByDate.set(e.date, []); examsByDate.get(e.date)!.push(e); }
   return (
     <div>
-      <div className="grid grid-cols-7 gap-1 text-center text-xs font-bold text-muted-foreground mb-1">{DAYS.map((d) => <div key={d}>{d.replace("ال", "")}</div>)}</div>
+      <div className="grid grid-cols-7 gap-1 text-center text-xs font-bold text-muted-foreground mb-1">{daysShort.map((d) => <div key={d}>{d}</div>)}</div>
       <div className="grid grid-cols-7 gap-1">
         {cells.map((c, i) => {
           if (!c.date) return <div key={i} className="aspect-square" />;
@@ -313,8 +312,8 @@ function MonthViewExams({ exams, cursor }: { exams: any[]; cursor: Date }) {
   );
 }
 
-function ExamCard({ exam, compact, delay }: { exam: any; compact?: boolean; delay?: number }) {
-  const color = EXAM_TYPE_COLOR[exam.type] || EXAM_TYPE_COLOR.midterm;
+function ExamCard({ exam, compact, delay, examTypeLabel, examTypeColor }: { exam: any; compact?: boolean; delay?: number; examTypeLabel: Record<string, string>; examTypeColor: Record<string, string> }) {
+  const color = examTypeColor[exam.type] || examTypeColor.midterm;
   return (
     <motion.div initial={{ opacity: 0, y: 4 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: delay || 0 }} className={`bg-gradient-to-br ${color} border-2 rounded-xl p-3 flex items-center gap-3 ${compact ? "" : "p-4"}`}>
       <div className="bg-white/60 dark:bg-black/30 rounded-lg p-2">
@@ -329,12 +328,12 @@ function ExamCard({ exam, compact, delay }: { exam: any; compact?: boolean; dela
           {exam.room && <span className="inline-flex items-center gap-1"><MapPin className="h-3 w-3" /> {exam.room}</span>}
         </div>
       </div>
-      <span className="text-[10px] bg-white/60 dark:bg-black/30 px-2 py-1 rounded-full font-bold">{EXAM_TYPE_LABEL[exam.type] ?? exam.type}</span>
+      <span className="text-[10px] bg-white/60 dark:bg-black/30 px-2 py-1 rounded-full font-bold">{examTypeLabel[exam.type] ?? exam.type}</span>
     </motion.div>
   );
 }
 
-function DayView({ day, items, cursor, setCursor }: { day: string; items: any[]; cursor: Date; setCursor: (d: Date) => void }) {
+function DayView({ day, items, cursor, setCursor, t, typeLabel, typeColor }: { day: string; items: any[]; cursor: Date; setCursor: (d: Date) => void; t: (key: string) => string; typeLabel: Record<string, string>; typeColor: Record<string, string> }) {
   const shift = (n: number) => { const d = new Date(cursor); d.setDate(d.getDate() + n); setCursor(d); };
   return (
     <div>
@@ -347,25 +346,25 @@ function DayView({ day, items, cursor, setCursor }: { day: string; items: any[];
         <Button size="sm" variant="ghost" onClick={() => shift(1)}><ChevronLeft className="h-4 w-4" /></Button>
       </div>
       {items.length === 0 ? (
-        <div className="text-center py-12 bg-card border rounded-2xl text-muted-foreground">لا توجد محاضرات اليوم.</div>
+        <div className="text-center py-12 bg-card border rounded-2xl text-muted-foreground">{t("noClasses")}</div>
       ) : (
         <div className="space-y-3">
-          {items.map((r, i) => <ClassCard key={r.id} r={r} delay={i * 0.05} />)}
+          {items.map((r, i) => <ClassCard key={r.id} r={r} delay={i * 0.05} typeLabel={typeLabel} typeColor={typeColor} />)}
         </div>
       )}
     </div>
   );
 }
 
-function WeekView({ byDay }: { byDay: Record<string, any[]> }) {
+function WeekView({ byDay, days, daysShort, t, typeLabel, typeColor }: { byDay: Record<string, any[]>; days: string[]; daysShort: string[]; t: (key: string) => string; typeLabel: Record<string, string>; typeColor: Record<string, string> }) {
   return (
     <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-4">
-      {DAYS.map((d) => (
+      {days.map((d, i) => (
         <div key={d} className="bg-card border rounded-2xl p-3 min-h-[200px]">
-          <h3 className="font-bold text-sm mb-2 pb-2 border-b">{d}</h3>
+          <h3 className="font-bold text-sm mb-2 pb-2 border-b">{daysShort[i]}</h3>
           <div className="space-y-2">
-            {byDay[d]?.length ? byDay[d].map((r) => <ClassCard key={r.id} r={r} compact />) : (
-              <p className="text-xs text-muted-foreground text-center py-6">لا محاضرات</p>
+            {byDay[d]?.length ? byDay[d].map((r) => <ClassCard key={r.id} r={r} compact typeLabel={typeLabel} typeColor={typeColor} />) : (
+              <p className="text-xs text-muted-foreground text-center py-6">{t("noLectures")}</p>
             )}
           </div>
         </div>
@@ -374,7 +373,7 @@ function WeekView({ byDay }: { byDay: Record<string, any[]> }) {
   );
 }
 
-function MonthView({ byDay, cursor, setCursor }: { byDay: Record<string, any[]>; cursor: Date; setCursor: (d: Date) => void }) {
+function MonthView({ byDay, cursor, setCursor, days, daysShort, jsToAr, t }: { byDay: Record<string, any[]>; cursor: Date; setCursor: (d: Date) => void; days: string[]; daysShort: string[]; jsToAr: Record<number, string>; t: (key: string) => string }) {
   const year = cursor.getFullYear();
   const month = cursor.getMonth();
   const first = new Date(year, month, 1);
@@ -393,12 +392,12 @@ function MonthView({ byDay, cursor, setCursor }: { byDay: Record<string, any[]>;
         <Button size="sm" variant="ghost" onClick={() => shift(1)}><ChevronLeft className="h-4 w-4" /></Button>
       </div>
       <div className="grid grid-cols-7 gap-1 text-center text-xs font-bold text-muted-foreground mb-1">
-        {DAYS.map((d) => <div key={d}>{d.replace("ال", "")}</div>)}
+        {daysShort.map((d) => <div key={d}>{d}</div>)}
       </div>
       <div className="grid grid-cols-7 gap-1">
         {cells.map((c, i) => {
           if (!c.date) return <div key={i} className="aspect-square" />;
-          const dayName = JS_TO_AR[c.date.getDay()];
+          const dayName = jsToAr[c.date.getDay()];
           const items = byDay[dayName] ?? [];
           const isToday = c.date.toDateString() === new Date().toDateString();
           return (
@@ -416,8 +415,8 @@ function MonthView({ byDay, cursor, setCursor }: { byDay: Record<string, any[]>;
   );
 }
 
-function ClassCard({ r, compact, delay }: { r: any; compact?: boolean; delay?: number }) {
-  const color = TYPE_COLOR[r.type] || TYPE_COLOR.lecture;
+function ClassCard({ r, compact, delay, typeLabel, typeColor }: { r: any; compact?: boolean; delay?: number; typeLabel: Record<string, string>; typeColor: Record<string, string> }) {
+  const color = typeColor[r.type] || typeColor.lecture;
   return (
     <motion.div
       initial={{ opacity: 0, y: 6 }}
@@ -427,7 +426,7 @@ function ClassCard({ r, compact, delay }: { r: any; compact?: boolean; delay?: n
     >
       <div className="flex items-center justify-between gap-2">
         <div className="font-bold text-sm">{r.courseTitle}</div>
-        <span className="text-[10px] bg-white/60 dark:bg-black/30 px-2 py-0.5 rounded-full font-bold">{TYPE_LABEL[r.type] ?? r.type}</span>
+        <span className="text-[10px] bg-white/60 dark:bg-black/30 px-2 py-0.5 rounded-full font-bold">{typeLabel[r.type] ?? r.type}</span>
       </div>
       {r.courseCode && <div className="text-[10px] text-muted-foreground">{r.courseCode}</div>}
       <div className="text-xs mt-2 flex flex-wrap items-center gap-2 text-muted-foreground">

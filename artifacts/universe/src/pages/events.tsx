@@ -8,11 +8,11 @@ import { formatShortMonth, formatTimeWithWeekday } from "@/lib/dates";
 import { useTranslation, globalI18n } from "@/lib/i18n";
 
 const KIND_LABELS: Record<string, string> = {
-  exam: "امتحان",
-  deadline: "موعد نهائي",
-  assignment: "تكليف",
-  workshop: "ورشة",
-  other: "آخر",
+  exam: "kindExam",
+  deadline: "kindDeadline",
+  assignment: "kindAssignment",
+  workshop: "kindWorkshop",
+  other: "kindOther",
 };
 
 const KIND_COLORS: Record<string, string> = {
@@ -23,15 +23,18 @@ const KIND_COLORS: Record<string, string> = {
   other: "from-slate-500 to-slate-600",
 };
 
-function timeUntil(d: Date): string {
+function timeUntil(d: Date, t: (key: string) => string): string {
   const ms = d.getTime() - Date.now();
-  if (ms < 0) return "انتهى";
+  if (ms < 0) return t("expired");
   const days = Math.floor(ms / (1000 * 60 * 60 * 24));
   const hours = Math.floor((ms % (1000 * 60 * 60 * 24)) / (1000 * 60 * 60));
-  if (days > 0) return `بعد ${days} يوم${hours > 0 ? ` و ${hours}س` : ""}`;
-  if (hours > 0) return `بعد ${hours} ساعة`;
+  if (days > 0) {
+    if (hours > 0) return t("daysHoursLeft").replace("{days}", String(days)).replace("{hours}", String(hours));
+    return t("daysLeft").replace("{days}", String(days));
+  }
+  if (hours > 0) return t("hoursLeft").replace("{hours}", String(hours));
   const minutes = Math.floor(ms / (1000 * 60));
-  return `بعد ${minutes} دقيقة`;
+  return t("minutesLeft").replace("{minutes}", String(minutes));
 }
 
 export default function Events() {
@@ -63,12 +66,12 @@ export default function Events() {
             <Bell className="h-6 w-6 sm:h-8 sm:w-8 text-primary" /> {t("eventsTitle")}
           </h1>
           <p className="text-xs sm:text-sm text-muted-foreground mt-1 sm:mt-2">
-            كل المواعيد المهمة لسنتك ومجموعتك في مكان واحد — امتحانات، تسليمات، ورش، وأكثر.
+            {t("eventsDescription")}
           </p>
         </div>
         {isAdmin && (
           <Button asChild className="text-xs sm:text-sm h-9 sm:h-10">
-            <Link href="/admin/events">إدارة الأحداث</Link>
+            <Link href="/admin/events">{t("manageEvents")}</Link>
           </Button>
         )}
       </motion.div>
@@ -93,8 +96,8 @@ export default function Events() {
               onChange={(e) => setKindFilter(e.target.value)}
               className="h-7 sm:h-8 px-2 border rounded-md bg-background text-[10px] sm:text-xs"
             >
-              <option value="all">كل الأنواع</option>
-              {kinds.map((k) => <option key={k} value={k}>{KIND_LABELS[k] ?? k}</option>)}
+              <option value="all">{t("allTypes")}</option>
+              {kinds.map((k) => <option key={k} value={k}>{t(KIND_LABELS[k] ?? k)}</option>)}
             </select>
           </div>
         )}
@@ -104,7 +107,7 @@ export default function Events() {
       {!isLoading && filtered.length === 0 && (
         <div className="text-center py-12 sm:py-16 bg-card border rounded-xl sm:rounded-2xl">
           <Calendar className="h-8 w-8 sm:h-12 sm:w-12 mx-auto text-muted-foreground mb-2 sm:mb-3" />
-          <p className="text-muted-foreground text-sm">لا توجد أحداث {filter === "upcoming" ? "قادمة" : filter === "past" ? "منتهية" : ""} حالياً.</p>
+          <p className="text-muted-foreground text-sm">{filter === "upcoming" ? t("noUpcomingEvents") : filter === "past" ? t("noPastEvents") : t("noEvents")}</p>
         </div>
       )}
 
@@ -130,16 +133,16 @@ export default function Events() {
                 <div className="flex-1 min-w-0">
                   <div className="flex items-center gap-1.5 sm:gap-2 mb-1 flex-wrap">
                     <span className={`text-[10px] bg-gradient-to-r ${color} text-white px-2 py-0.5 rounded-full font-bold`}>
-                      {KIND_LABELS[e.kind] ?? e.kind}
+                      {t(KIND_LABELS[e.kind] ?? e.kind)}
                     </span>
                     {e.yearInCollege && (
-                      <span className="text-[10px] bg-muted px-2 py-0.5 rounded-full font-bold">السنة {e.yearInCollege}</span>
+                      <span className="text-[10px] bg-muted px-2 py-0.5 rounded-full font-bold">{t("yearBadge").replace("{year}", String(e.yearInCollege))}</span>
                     )}
                     {e.groupName && (
                       <span className="text-[10px] bg-primary/15 text-primary px-2 py-0.5 rounded-full font-bold">G{e.groupName}</span>
                     )}
                     <span className={`text-[10px] px-2 py-0.5 rounded-full font-bold ${past ? "bg-muted text-muted-foreground" : "bg-emerald-500/15 text-emerald-700 dark:text-emerald-300"}`}>
-                      {timeUntil(due)}
+                      {timeUntil(due, t)}
                     </span>
                   </div>
                   <h3 className="font-bold text-sm sm:text-base">{e.title}</h3>
@@ -164,7 +167,7 @@ export default function Events() {
       {!isAdmin && me?.role === "student" && events.length > 0 && (
         <div className="mt-6 sm:mt-8 p-3 sm:p-4 bg-primary/5 border border-primary/20 rounded-xl flex items-center gap-2 sm:gap-3">
           <BookOpen className="h-4 w-4 sm:h-5 sm:w-5 text-primary flex-shrink-0" />
-          <p className="text-xs sm:text-sm text-muted-foreground">المواعيد تُرشّح حسب سنتك ({me.yearInCollege ?? "—"}) ومجموعتك ({me.groupName ?? "—"}).</p>
+          <p className="text-xs sm:text-sm text-muted-foreground">{t("footerFilterNote").replace("{year}", String(me.yearInCollege ?? "—")).replace("{group}", me.groupName ?? "—")}</p>
         </div>
       )}
     </div>

@@ -8,6 +8,7 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { useNotifications, useMarkAllRead, type NotificationItem } from "@/lib/api";
+import { globalI18n, useTranslation } from "@/lib/i18n";
 import { formatISODateTime } from "@/lib/dates";
 
 function iconFor(t: string) {
@@ -18,6 +19,7 @@ function iconFor(t: string) {
 }
 
 export default function NotificationsBell() {
+  const t = useTranslation(globalI18n);
   const { data: notes = [] } = useNotifications();
   const markAll = useMarkAllRead();
   const [open, setOpen] = useState(false);
@@ -50,15 +52,15 @@ export default function NotificationsBell() {
       </DropdownMenuTrigger>
       <DropdownMenuContent align="end" className="w-96 p-0 max-h-[70vh] overflow-y-auto">
         <div className="flex items-center justify-between p-3 border-b sticky top-0 bg-background">
-          <span className="font-bold">الإشعارات</span>
+          <span className="font-bold">{t("notifications")}</span>
           {unread > 0 && (
             <Button size="sm" variant="ghost" onClick={() => markAll.mutate()} className="text-xs">
-              <Check className="h-3 w-3 me-1" /> قراءة الكل
+              <Check className="h-3 w-3 me-1" /> {t("markAllRead")}
             </Button>
           )}
         </div>
         {notes.length === 0 ? (
-          <div className="p-8 text-center text-sm text-muted-foreground">لا توجد إشعارات</div>
+          <div className="p-8 text-center text-sm text-muted-foreground">{t("noNotifications")}</div>
         ) : (
           <div className="divide-y">
             {notes.map((n: NotificationItem, i) => (

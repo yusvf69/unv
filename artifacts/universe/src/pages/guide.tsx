@@ -13,83 +13,83 @@ const SECTIONS = [
   {
     id: "getting-started",
     icon: UserPlus,
-    title: "بدء الاستخدام",
-    desc: "كل ما تحتاج لمعرفته للانطلاق في المنصة",
+    title: "guideGettingStarted",
+    desc: "guideGettingStartedDesc",
     steps: [
-      { title: "إنشاء حساب", desc: "سجل باستخدام بريدك الإلكتروني الجامعي. أدخل اسمك، بريدك، رقم هاتفك، وكلمة مرور قوية." },
-      { title: "تفعيل البريد", desc: "ستصلك رسالة تأكيد على بريدك الإلكتروني تحتوي على رمز التفعيل. أدخل الرمز لتفعيل حسابك." },
-      { title: "إكمال الملف الشخصي", desc: "أضف صورتك الشخصية وبياناتك ليتعرف عليك زملاؤك. يمكنك أيضاً إضافة نبذة عنك." },
-      { title: "استكشاف المنصة", desc: "تصفح الأقسام المختلفة: المقررات، الجدول، المنتدى، والمواهب. ابدأ بمتابعة مقرراتك الدراسية." },
+      { title: "guideCreateAccount", desc: "guideCreateAccountDesc" },
+      { title: "guideEmailVerification", desc: "guideEmailVerificationDesc" },
+      { title: "guideCompleteProfile", desc: "guideCompleteProfileDesc" },
+      { title: "guideExplorePlatform", desc: "guideExplorePlatformDesc" },
     ],
   },
   {
     id: "dashboard",
     icon: LayoutDashboard,
-    title: "لوحة المعلومات",
-    desc: "نظرة شاملة على نشاطك الدراسي يومياً",
+    title: "guideDashboard",
+    desc: "guideDashboardDesc",
     steps: [
-      { title: "المهام اليومية", desc: "كل يوم تظهر لك مهام محددة. إتمامها يمنحك نقاطاً إضافية ويحفز استمراريتك." },
-      { title: "جدول اليوم", desc: "شاهد محاضرات اليوم في نظرة سريعة مع أوقاتها وقاعاتها." },
-      { title: "تتبع المذاكرة", desc: "سجل وقت مذاكرتك وشاهد إحصائيات أسبوعية عن تقدمك." },
-      { title: "المستوى والنقاط", desc: "تابع نقاطك ومستواك وسلسلة أيام نشاطك المتتالية." },
+      { title: "guideDailyTasks", desc: "guideDailyTasksDesc" },
+      { title: "guideTodaySchedule", desc: "guideTodayScheduleDesc" },
+      { title: "guideStudyTracking", desc: "guideStudyTrackingDesc" },
+      { title: "guideLevelPoints", desc: "guideLevelPointsDesc" },
     ],
   },
   {
     id: "courses",
     icon: BookOpen,
-    title: "المقررات الدراسية",
-    desc: "تصفح المقررات، المحاضرات، والملفات التعليمية",
+    title: "guideCourses",
+    desc: "guideCoursesDesc",
     steps: [
-      { title: "استعراض المقررات", desc: "من صفحة المقررات، اختر المقرر الذي تريد. ستظهر لك قائمة بالمحاضرات." },
-      { title: "المحاضرات", desc: "كل محاضرة تحتوي على فيديو تعليمي، ملفات PDF، وأسئلة تفاعلية." },
-      { title: "مشاهدة الفيديوهات", desc: "شاهد فيديوهات المحاضرات مباشرة من المنصة. تتبع تقدمك في كل فيديو." },
-      { title: "تحميل الملفات", desc: "حمّل ملفات PDF وأي مرفقات أخرى خاص بكل محاضرة للدراسة دون اتصال." },
+      { title: "guideViewCourses", desc: "guideViewCoursesDesc" },
+      { title: "guideLectures", desc: "guideLecturesDesc" },
+      { title: "guideWatchVideos", desc: "guideWatchVideosDesc" },
+      { title: "guideDownloadFiles", desc: "guideDownloadFilesDesc" },
     ],
   },
   {
     id: "schedule",
     icon: Calendar,
-    title: "الجدول الدراسي",
-    desc: "إدارة جدول المحاضرات والامتحانات",
+    title: "guideSchedule",
+    desc: "guideScheduleDesc",
     steps: [
-      { title: "جدول المحاضرات", desc: "عرض أسبوعي لمحاضرات مجموعتك مع أوقاتها وقاعاتها وأسماء المحاضرين." },
-      { title: "جدول الامتحانات", desc: "مواعيد الامتحانات النصفية والنهائية مع التنبيهات قبل الامتحان." },
-      { title: "التنبيهات", desc: "المنصة تنبهك قبل الامتحانات وباقتراب مواعيد المحاضرات." },
+      { title: "guideLectureSchedule", desc: "guideLectureScheduleDesc" },
+      { title: "guideExamSchedule", desc: "guideExamScheduleDesc" },
+      { title: "guideReminders", desc: "guideRemindersDesc" },
     ],
   },
   {
     id: "quizzes",
     icon: GraduationCap,
-    title: "الاختبارات",
-    desc: "اختبر معلوماتك وتابع نتائجك",
+    title: "guideQuizzes",
+    desc: "guideQuizzesDesc",
     steps: [
-      { title: "الاختبارات المتاحة", desc: "من صفحة الاختبارات، شاهد جميع الاختبارات المتاحة لك." },
-      { title: "أثناء الاختبار", desc: "اقرأ الأسئلة جيداً واختر الإجابات. يمكنك التنقل بين الأسئلة بحرية." },
-      { title: "النتيجة", desc: "بعد الإنهاء، تظهر نتيجتك فوراً مع تصحيح الإجابات." },
-      { title: "المراجعة", desc: "يمكنك العودة لمراجعة اختباراتك السابقة ونتائجها في أي وقت." },
+      { title: "guideAvailableQuizzes", desc: "guideAvailableQuizzesDesc" },
+      { title: "guideDuringQuiz", desc: "guideDuringQuizDesc" },
+      { title: "guideResult", desc: "guideResultDesc" },
+      { title: "guideReview", desc: "guideReviewDesc" },
     ],
   },
   {
     id: "community",
     icon: MessageSquare,
-    title: "المجتمع",
-    desc: "تفاعل مع زملائك في المنتدى والمواهب",
+    title: "guideCommunity",
+    desc: "guideCommunityDesc",
     steps: [
-      { title: "المنتدى", desc: "شارك في النقاشات، اطرح أسئلة، وفكر زملاءك. يمكنك التفاعل عبر الإعجابات والردود." },
-      { title: "المواهب", desc: "اعرض مواهبك أمام الجميع. أضف صوراً وفيديوهات ووصفاً لموهبتك." },
-      { title: "التواصل", desc: "تواصل مع زملائك عبر الرسائل الخاصة. تابع من تريد وتعرف على أصدقاء جدد." },
+      { title: "guideForum", desc: "guideForumDesc" },
+      { title: "guideTalents", desc: "guideTalentsDesc" },
+      { title: "guideMessaging", desc: "guideMessagingDesc" },
     ],
   },
   {
     id: "gamification",
     icon: Trophy,
-    title: "النقاط والمكافآت",
-    desc: "كيف تكسب النقاط وترتقي بالمستويات",
+    title: "guideGamification",
+    desc: "guideGamificationDesc",
     steps: [
-      { title: "كسب النقاط", desc: "أنشطتك اليومية تكسبك نقاطاً: المهام، الاختبارات، المشاركة في المنتدى، مشاهدة المحاضرات." },
-      { title: "المستويات", desc: "كل 100 نقطة تصعد مستوى. المستويات الأعلى تظهر تميزك في المنصة." },
-      { title: "السلسلة", desc: "حافظ على نشاطك اليومي لبناء سلسلة متصلة. السلسلة الأطول = نقاط إضافية!" },
-      { title: "لوحة الشرف", desc: "أفضل الطلاب نشاطاً يظهرون في لوحة الشرف. نافس زملائك وكن الأفضل!" },
+      { title: "guideEarningPoints", desc: "guideEarningPointsDesc" },
+      { title: "guideLevels", desc: "guideLevelsDesc" },
+      { title: "guideStreak", desc: "guideStreakDesc" },
+      { title: "guideLeaderboard", desc: "guideLeaderboardDesc" },
     ],
   },
 ];
@@ -112,7 +112,7 @@ export default function Guide() {
           {t("platformGuide")}
         </h1>
         <p className="text-sm sm:text-lg text-muted-foreground max-w-2xl mx-auto">
-          دليل شامل لاستخدام منصة UniVerse — من التسجيل إلى الإتقان
+          {t("guideSubtitle")}
         </p>
       </motion.div>
 
@@ -124,8 +124,8 @@ export default function Guide() {
               value={s.id}
               className="text-[10px] sm:text-xs flex-1 min-w-[80px] sm:min-w-[100px] data-[state=active]:bg-primary data-[state=active]:text-primary-foreground"
             >
-              <s.icon className="h-3 w-3 sm:h-3.5 sm:w-3.5 me-1" />
-              {s.title}
+               <s.icon className="h-3 w-3 sm:h-3.5 sm:w-3.5 me-1" />
+              {t(s.title)}
             </TabsTrigger>
           ))}
         </TabsList>
@@ -142,8 +142,8 @@ export default function Guide() {
                   <section.icon className="h-5 w-5 sm:h-6 sm:w-6 text-primary" />
                 </div>
                 <div>
-                  <h2 className="text-lg sm:text-2xl font-bold">{section.title}</h2>
-                  <p className="text-xs sm:text-sm text-muted-foreground">{section.desc}</p>
+                  <h2 className="text-lg sm:text-2xl font-bold">{t(section.title)}</h2>
+                  <p className="text-xs sm:text-sm text-muted-foreground">{t(section.desc)}</p>
                 </div>
               </div>
 
@@ -163,10 +163,10 @@ export default function Guide() {
                           </div>
                           <div>
                             <h3 className="font-bold text-xs sm:text-sm mb-1">
-                              {step.title}
+                              {t(step.title)}
                             </h3>
                             <p className="text-[10px] sm:text-xs text-muted-foreground leading-relaxed">
-                              {step.desc}
+                              {t(step.desc)}
                             </p>
                           </div>
                         </div>

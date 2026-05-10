@@ -6,14 +6,16 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { useDmWith, useSendDm } from "@/lib/api";
 import { formatISOTime } from "@/lib/dates";
+import { useTranslation, globalI18n } from "@/lib/i18n";
 
 export default function DmThread() {
   const { id } = useParams();
   const userId = Number(id || 0);
   const { data, isLoading, isError, error } = useDmWith(userId);
   const send = useSendDm(userId);
-  const [text, setText] = useState("");
   const scrollRef = useRef<HTMLDivElement>(null);
+  const [text, setText] = useState("");
+  const t = useTranslation(globalI18n);
 
   useEffect(() => {
     scrollRef.current?.scrollTo({ top: scrollRef.current.scrollHeight, behavior: "smooth" });
@@ -27,13 +29,13 @@ export default function DmThread() {
     try { await send.mutateAsync(body); } catch {}
   };
 
-  if (isLoading) return <div className="p-12 text-center text-muted-foreground">جاري التحميل...</div>;
+  if (isLoading) return <div className="p-12 text-center text-muted-foreground">{t("loading")}</div>;
   if (isError) return (
     <div className="container mx-auto max-w-2xl flex flex-col items-center justify-center" style={{ height: "calc(100vh - 4rem)" }}>
       <UserX className="h-16 w-16 text-muted-foreground mb-4" />
-      <h2 className="text-xl font-bold mb-2">حدث خطأ</h2>
-      <p className="text-muted-foreground mb-4 text-sm">{(error as any)?.message || "المستخدم غير موجود أو لا يمكن فتح المحادثة"}</p>
-      <Link href="/messages"><Button variant="outline">الرجوع للرسائل</Button></Link>
+      <h2 className="text-xl font-bold mb-2">{t("errorOccurred")}</h2>
+      <p className="text-muted-foreground mb-4 text-sm">{(error as any)?.message || t("userNotFoundOrCannotOpen")}</p>
+      <Link href="/messages"><Button variant="outline">{t("backToMessages")}</Button></Link>
     </div>
   );
 
@@ -54,7 +56,7 @@ export default function DmThread() {
               <div className="text-xs text-muted-foreground">{data.other.specialization || data.other.groupName || ""}</div>
             </div>
           </>
-        ) : <div className="text-muted-foreground">غير معروف</div>}
+        ) : <div className="text-muted-foreground">{t("unknown")}</div>}
       </div>
 
       {/* messages */}
@@ -72,13 +74,13 @@ export default function DmThread() {
         {!data?.messages?.length && (
           <div className="text-center py-12">
             <MessageCircle className="h-10 w-10 text-muted-foreground/50 mx-auto mb-2" />
-            <p className="text-muted-foreground text-sm">ابدأ المحادثة برسالتك الأولى</p>
+            <p className="text-muted-foreground text-sm">{t("startChatWithFirstMessage")}</p>
           </div>
         )}
       </div>
 
       <form onSubmit={submit} className="border-t bg-card p-3 flex gap-2">
-        <Input value={text} onChange={(e) => setText(e.target.value)} placeholder="اكتب رسالة..." className="flex-1" />
+        <Input value={text} onChange={(e) => setText(e.target.value)} placeholder={t("writeMessage")} className="flex-1" />
         <Button type="submit" disabled={send.isPending || !text.trim()}>
           {send.isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : <Send className="h-4 w-4" />}
         </Button>

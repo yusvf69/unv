@@ -29,11 +29,13 @@ import {
 } from "@/components/ui/dialog";
 import { useQueryClient } from "@tanstack/react-query";
 import { useToast } from "@/hooks/use-toast";
+import { useTranslation, globalI18n } from "@/lib/i18n";
 
 function CommentSheet({ talentId, open, onClose }: { talentId: number; open: boolean; onClose: () => void }) {
   const [body, setBody] = useState("");
   const [comments, setComments] = useState<any[]>([]);
   const [loading, setLoading] = useState(false);
+  const t = useTranslation(globalI18n);
 
   const load = async () => {
     setLoading(true);
@@ -55,12 +57,12 @@ function CommentSheet({ talentId, open, onClose }: { talentId: number; open: boo
     <Dialog open={open} onOpenChange={(o) => { if (o) load(); else onClose(); }}>
       <DialogContent className="max-w-md max-h-[80vh] flex flex-col p-0">
         <DialogHeader className="p-4 border-b">
-          <DialogTitle>التعليقات</DialogTitle>
+          <DialogTitle>{t("comments")}</DialogTitle>
         </DialogHeader>
         <div className="flex-1 overflow-y-auto p-4 space-y-3">
           {loading && <Loader2 className="h-5 w-5 animate-spin mx-auto" />}
           {comments.length === 0 && !loading && (
-            <div className="text-sm text-muted-foreground text-center py-8">كن أول من يعلّق</div>
+            <div className="text-sm text-muted-foreground text-center py-8">{t("beFirstToComment")}</div>
           )}
           {comments.map((c) => (
             <div key={c.id} className="flex gap-3 items-start">
@@ -76,11 +78,11 @@ function CommentSheet({ talentId, open, onClose }: { talentId: number; open: boo
           <Input
             value={body}
             onChange={(e) => setBody(e.target.value)}
-            placeholder="اكتب تعليقاً..."
+            placeholder={t("writeComment")}
             onKeyDown={(e) => e.key === "Enter" && send()}
             data-testid="input-comment"
           />
-          <Button onClick={send} data-testid="button-send-comment">إرسال</Button>
+          <Button onClick={send} data-testid="button-send-comment">{t("submit")}</Button>
         </div>
       </DialogContent>
     </Dialog>
@@ -94,9 +96,10 @@ function TalentCard({ talent, isAdmin }: { talent: TalentFeedItem; isAdmin: bool
   const [count, setCount] = useState(talent.likesCount);
   const [showComments, setShowComments] = useState(false);
   const [showModerate, setShowModerate] = useState(false);
-  const [warning, setWarning] = useState("يرجى مراجعة سياسة المحتوى وتقديم منشور بصياغة مهنية.");
-  const [reason, setReason] = useState("");
   const { toast } = useToast();
+  const t = useTranslation(globalI18n);
+  const [warning, setWarning] = useState(t("defaultWarning"));
+  const [reason, setReason] = useState("");
 
   const toggleLike = async () => {
     setLiked(!liked);
@@ -118,11 +121,11 @@ function TalentCard({ talent, isAdmin }: { talent: TalentFeedItem; isAdmin: bool
         payload: { warning },
         reason,
       });
-      toast({ title: "تم إرسال الاقتراح", description: "السوبر أدمن يحتاج للموافقة قبل التنفيذ." });
+      toast({ title: t("proposalSent"), description: t("proposalSentDesc") });
       setShowModerate(false);
       qc.invalidateQueries({ queryKey: ["v2", "proposals"] });
     } catch (e) {
-      toast({ title: "خطأ", description: (e as Error).message, variant: "destructive" });
+      toast({ title: t("error"), description: (e as Error).message, variant: "destructive" });
     }
   };
 
@@ -162,7 +165,7 @@ function TalentCard({ talent, isAdmin }: { talent: TalentFeedItem; isAdmin: bool
               <Button size="icon" variant="ghost" onClick={() => setShowModerate(true)} data-testid={`button-moderate-${talent.id}`} className="h-7 w-7 sm:h-9 sm:w-9">
                 <ShieldAlert className="h-3.5 w-3.5 sm:h-4 sm:w-4 text-rose-600" />
               </Button>
-              <Button size="icon" variant="ghost" onClick={() => { if (confirm("هل تريد حذف هذا المنشور نهائياً؟")) deleteTalent.mutate(talent.id); }} className="h-7 w-7 sm:h-9 sm:w-9">
+              <Button size="icon" variant="ghost" onClick={() => { if (confirm(t("confirmDeleteTalent"))) deleteTalent.mutate(talent.id); }} className="h-7 w-7 sm:h-9 sm:w-9">
                 <Trash2 className="h-3.5 w-3.5 sm:h-4 sm:w-4 text-destructive" />
               </Button>
             </>
@@ -205,7 +208,7 @@ function TalentCard({ talent, isAdmin }: { talent: TalentFeedItem; isAdmin: bool
             <Share2 className="h-5 w-5 sm:h-6 sm:w-6" />
           </button>
         </div>
-        <div className="text-xs sm:text-sm font-bold mb-1">{count.toLocaleString("ar-EG")} إعجاب</div>
+        <div className="text-xs sm:text-sm font-bold mb-1">{count.toLocaleString("ar-EG")} {t("likes")}</div>
         <h3 className="font-bold text-base sm:text-lg leading-snug">{talent.title}</h3>
         <p className="text-xs sm:text-sm text-muted-foreground mt-1 leading-relaxed">{talent.description}</p>
         {talent.commentsCount > 0 && (
@@ -213,7 +216,7 @@ function TalentCard({ talent, isAdmin }: { talent: TalentFeedItem; isAdmin: bool
             onClick={() => setShowComments(true)}
             className="text-xs text-muted-foreground mt-2 hover:underline"
           >
-            عرض كل {talent.commentsCount} تعليقات
+            {t("viewAllCommentsCount").replace("{n}", String(talent.commentsCount))}
           </button>
         )}
       </div>
@@ -225,26 +228,26 @@ function TalentCard({ talent, isAdmin }: { talent: TalentFeedItem; isAdmin: bool
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2">
               <ShieldAlert className="h-5 w-5 text-rose-600" />
-              حذف الموهبة وتحذير الطالب
+              {t("deleteTalentAndWarn")}
             </DialogTitle>
           </DialogHeader>
           <div className="space-y-3 py-2">
             <div>
-              <Label className="text-xs">سبب الحذف (داخلي)</Label>
-              <Input value={reason} onChange={(e) => setReason(e.target.value)} placeholder="اكتب السبب..." />
+              <Label className="text-xs">{t("deleteReason")}</Label>
+              <Input value={reason} onChange={(e) => setReason(e.target.value)} placeholder={t("writeReason")} />
             </div>
             <div>
-              <Label className="text-xs">رسالة التحذير للطالب</Label>
+              <Label className="text-xs">{t("warningMessageForStudent")}</Label>
               <Textarea value={warning} onChange={(e) => setWarning(e.target.value)} rows={4} />
             </div>
             <div className="text-xs text-amber-700 bg-amber-50 border border-amber-200 rounded-lg p-3">
-              سيتم إرسال هذا الاقتراح إلى السوبر أدمن للموافقة قبل تنفيذ الحذف وإرسال التحذير.
+              {t("moderationInfo")}
             </div>
           </div>
           <DialogFooter>
-            <Button variant="ghost" onClick={() => setShowModerate(false)}>إلغاء</Button>
+            <Button variant="ghost" onClick={() => setShowModerate(false)}>{t("cancel")}</Button>
             <Button variant="destructive" onClick={proposeRemove} data-testid={`button-confirm-moderate-${talent.id}`}>
-              إرسال للموافقة
+              {t("submitForApproval")}
             </Button>
           </DialogFooter>
         </DialogContent>
@@ -257,24 +260,25 @@ function NewTalentDialog() {
   const qc = useQueryClient();
   const { toast } = useToast();
   const [open, setOpen] = useState(false);
+  const t = useTranslation(globalI18n);
   const [title, setTitle] = useState("");
-  const [category, setCategory] = useState("ابتكار");
+  const [category, setCategory] = useState(t("innovation"));
   const [description, setDescription] = useState("");
   const [mediaUrl, setMediaUrl] = useState("");
 
   const submit = async () => {
     if (!title || !description) {
-      toast({ title: "العنوان والوصف مطلوبان", variant: "destructive" });
+      toast({ title: t("titleAndDescriptionRequired"), variant: "destructive" });
       return;
     }
     try {
       await api.post("/v2/talents", { title, category, description, mediaUrl: mediaUrl || null });
-      toast({ title: "تم نشر موهبتك" });
+      toast({ title: t("talentPublished") });
       setOpen(false);
       setTitle(""); setDescription(""); setMediaUrl("");
       qc.invalidateQueries({ queryKey: ["v2", "talents-feed"] });
     } catch (e) {
-      toast({ title: "خطأ", description: (e as Error).message, variant: "destructive" });
+      toast({ title: t("error"), description: (e as Error).message, variant: "destructive" });
     }
   };
 
@@ -282,36 +286,36 @@ function NewTalentDialog() {
     <Dialog open={open} onOpenChange={setOpen}>
       <DialogTrigger asChild>
         <Button className="bg-gradient-to-r from-primary to-secondary rounded-full" data-testid="button-new-talent">
-          <Plus className="me-2 h-4 w-4" /> أضف موهبة
+          <Plus className="me-2 h-4 w-4" />{t("addTalent")}
         </Button>
       </DialogTrigger>
       <DialogContent className="max-w-md">
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
-            <Sparkles className="h-5 w-5 text-primary" /> شارك موهبتك
+            <Sparkles className="h-5 w-5 text-primary" /> {t("shareYourTalent")}
           </DialogTitle>
         </DialogHeader>
         <div className="space-y-3 py-2">
           <div>
-            <Label className="text-xs">العنوان</Label>
-            <Input value={title} onChange={(e) => setTitle(e.target.value)} placeholder="عنوان مميز..." data-testid="input-talent-title" />
+            <Label className="text-xs">{t("title")}</Label>
+            <Input value={title} onChange={(e) => setTitle(e.target.value)} placeholder={t("distinctiveTitle")} data-testid="input-talent-title" />
           </div>
           <div>
-            <Label className="text-xs">التصنيف</Label>
-            <Input value={category} onChange={(e) => setCategory(e.target.value)} placeholder="ابتكار / فنون / تصوير..." />
+            <Label className="text-xs">{t("categoryLabel")}</Label>
+            <Input value={category} onChange={(e) => setCategory(e.target.value)} placeholder={t("categoryPlaceholder")} />
           </div>
           <div>
-            <Label className="text-xs">الوصف</Label>
+            <Label className="text-xs">{t("descriptionLabel")}</Label>
             <Textarea value={description} onChange={(e) => setDescription(e.target.value)} rows={3} data-testid="input-talent-description" />
           </div>
           <div>
-            <Label className="text-xs">صورة الموهبة (اختياري)</Label>
+            <Label className="text-xs">{t("talentImageOptional")}</Label>
             <FileUpload value={mediaUrl || null} onChange={(v) => setMediaUrl(v || "")} accept="image/*" maxSizeKb={1500} />
           </div>
         </div>
         <DialogFooter>
-          <Button variant="ghost" onClick={() => setOpen(false)}>إلغاء</Button>
-          <Button onClick={submit} data-testid="button-submit-talent">نشر</Button>
+          <Button variant="ghost" onClick={() => setOpen(false)}>{t("cancel")}</Button>
+          <Button onClick={submit} data-testid="button-submit-talent">{t("publish")}</Button>
         </DialogFooter>
       </DialogContent>
     </Dialog>
@@ -322,15 +326,16 @@ export default function Talents() {
   const { data: feed, isLoading } = useTalentsFeed();
   const { data: me } = useGetMe();
   const isAdmin = me?.role === "admin" || me?.role === "super_admin";
+  const t = useTranslation(globalI18n);
 
   return (
     <div className="container mx-auto px-3 sm:px-4 py-4 sm:py-8 max-w-3xl">
       <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between mb-6 sm:mb-8 gap-3">
         <div>
           <h1 className="text-2xl sm:text-4xl font-serif font-bold bg-gradient-to-r from-primary to-secondary bg-clip-text text-transparent">
-            مواهب الطلاب
+            {t("studentsTalents")}
           </h1>
-          <p className="text-muted-foreground text-xs sm:text-sm mt-1">شارك، أعجب، علّق — مجتمع مواهب كلية الزراعة.</p>
+          <p className="text-muted-foreground text-xs sm:text-sm mt-1">{t("talentsSubtitle")}</p>
         </div>
         <NewTalentDialog />
       </div>

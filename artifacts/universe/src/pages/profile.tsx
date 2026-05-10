@@ -24,6 +24,18 @@ const SPECIALIZATIONS = [
   "وقاية النبات",
 ];
 
+const SPECIALIZATION_KEYS: Record<string, string> = {
+  "شعبه عامه": "specGeneral",
+  "علوم التربة والمياه": "specSoilWater",
+  "الإنتاج النباتي": "specPlantProduction",
+  "الإنتاج الحيواني": "specAnimalProduction",
+  "الهندسة الزراعية": "specAgriEngineering",
+  "التكنولوجيا الحيوية": "specBiotech",
+  "علوم الأغذية": "specFoodScience",
+  "الاقتصاد الزراعي": "specAgriEconomics",
+  "وقاية النبات": "specPlantProtection",
+};
+
 type ProfileTab = "account" | "schedule" | "tasks" | "progress" | "goals";
 
 export default function Profile() {
@@ -54,7 +66,7 @@ export default function Profile() {
   }, [me?.id]);
 
   if (!me) {
-    return <div className="container mx-auto px-4 py-12 text-center">سجّل دخولك أولاً</div>;
+    return <div className="container mx-auto px-4 py-12 text-center">{t("loginFirst")}</div>;
   }
 
   const save = async () => {
@@ -66,16 +78,16 @@ export default function Profile() {
         yearInCollege,
         groupName,
       });
-      toast({ title: "تم حفظ ملفك", description: "كل التغييرات نُفّذت فوراً" });
+      toast({ title: t("profileSaved"), description: t("changesApplied") });
     } catch (e) {
-      toast({ title: "خطأ", description: (e as Error).message, variant: "destructive" });
+      toast({ title: t("error"), description: (e as Error).message, variant: "destructive" });
     }
   };
 
   const copyCode = () => {
     if (me.uniqueCode) {
       navigator.clipboard.writeText(me.uniqueCode);
-      toast({ title: "تم نسخ الكود", description: me.uniqueCode });
+      toast({ title: t("codeCopied"), description: me.uniqueCode });
     }
   };
 
@@ -83,17 +95,17 @@ export default function Profile() {
   const totalMissions = missions.length;
 
   const tabs = [
-    { key: "account" as const, label: "الحساب", icon: User },
-    { key: "schedule" as const, label: "الجداول", icon: Calendar },
-    { key: "tasks" as const, label: "المهام", icon: Target },
-    { key: "progress" as const, label: "التقدم", icon: Trophy },
-    { key: "goals" as const, label: "الأهداف", icon: FileText },
+    { key: "account" as const, label: t("accountTab"), icon: User },
+    { key: "schedule" as const, label: t("scheduleTitle"), icon: Calendar },
+    { key: "tasks" as const, label: t("tasksTab"), icon: Target },
+    { key: "progress" as const, label: t("progress"), icon: Trophy },
+    { key: "goals" as const, label: t("goalsTab"), icon: FileText },
   ];
 
   return (
     <div className="container mx-auto px-3 sm:px-4 py-4 sm:py-8 max-w-4xl">
       <motion.h1 initial={{ opacity: 0, y: -10 }} animate={{ opacity: 1, y: 0 }} className="text-2xl sm:text-3xl font-serif font-bold mb-4 sm:mb-6">
-        ملفي الشخصي
+        {t("profileTitle")}
       </motion.h1>
 
       {/* Profile Header */}
@@ -109,13 +121,13 @@ export default function Profile() {
             {me.title && <div className="text-sm text-primary font-bold">{me.title}</div>}
             <div className="text-sm text-muted-foreground">{me.email}</div>
             <div className="flex flex-wrap gap-2 mt-2 justify-center sm:justify-start">
-              <span className="text-xs bg-primary/10 text-primary px-3 py-1 rounded-full font-bold">{me.points} نقطة</span>
-              <span className="text-xs bg-secondary/10 text-secondary px-3 py-1 rounded-full font-bold">المستوى {me.level}</span>
-              <span className="text-xs bg-amber-500/10 text-amber-700 px-3 py-1 rounded-full font-bold">🔥 {me.streak} يوم</span>
+              <span className="text-xs bg-primary/10 text-primary px-3 py-1 rounded-full font-bold">{me.points} {t("point")}</span>
+              <span className="text-xs bg-secondary/10 text-secondary px-3 py-1 rounded-full font-bold">{t("level")} {me.level}</span>
+              <span className="text-xs bg-amber-500/10 text-amber-700 px-3 py-1 rounded-full font-bold">🔥 {me.streak} {t("day")}</span>
               {me.groupName && <span className="text-xs bg-blue-500/10 text-blue-700 px-3 py-1 rounded-full font-bold">G{me.groupName}</span>}
             </div>
           </div>
-          <FileUpload value={null} onChange={(d) => { if (d) setAvatarUrl(d); }} label="غيّر الصورة" maxSizeKb={400} />
+          <FileUpload value={null} onChange={(d) => { if (d) setAvatarUrl(d); }} label={t("changePhoto")} maxSizeKb={400} />
         </div>
       </div>
 
@@ -133,16 +145,16 @@ export default function Profile() {
         <div className="grid grid-cols-1 md:grid-cols-3 gap-4 sm:gap-6">
           <motion.div initial={{ opacity: 0, x: -20 }} animate={{ opacity: 1, x: 0 }} className="md:col-span-1 bg-card border rounded-2xl p-4 sm:p-6">
             <div className="space-y-4">
-              <h3 className="font-bold text-sm flex items-center gap-2"><Key className="w-4 h-4 text-primary" /> معلومات حسابك</h3>
+              <h3 className="font-bold text-sm flex items-center gap-2"><Key className="w-4 h-4 text-primary" /> {t("accountInfo")}</h3>
               <div>
-                <Label className="text-xs">اسم المستخدم</Label>
+                <Label className="text-xs">{t("username")}</Label>
                 <div className="flex items-center gap-2 mt-1">
                   <Input value={me.username ?? ""} disabled className="h-9 sm:h-10 bg-muted font-mono text-sm" />
                   <Lock className="w-4 h-4 text-muted-foreground shrink-0" />
                 </div>
               </div>
               <div>
-                <Label className="text-xs">الكود الخاص بك</Label>
+                <Label className="text-xs">{t("yourCode")}</Label>
                 <div className="flex items-center gap-2 mt-1">
                   <Input value={me.uniqueCode || ""} disabled className="h-9 sm:h-10 bg-muted font-mono font-bold text-primary text-sm" />
                   <Button variant="ghost" size="sm" onClick={copyCode} className="h-9 sm:h-10"><Copy className="w-4 h-4" /></Button>
@@ -152,38 +164,38 @@ export default function Profile() {
           </motion.div>
 
           <motion.div initial={{ opacity: 0, x: 20 }} animate={{ opacity: 1, x: 0 }} className="md:col-span-2 bg-card border rounded-2xl p-4 sm:p-6 space-y-4">
-            <h2 className="font-bold text-lg sm:text-xl">تعديل البيانات</h2>
+            <h2 className="font-bold text-lg sm:text-xl">{t("editData")}</h2>
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-4">
               <div className="space-y-1.5">
-                <Label className="text-xs">الاسم</Label>
+                <Label className="text-xs">{t("contactFormName")}</Label>
                 <Input value={name} onChange={(e) => setName(e.target.value)} />
               </div>
               <div className="space-y-1.5">
-                <Label className="text-xs">رقم الهاتف</Label>
-                <Input value={me.phone || "لم يُضاف بعد"} disabled className="h-10 bg-muted" />
-                <p className="text-[10px] text-muted-foreground">لا يمكن تعديل رقم الهاتف. تواصل مع الإدارة إذا لزم الأمر.</p>
+                <Label className="text-xs">{t("phoneNumber")}</Label>
+                <Input value={me.phone || t("notAddedYet")} disabled className="h-10 bg-muted" />
+                <p className="text-[10px] text-muted-foreground">{t("phoneNotEditable")}</p>
               </div>
               <div className="space-y-1.5">
-                <Label className="text-xs">السنة الدراسية</Label>
+                <Label className="text-xs">{t("academicYear")}</Label>
                 <select value={yearInCollege} onChange={(e) => setYearInCollege(Number(e.target.value))} className="w-full h-10 rounded-md border bg-background px-3 text-sm">
-                  {[1, 2, 3, 4].map((y) => <option key={y} value={y}>السنة {y}</option>)}
+                  {[1, 2, 3, 4].map((y) => <option key={y} value={y}>{t("yearLabel")} {y}</option>)}
                 </select>
               </div>
               <div className="space-y-1.5">
-                <Label className="text-xs">المجموعة</Label>
+                <Label className="text-xs">{t("groupNameField")}</Label>
                 <select value={groupName} onChange={(e) => setGroupName(e.target.value)} className="w-full h-10 rounded-md border bg-background px-3 text-sm">
-                  {["عام", "A", "B", "C", "D", "E"].map((g) => <option key={g} value={g}>{g}</option>)}
+                  {["عام", "A", "B", "C", "D", "E"].map((g) => <option key={g} value={g}>{g === "عام" ? t("catGeneral") : g}</option>)}
                 </select>
               </div>
               <div className="space-y-1.5 md:col-span-2">
-                <Label className="text-xs">التخصص</Label>
+                <Label className="text-xs">{t("specializationLabel")}</Label>
                 <select value={specialization} onChange={(e) => setSpecialization(e.target.value)} className="w-full h-10 rounded-md border bg-background px-3 text-sm">
-                  {SPECIALIZATIONS.map((s) => <option key={s} value={s}>{s}</option>)}
+                  {SPECIALIZATIONS.map((s) => <option key={s} value={s}>{t(SPECIALIZATION_KEYS[s])}</option>)}
                 </select>
               </div>
             </div>
             <Button onClick={save} disabled={update.isPending} className="w-full">
-              <Save className="me-2 h-4 w-4" /> حفظ التغييرات
+              <Save className="me-2 h-4 w-4" /> {t("saveChanges")}
             </Button>
           </motion.div>
         </div>
@@ -194,7 +206,7 @@ export default function Profile() {
           <div className="bg-card border rounded-2xl p-4 sm:p-6">
             <h2 className="font-bold text-lg sm:text-xl mb-4 flex items-center gap-2"><Clock className="h-5 w-5 text-primary" /> {t("lectureSchedule")}</h2>
             {schedule.length === 0 ? (
-              <p className="text-muted-foreground text-center py-4">لم يُحدَّد جدول لمجموعتك بعد</p>
+              <p className="text-muted-foreground text-center py-4">{t("noSchedule")}</p>
             ) : (
               <div className="space-y-2">
                 {schedule.map((s: any) => (
@@ -215,14 +227,14 @@ export default function Profile() {
           <div className="bg-card border rounded-2xl p-4 sm:p-6">
             <h2 className="font-bold text-lg sm:text-xl mb-4 flex items-center gap-2"><Calendar className="h-5 w-5 text-rose-500" /> {t("examSchedule")}</h2>
             {exams.length === 0 ? (
-              <p className="text-muted-foreground text-center py-4">لم يتم نشر جدول الامتحانات بعد</p>
+              <p className="text-muted-foreground text-center py-4">{t("noExams")}</p>
             ) : (
               <div className="space-y-2">
                 {exams.map((e: any) => (
                   <div key={e.id} className="flex flex-col sm:flex-row items-start sm:items-center justify-between p-3 bg-amber-500/5 rounded-lg border border-amber-500/20 gap-2">
                     <div>
                       <div className="font-bold text-sm">{e.courseTitle}</div>
-                      <div className="text-xs text-muted-foreground">{e.type === "midterm" ? "نصفي" : e.type === "final" ? "نهائي" : e.type}</div>
+                      <div className="text-xs text-muted-foreground">{e.type === "midterm" ? t("midterm") : e.type === "final" ? t("final") : e.type}</div>
                     </div>
                     <div className="text-xs sm:text-sm text-muted-foreground">
                       {e.date} · {e.time} · {e.room}
@@ -237,9 +249,9 @@ export default function Profile() {
 
       {tab === "tasks" && (
         <div className="bg-card border rounded-2xl p-4 sm:p-6">
-          <h2 className="font-bold text-lg sm:text-xl mb-4 flex items-center gap-2"><Target className="h-5 w-5 text-primary" /> المهام</h2>
+          <h2 className="font-bold text-lg sm:text-xl mb-4 flex items-center gap-2"><Target className="h-5 w-5 text-primary" /> {t("missions")}</h2>
           {missions.length === 0 ? (
-            <p className="text-muted-foreground text-center py-4">لا توجد مهام حالياً</p>
+            <p className="text-muted-foreground text-center py-4">{t("noMissions")}</p>
           ) : (
             <div className="space-y-3">
               {missions.map((m: any) => (
@@ -250,11 +262,11 @@ export default function Profile() {
                       <div className="text-sm text-muted-foreground">{m.description}</div>
                     </div>
                     <div className="flex items-center gap-3">
-                      <span className="text-sm font-bold text-amber-600">{m.points} نقطة</span>
+                      <span className="text-sm font-bold text-amber-600">{m.points} {t("point")}</span>
                       {m.completed ? (
-                        <span className="text-xs bg-emerald-500/10 text-emerald-700 px-2 py-1 rounded-full font-bold">مكتمل</span>
+                        <span className="text-xs bg-emerald-500/10 text-emerald-700 px-2 py-1 rounded-full font-bold">{t("completed")}</span>
                       ) : (
-                        <span className="text-xs bg-muted text-muted-foreground px-2 py-1 rounded-full">قيد التنفيذ</span>
+                        <span className="text-xs bg-muted text-muted-foreground px-2 py-1 rounded-full">{t("inProgress")}</span>
                       )}
                     </div>
                   </div>
@@ -267,7 +279,7 @@ export default function Profile() {
 
       {tab === "progress" && (
         <div className="bg-card border rounded-2xl p-4 sm:p-6">
-          <h2 className="font-bold text-lg sm:text-xl mb-4 flex items-center gap-2"><Trophy className="h-5 w-5 text-primary" /> الإنجازات</h2>
+          <h2 className="font-bold text-lg sm:text-xl mb-4 flex items-center gap-2"><Trophy className="h-5 w-5 text-primary" /> {t("achievements")}</h2>
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3 sm:gap-4">
             {(achievements ?? []).map((a: any) => (
               <div key={a.id} className={`p-4 rounded-2xl border-2 ${a.completed ? "bg-emerald-500/10 border-emerald-500/40" : "bg-card border"}`}>
@@ -291,45 +303,45 @@ export default function Profile() {
       {tab === "goals" && (
         <div className="space-y-4 sm:space-y-6">
           <div className="bg-card border rounded-2xl p-4 sm:p-6">
-            <h2 className="font-bold text-lg sm:text-xl mb-4 flex items-center gap-2"><BookOpen className="h-5 w-5 text-primary" /> أهدافك</h2>
+            <h2 className="font-bold text-lg sm:text-xl mb-4 flex items-center gap-2"><BookOpen className="h-5 w-5 text-primary" /> {t("yourGoals")}</h2>
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-4">
               <div className="p-4 bg-muted/30 rounded-xl">
-                <div className="text-sm text-muted-foreground mb-1">النقاط الحالية</div>
+                <div className="text-sm text-muted-foreground mb-1">{t("currentPoints")}</div>
                 <div className="text-3xl font-bold">{me.points}</div>
-                <div className="text-xs text-muted-foreground mt-1">متبقي {Math.max(0, me.level * 100 - me.points)} نقطة للمستوى القادم</div>
+                <div className="text-xs text-muted-foreground mt-1">{t("remainingForNextLevel").replace("{points}", String(Math.max(0, me.level * 100 - me.points)))}</div>
                 <Progress value={((me.points - (me.level - 1) * 100) / 100) * 100} className="h-1.5 mt-2" />
               </div>
               <div className="p-4 bg-muted/30 rounded-xl">
-                <div className="text-sm text-muted-foreground mb-1">المهام المكتملة</div>
+                <div className="text-sm text-muted-foreground mb-1">{t("completedMissions")}</div>
                 <div className="text-3xl font-bold">{completedMissions}/{totalMissions}</div>
                 <div className="text-xs text-muted-foreground mt-1">
-                  {totalMissions > 0 ? Math.round((completedMissions / totalMissions) * 100) : 0}% مكتمل
+                  {t("percentComplete").replace("{percent}", String(totalMissions > 0 ? Math.round((completedMissions / totalMissions) * 100) : 0))}
                 </div>
                 <Progress value={totalMissions > 0 ? (completedMissions / totalMissions) * 100 : 0} className="h-1.5 mt-2" />
               </div>
               <div className="p-4 bg-muted/30 rounded-xl">
-                <div className="text-sm text-muted-foreground mb-1">السلسلة اليومية</div>
+                <div className="text-sm text-muted-foreground mb-1">{t("dailyStreak")}</div>
                 <div className="text-3xl font-bold">🔥 {me.streak}</div>
-                <div className="text-xs text-muted-foreground mt-1">أيام متتالية</div>
+                <div className="text-xs text-muted-foreground mt-1">{t("consecutiveDays")}</div>
               </div>
               <div className="p-4 bg-muted/30 rounded-xl">
-                <div className="text-sm text-muted-foreground mb-1">المستوى</div>
+                <div className="text-sm text-muted-foreground mb-1">{t("level")}</div>
                 <div className="text-3xl font-bold">{me.level}</div>
                 <div className="text-xs text-muted-foreground mt-1">
-                  {me.points} / {me.level * 100} نقطة
+                  {me.points} / {me.level * 100} {t("point")}
                 </div>
                 <Progress value={((me.points - (me.level - 1) * 100) / 100) * 100} className="h-1.5 mt-2" />
               </div>
               <div className="p-4 bg-muted/30 rounded-xl">
-                <div className="text-sm text-muted-foreground mb-1">وقت المذاكرة هذا الأسبوع</div>
-                <div className="text-3xl font-bold">⏱ {dashboard?.weeklyMinutes ?? 0} د</div>
-                <div className="text-xs text-muted-foreground mt-1">الهدف: {dashboard?.focusGoalMinutes ?? 600} دقيقة</div>
+                <div className="text-sm text-muted-foreground mb-1">{t("studyTimeThisWeek")}</div>
+                <div className="text-3xl font-bold">⏱ {dashboard?.weeklyMinutes ?? 0} {t("minShort")}</div>
+                <div className="text-xs text-muted-foreground mt-1">{t("goalMinutes").replace("{minutes}", String(dashboard?.focusGoalMinutes ?? 600))}</div>
                 <Progress value={((dashboard?.weeklyMinutes ?? 0) / (dashboard?.focusGoalMinutes ?? 600)) * 100} className="h-1.5 mt-2" />
               </div>
               <div className="p-4 bg-muted/30 rounded-xl">
-                <div className="text-sm text-muted-foreground mb-1">الترتيب</div>
+                <div className="text-sm text-muted-foreground mb-1">{t("rank")}</div>
                 <div className="text-3xl font-bold">#{dashboard?.rank ?? "-"}</div>
-                <div className="text-xs text-muted-foreground mt-1">بين الطلاب</div>
+                <div className="text-xs text-muted-foreground mt-1">{t("amongStudents")}</div>
               </div>
             </div>
           </div>

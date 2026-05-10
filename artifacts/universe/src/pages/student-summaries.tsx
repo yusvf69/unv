@@ -28,6 +28,7 @@ import {
 import FileUpload from "@/components/file-upload";
 import { useToast } from "@/hooks/use-toast";
 import { formatISODate } from "@/lib/dates";
+import { useTranslation, globalI18n } from "@/lib/i18n";
 
 function formatSize(bytes: number): string {
   if (!bytes) return "—";
@@ -52,6 +53,7 @@ export default function StudentSummariesPage() {
   const [uploading, setUploading] = useState(false);
   const [q, setQ] = useState("");
   const [form, setForm] = useState({ name: "", url: "", kind: "pdf", sizeBytes: 0, courseId: 0 });
+  const t = useTranslation(globalI18n);
 
   const filtered = useMemo(() => {
     return summaries.filter((s) => !q || s.name.toLowerCase().includes(q.toLowerCase()) || s.uploadedByName.toLowerCase().includes(q.toLowerCase()));
@@ -59,17 +61,17 @@ export default function StudentSummariesPage() {
 
   const submit = async () => {
     if (!form.name || !form.url || !form.courseId) {
-      toast({ title: "اختر المادة وارفع الملف وضع له اسماً", variant: "destructive" });
+      toast({ title: t("selectCourseAndUploadFile"), variant: "destructive" });
       return;
     }
     setUploading(true);
     try {
       await upload.mutateAsync(form);
-      toast({ title: "تم رفع الملخص!", description: "+5 نقاط لك. كل مشاهدة وإعجاب يضيفان لك المزيد." });
+      toast({ title: t("summaryUploaded"), description: t("summaryUploadedDesc") });
       setOpen(false);
       setForm({ name: "", url: "", kind: "pdf", sizeBytes: 0, courseId: 0 });
     } catch (e) {
-      toast({ title: "خطأ", description: (e as Error).message, variant: "destructive" });
+toast({ title: t("error"), description: (e as Error).message, variant: "destructive" });
     } finally {
       setUploading(false);
     }
@@ -87,10 +89,10 @@ export default function StudentSummariesPage() {
     finally { setLiking(null); }
   };
   const onDelete = async (id: number) => {
-    if (!confirm("حذف الملخص؟")) return;
+    if (!confirm(t("confirmDeleteSummary"))) return;
     setDeleting(id);
-    try { await remove.mutateAsync(id); toast({ title: "تم الحذف" }); }
-    catch (e) { toast({ title: "خطأ", description: (e as Error).message, variant: "destructive" }); }
+    try { await remove.mutateAsync(id); toast({ title: t("deleted") }); }
+    catch (e) { toast({ title: t("error"), description: (e as Error).message, variant: "destructive" }); }
     finally { setDeleting(null); }
   };
 
@@ -99,25 +101,25 @@ export default function StudentSummariesPage() {
       <motion.div initial={{ opacity: 0, y: -10 }} animate={{ opacity: 1, y: 0 }} className="mb-6 flex items-start justify-between gap-3 flex-wrap">
         <div>
           <h1 className="text-3xl md:text-4xl font-serif font-bold flex items-center gap-3">
-            <Trophy className="h-8 w-8 text-primary" /> ملخصات الطلبة
+            <Trophy className="h-8 w-8 text-primary" /> {t("summaries")}
           </h1>
           <p className="text-sm text-muted-foreground mt-2">
-            اقرأ، حمّل، وأعجب بملخصات الزملاء — كل إعجاب يضيف نقاط للناشر ويمنحه ألقاب جديدة.
+            {t("summariesDescription")}
           </p>
         </div>
-        {me && <Button onClick={() => setOpen(true)}><Plus className="me-2 h-4 w-4" /> ارفع ملخصك</Button>}
+        {me && <Button onClick={() => setOpen(true)}><Plus className="me-2 h-4 w-4" /> {t("uploadSummary")}</Button>}
       </motion.div>
 
       <div className="relative mb-4 max-w-md">
         <Search className="absolute start-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-        <Input value={q} onChange={(e) => setQ(e.target.value)} placeholder="ابحث في الملخصات..." className="ps-9" />
+        <Input value={q} onChange={(e) => setQ(e.target.value)} placeholder={t("searchSummaries")} className="ps-9" />
       </div>
 
-      {isLoading && <p className="text-center text-muted-foreground py-8">جاري التحميل...</p>}
+      {isLoading && <p className="text-center text-muted-foreground py-8">{t("loading")}</p>}
       {!isLoading && filtered.length === 0 && (
         <div className="text-center py-16 bg-card border rounded-2xl">
           <FileText className="h-12 w-12 mx-auto text-muted-foreground mb-3" />
-          <p className="text-muted-foreground">لا توجد ملخصات بعد. كن أول من يشارك!</p>
+          <p className="text-muted-foreground">{t("noSummariesYet")}</p>
         </div>
       )}
 
@@ -158,7 +160,7 @@ export default function StudentSummariesPage() {
               </div>
               <div className="flex items-center gap-2 mt-1 pt-3 border-t">
                 <Button size="sm" variant="outline" onClick={() => onView(s.id, s.name, s.url)} disabled={viewing === s.id} className="flex-1">
-                  {viewing === s.id ? <Loader2 className="h-4 w-4 animate-spin" /> : <><Download className="me-1 h-4 w-4" /> فتح</>}
+                  {viewing === s.id ? <Loader2 className="h-4 w-4 animate-spin" /> : <><Download className="me-1 h-4 w-4" /> {t("open")}</>}
                 </Button>
                 <Button size="sm" variant="ghost" onClick={() => onLike(s.id)} disabled={liking === s.id} className="gap-1">
                   {liking === s.id ? <Loader2 className="h-4 w-4 animate-spin" /> : <><Heart className="h-4 w-4" /> {s.likes}</>}
@@ -174,27 +176,27 @@ export default function StudentSummariesPage() {
 
       <Dialog open={open} onOpenChange={setOpen}>
         <DialogContent className="max-w-md">
-          <DialogHeader><DialogTitle>ارفع ملخصك</DialogTitle></DialogHeader>
+          <DialogHeader><DialogTitle>{t("uploadSummary")}</DialogTitle></DialogHeader>
           <div className="space-y-3">
             <div>
-              <Label className="text-xs">المادة</Label>
+              <Label className="text-xs">{t("courseField")}</Label>
               <select
                 value={form.courseId}
                 onChange={(e) => setForm({ ...form, courseId: Number(e.target.value) })}
                 className="w-full h-10 px-3 border-2 border-input rounded-md bg-background text-sm"
               >
-                <option value={0}>— اختر مادة —</option>
+                <option value={0}>{t("selectCourseOption")}</option>
                 {courses.map((c) => (
                   <option key={c.id} value={c.id}>{c.code} — {c.title}</option>
                 ))}
               </select>
             </div>
             <div>
-              <Label className="text-xs">اسم الملخص</Label>
-              <Input value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} placeholder="مثال: ملخص الفصل الأول" />
+              <Label className="text-xs">{t("summaryName")}</Label>
+              <Input value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} placeholder={t("summaryNamePlaceholder")} />
             </div>
             <div>
-              <Label className="text-xs">الملف (يتم ضغط PDF تلقائياً)</Label>
+              <Label className="text-xs">{t("summaryFileLabel")}</Label>
               <FileUpload
                 value={form.url || null}
                 onChange={(d, meta) => setForm({ ...form, url: d || "", kind: meta?.type?.includes("pdf") ? "pdf" : "file", sizeBytes: meta?.size || 0 })}
@@ -205,8 +207,8 @@ export default function StudentSummariesPage() {
             </div>
           </div>
           <DialogFooter>
-            <Button variant="ghost" onClick={() => setOpen(false)} disabled={uploading}>إلغاء</Button>
-            <Button onClick={submit} disabled={uploading}>{uploading ? <Loader2 className="h-4 w-4 animate-spin" /> : <><Send className="me-2 h-4 w-4" /> رفع</>}</Button>
+            <Button variant="ghost" onClick={() => setOpen(false)} disabled={uploading}>{t("cancel")}</Button>
+            <Button onClick={submit} disabled={uploading}>{uploading ? <Loader2 className="h-4 w-4 animate-spin" /> : <><Send className="me-2 h-4 w-4" /> {t("upload")}</>}</Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
@@ -225,7 +227,7 @@ export default function StudentSummariesPage() {
             <div className="flex gap-2">
               <a href={viewerOpen.url} download={viewerOpen.name} target="_blank" rel="noreferrer" className="flex-1">
                 <Button variant="outline" className="w-full">
-                  <Download className="h-4 w-4 me-1" /> تحميل
+                  <Download className="h-4 w-4 me-1" /> {t("download")}
                 </Button>
               </a>
             </div>

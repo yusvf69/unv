@@ -1,11 +1,13 @@
 import { Link } from "wouter";
 import { BookOpen, ArrowRight } from "lucide-react";
 import { useCourses } from "@/lib/api";
+import { useTranslation, globalI18n } from "@/lib/i18n";
 
 export default function Courses() {
   const { data: courses = [], isLoading } = useCourses();
+  const t = useTranslation(globalI18n);
 
-  if (isLoading) return <div className="p-8 text-center">جاري التحميل...</div>;
+  if (isLoading) return <div className="p-8 text-center">{t("loading")}</div>;
 
   const firstSemester = courses.filter(c => c.semester === 1);
   const secondSemester = courses.filter(c => c.semester === 2);
@@ -32,11 +34,11 @@ export default function Courses() {
 
           <div className="mt-auto">
             <div className="flex justify-between text-[10px] sm:text-xs text-muted-foreground mb-1.5 sm:mb-2 flex-wrap gap-1">
-              <span>د. {course.instructor}</span>
+              <span>{t("instructorPrefix")}{course.instructor}</span>
               <span>{course.department}</span>
             </div>
             <div className="flex items-center justify-between text-sm font-bold text-primary group-hover:gap-2 transition-all">
-              <span>عرض المقرر</span>
+              <span>{t("viewCourse")}</span>
               <ArrowRight className="w-4 h-4" />
             </div>
           </div>
@@ -47,14 +49,14 @@ export default function Courses() {
 
   return (
     <div className="container mx-auto px-3 sm:px-4 py-4 sm:py-8">
-      <h1 className="text-2xl sm:text-4xl font-serif font-bold text-primary mb-1 sm:mb-2">المقررات الدراسية</h1>
-      <p className="text-muted-foreground text-xs sm:text-sm mb-4 sm:mb-8">استعرض المقررات وابدأ التعلم</p>
+      <h1 className="text-2xl sm:text-4xl font-serif font-bold text-primary mb-1 sm:mb-2">{t("coursesPageTitle")}</h1>
+      <p className="text-muted-foreground text-xs sm:text-sm mb-4 sm:mb-8">{t("coursesSubtitle")}</p>
 
       {firstSemester.length > 0 && (
         <div className="mb-6 sm:mb-8">
           <h2 className="text-lg sm:text-2xl font-bold mb-3 sm:mb-4 flex items-center gap-2">
             <span className="w-2 h-2 sm:w-3 sm:h-3 rounded-full bg-primary" />
-            الترم الأول
+            {t("firstSemester")}
           </h2>
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 sm:gap-6">
             {firstSemester.map(renderCourse)}
@@ -66,7 +68,7 @@ export default function Courses() {
         <div className="mb-6 sm:mb-8">
           <h2 className="text-lg sm:text-2xl font-bold mb-3 sm:mb-4 flex items-center gap-2">
             <span className="w-2 h-2 sm:w-3 sm:h-3 rounded-full bg-secondary" />
-            الترم الثاني
+            {t("secondSemester")}
           </h2>
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 sm:gap-6">
             {secondSemester.map(renderCourse)}
@@ -77,7 +79,7 @@ export default function Courses() {
       {!courses.length && (
         <div className="text-center text-muted-foreground py-10 sm:py-12">
           <BookOpen className="h-10 w-10 sm:h-12 sm:w-12 mx-auto text-muted-foreground/50 mb-3" />
-          <p className="text-sm">لا توجد مقررات بعد</p>
+          <p className="text-sm">{t("noCoursesYet")}</p>
         </div>
       )}
     </div>

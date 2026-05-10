@@ -6,10 +6,12 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { api, useGameLeaderboard } from "@/lib/api";
 import { useToast } from "@/hooks/use-toast";
 import { useQueryClient } from "@tanstack/react-query";
+import { useTranslation, globalI18n } from "@/lib/i18n";
 
 const ICONS_FULL = ["🌱","🌾","🌻","🌽","🍅","🥕","🍇","🌿","🍎","🌶️","🥒","🥦","🍓","🍑","🌳","🍃"];
 
 function MemoryMatch({ onScore }: { onScore: (s: number) => void }) {
+  const t = useTranslation(globalI18n);
   const [size, setSize] = useState(8);
   const [cards, setCards] = useState<{ id: number; icon: string; flipped: boolean; matched: boolean }[]>([]);
   const [first, setFirst] = useState<number | null>(null);
@@ -58,7 +60,7 @@ function MemoryMatch({ onScore }: { onScore: (s: number) => void }) {
     <div className="space-y-3 sm:space-y-4">
       <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-2">
         <div className="flex gap-2 text-xs sm:text-sm">
-          <span className="bg-primary/10 px-2 sm:px-3 py-1 rounded-full font-bold">حركات: {moves}</span>
+          <span className="bg-primary/10 px-2 sm:px-3 py-1 rounded-full font-bold">{t("moves")} {moves}</span>
           <span className="bg-accent/30 px-2 sm:px-3 py-1 rounded-full font-bold">{cards.filter((c) => c.matched).length / 2}/{size}</span>
         </div>
         <div className="flex gap-1">
@@ -84,8 +86,8 @@ function MemoryMatch({ onScore }: { onScore: (s: number) => void }) {
       {done && (
         <motion.div initial={{ scale: 0 }} animate={{ scale: 1 }} className="text-center bg-emerald-50 border border-emerald-200 text-emerald-900 rounded-2xl p-6">
           <Trophy className="h-12 w-12 mx-auto text-amber-500" />
-          <div className="text-2xl font-bold mt-2">ممتاز!</div>
-          <div className="text-sm">{moves} حركة · اضغط الحجم لإعادة اللعب</div>
+          <div className="text-2xl font-bold mt-2">{t("excellent")}</div>
+          <div className="text-sm">{moves} {t("move")} · {t("clickSizeToReplay")}</div>
         </motion.div>
       )}
     </div>
@@ -127,6 +129,7 @@ const QUIZ_POOL = [
 ];
 
 function PlantQuiz({ onScore }: { onScore: (s: number) => void }) {
+  const t = useTranslation(globalI18n);
   const N = 10;
   const [pool, setPool] = useState<typeof QUIZ_POOL>(() => [...QUIZ_POOL].sort(() => Math.random() - 0.5).slice(0, N));
   const [i, setI] = useState(0);
@@ -153,9 +156,9 @@ function PlantQuiz({ onScore }: { onScore: (s: number) => void }) {
     return (
       <div className="text-center py-12">
         <Trophy className="h-16 w-16 mx-auto text-amber-500" />
-        <div className="text-3xl font-bold mt-3">{score} نقطة</div>
-        <p className="text-sm text-muted-foreground mt-1">{score / 100} إجابة صحيحة من {N}</p>
-        <Button onClick={reset} className="mt-4"><RotateCcw className="me-2 h-4 w-4" /> أسئلة جديدة</Button>
+        <div className="text-3xl font-bold mt-3">{score} {t("point")}</div>
+        <p className="text-sm text-muted-foreground mt-1">{t("correctAnswersOutOf").replace("{correct}", String(score / 100)).replace("{total}", String(N))}</p>
+        <Button onClick={reset} className="mt-4"><RotateCcw className="me-2 h-4 w-4" /> {t("newQuestions")}</Button>
       </div>
     );
   }
@@ -164,8 +167,8 @@ function PlantQuiz({ onScore }: { onScore: (s: number) => void }) {
   return (
     <div className="space-y-5">
       <div className="flex items-center justify-between text-sm">
-        <span className="bg-primary/10 px-3 py-1 rounded-full font-bold">سؤال {i + 1}/{N}</span>
-        <span className="bg-accent/30 px-3 py-1 rounded-full font-bold">{score} نقطة</span>
+        <span className="bg-primary/10 px-3 py-1 rounded-full font-bold">{t("questionNumber").replace("{n}", String(i + 1)).replace("{total}", String(N))}</span>
+        <span className="bg-accent/30 px-3 py-1 rounded-full font-bold">{score} {t("point")}</span>
       </div>
       <div className="h-2 bg-muted rounded-full overflow-hidden">
         <motion.div className="h-full bg-gradient-to-r from-primary to-secondary" initial={{ width: 0 }} animate={{ width: `${((i + 1) / N) * 100}%` }} />
@@ -193,6 +196,7 @@ function PlantQuiz({ onScore }: { onScore: (s: number) => void }) {
 }
 
 function HarvestRun({ onScore }: { onScore: (s: number) => void }) {
+  const t = useTranslation(globalI18n);
   const [pos, setPos] = useState(50);
   const [crops, setCrops] = useState<{ id: number; x: number; y: number; type: "good" | "bad" }[]>([]);
   const [score, setScore] = useState(0);
@@ -238,11 +242,11 @@ function HarvestRun({ onScore }: { onScore: (s: number) => void }) {
         <div className="absolute bottom-2 text-4xl" style={{ left: `${pos}%`, transform: "translateX(-50%)" }}>🧺</div>
         {!running && (
           <div className="absolute inset-0 bg-black/40 flex items-center justify-center">
-            <Button size="lg" onClick={start} className="bg-gradient-to-r from-primary to-secondary"><Play className="me-2 h-5 w-5" /> {time === 0 ? "أعد" : "ابدأ"}</Button>
+            <Button size="lg" onClick={start} className="bg-gradient-to-r from-primary to-secondary"><Play className="me-2 h-5 w-5" /> {time === 0 ? t("restart") : t("start")}</Button>
           </div>
         )}
       </div>
-      <div className="text-xs text-muted-foreground mt-2 text-center">حرّك بالماوس/الأصبع — اجمع 🌾 وتجنّب 🦗</div>
+      <div className="text-xs text-muted-foreground mt-2 text-center">{t("harvestInstructions")}</div>
     </div>
   );
 }
@@ -264,6 +268,7 @@ const PLANTS = [
 ];
 
 function PlantIdGame({ onScore }: { onScore: (s: number) => void }) {
+  const t = useTranslation(globalI18n);
   const N = 10;
   const [pool, setPool] = useState(() => [...PLANTS].sort(() => Math.random() - 0.5).slice(0, N));
   const [i, setI] = useState(0);
@@ -291,8 +296,8 @@ function PlantIdGame({ onScore }: { onScore: (s: number) => void }) {
     return (
       <div className="text-center py-12">
         <Trophy className="h-16 w-16 mx-auto text-amber-500" />
-        <div className="text-3xl font-bold mt-3">{score} نقطة</div>
-        <Button onClick={reset} className="mt-4"><RotateCcw className="me-2 h-4 w-4" /> ابدأ من جديد</Button>
+        <div className="text-3xl font-bold mt-3">{score} {t("point")}</div>
+        <Button onClick={reset} className="mt-4"><RotateCcw className="me-2 h-4 w-4" /> {t("startOver")}</Button>
       </div>
     );
   }
@@ -302,7 +307,7 @@ function PlantIdGame({ onScore }: { onScore: (s: number) => void }) {
     <div className="space-y-4">
       <div className="flex items-center justify-between text-sm">
         <span className="bg-primary/10 px-3 py-1 rounded-full font-bold">{i + 1}/{N}</span>
-        <span className="bg-accent/30 px-3 py-1 rounded-full font-bold">{score} نقطة</span>
+        <span className="bg-accent/30 px-3 py-1 rounded-full font-bold">{score} {t("point")}</span>
       </div>
       <motion.div key={i} initial={{ scale: 0.5, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} className="text-center bg-gradient-to-br from-emerald-50 to-amber-50 dark:from-emerald-950/30 dark:to-amber-950/30 border-2 border-primary/15 rounded-3xl py-12">
         <div className="text-9xl">{p.emoji}</div>
@@ -326,6 +331,7 @@ function PlantIdGame({ onScore }: { onScore: (s: number) => void }) {
 
 // New game: Soil pH balance (target a value within range)
 function SoilPhGame({ onScore }: { onScore: (s: number) => void }) {
+  const t = useTranslation(globalI18n);
   const [target, setTarget] = useState(() => 5 + Math.random() * 3);
   const [val, setVal] = useState(7);
   const [round, setRound] = useState(1);
@@ -353,9 +359,9 @@ function SoilPhGame({ onScore }: { onScore: (s: number) => void }) {
     return (
       <div className="text-center py-12">
         <Beaker className="h-16 w-16 mx-auto text-emerald-500" />
-        <div className="text-3xl font-bold mt-3">{score} نقطة</div>
-        <p className="text-sm text-muted-foreground mt-1">عبر {N} جولات pH</p>
-        <Button onClick={reset} className="mt-4"><RotateCcw className="me-2 h-4 w-4" /> أعد</Button>
+        <div className="text-3xl font-bold mt-3">{score} {t("point")}</div>
+        <p className="text-sm text-muted-foreground mt-1">{t("acrossPhRounds").replace("{n}", String(N))}</p>
+        <Button onClick={reset} className="mt-4"><RotateCcw className="me-2 h-4 w-4" /> {t("restart")}</Button>
       </div>
     );
   }
@@ -363,31 +369,31 @@ function SoilPhGame({ onScore }: { onScore: (s: number) => void }) {
   return (
     <div className="space-y-6">
       <div className="flex items-center justify-between text-sm">
-        <span className="bg-primary/10 px-3 py-1 rounded-full font-bold">جولة {round}/{N}</span>
-        <span className="bg-accent/30 px-3 py-1 rounded-full font-bold">{score} نقطة</span>
+        <span className="bg-primary/10 px-3 py-1 rounded-full font-bold">{t("round")} {round}/{N}</span>
+        <span className="bg-accent/30 px-3 py-1 rounded-full font-bold">{score} {t("point")}</span>
       </div>
       <div className="bg-card border-2 border-primary/15 rounded-3xl p-6 text-center">
-        <p className="text-sm text-muted-foreground">اضبط رقم الـ pH ليطابق هدف:</p>
+        <p className="text-sm text-muted-foreground">{t("adjustPhTarget")}</p>
         <div className="text-5xl font-bold text-primary mt-2 tabular-nums">{target.toFixed(2)}</div>
         <div className="mt-8">
           <div className="text-7xl font-bold tabular-nums" style={{ color: `hsl(${(val - 4) * 30}, 70%, 45%)` }}>{val.toFixed(2)}</div>
           <input type="range" min={3} max={10} step={0.05} value={val} onChange={(e) => setVal(Number(e.target.value))} className="w-full mt-4 accent-primary" />
           <div className="flex justify-between text-xs text-muted-foreground mt-1">
-            <span>3 (حمضي)</span><span>7 (متعادل)</span><span>10 (قاعدي)</span>
+            <span>3 ({t("acidic")})</span><span>7 ({t("neutral")})</span><span>10 ({t("basic")})</span>
           </div>
         </div>
-        <Button onClick={lock} size="lg" className="mt-6 bg-gradient-to-r from-primary to-secondary">تثبيت</Button>
+        <Button onClick={lock} size="lg" className="mt-6 bg-gradient-to-r from-primary to-secondary">{t("lock")}</Button>
       </div>
     </div>
   );
 }
 
 const GAMES = [
-  { key: "soil_match", label: "ذاكرة المحاصيل", icon: Brain, Comp: MemoryMatch },
-  { key: "plant_quiz", label: "تحدي النباتات", icon: Wheat, Comp: PlantQuiz },
-  { key: "harvest_run", label: "سباق الحصاد", icon: Trophy, Comp: HarvestRun },
-  { key: "plant_id", label: "تعرّف على النبات", icon: Sprout, Comp: PlantIdGame },
-  { key: "soil_ph", label: "موازنة pH", icon: Beaker, Comp: SoilPhGame },
+  { key: "soil_match", labelKey: "gameMemoryMatch", icon: Brain, Comp: MemoryMatch },
+  { key: "plant_quiz", labelKey: "gamePlantQuiz", icon: Wheat, Comp: PlantQuiz },
+  { key: "harvest_run", labelKey: "gameHarvestRun", icon: Trophy, Comp: HarvestRun },
+  { key: "plant_id", labelKey: "gamePlantId", icon: Sprout, Comp: PlantIdGame },
+  { key: "soil_ph", labelKey: "gameSoilPh", icon: Beaker, Comp: SoilPhGame },
 ];
 
 export default function Games() {
@@ -395,16 +401,17 @@ export default function Games() {
   const { data: lb } = useGameLeaderboard(tab);
   const { toast } = useToast();
   const qc = useQueryClient();
+  const t = useTranslation(globalI18n);
 
   const submitScore = async (gameKey: string, score: number) => {
     try {
       await api.post("/v2/games/score", { gameKey, score });
-      toast({ title: `+${Math.floor(score / 10)} نقطة في حسابك!`, description: `سجلت ${score} في اللعبة.` });
+      toast({ title: t("pointsAdded").replace("{points}", String(Math.floor(score / 10))), description: t("gameScoreToast").replace("{score}", String(score)) });
       qc.invalidateQueries({ queryKey: ["v2", "games", "leaderboard"] });
       qc.invalidateQueries({ queryKey: ["v2", "me"] });
       qc.invalidateQueries({ queryKey: ["v2", "achievements"] });
     } catch (e) {
-      toast({ title: "خطأ", description: (e as Error).message, variant: "destructive" });
+      toast({ title: t("error"), description: (e as Error).message, variant: "destructive" });
     }
   };
 
@@ -412,8 +419,8 @@ export default function Games() {
     <div className="container mx-auto px-3 sm:px-4 py-4 sm:py-8 max-w-5xl">
       <div className="text-center mb-6 sm:mb-8">
         <motion.h1 initial={{ opacity: 0, y: -20 }} animate={{ opacity: 1, y: 0 }}
-          className="text-2xl sm:text-4xl md:text-5xl font-serif font-bold bg-gradient-to-r from-primary via-secondary to-accent-foreground bg-clip-text text-transparent">ساحة الألعاب</motion.h1>
-        <p className="text-muted-foreground mt-2 text-xs sm:text-sm">٥ ألعاب · أسئلة لا تتكرر · نقاط تُضاف لرصيدك</p>
+          className="text-2xl sm:text-4xl md:text-5xl font-serif font-bold bg-gradient-to-r from-primary via-secondary to-accent-foreground bg-clip-text text-transparent">{t("gameArena")}</motion.h1>
+        <p className="text-muted-foreground mt-2 text-xs sm:text-sm">{t("gameSubtitle")}</p>
       </div>
 
       <Tabs value={tab} onValueChange={setTab}>
@@ -421,7 +428,7 @@ export default function Games() {
           {GAMES.map((g) => (
             <TabsTrigger key={g.key} value={g.key} className="flex flex-col items-center gap-1 py-2 sm:py-3 px-1">
               <g.icon className="h-4 w-4 sm:h-5 sm:w-5" />
-              <span className="text-[9px] sm:text-[11px] text-center leading-tight">{g.label}</span>
+              <span className="text-[9px] sm:text-[11px] text-center leading-tight">{t(g.labelKey)}</span>
             </TabsTrigger>
           ))}
         </TabsList>
@@ -435,7 +442,7 @@ export default function Games() {
             ))}
           </div>
           <div className="bg-card border-2 border-border rounded-2xl sm:rounded-3xl p-4 sm:p-5 h-fit">
-            <h3 className="font-bold mb-3 flex items-center gap-2"><Trophy className="h-4 w-4 text-amber-500" /> أعلى النتائج</h3>
+            <h3 className="font-bold mb-3 flex items-center gap-2"><Trophy className="h-4 w-4 text-amber-500" /> {t("highScores")}</h3>
             <div className="space-y-2">
               <AnimatePresence>
                 {(lb ?? []).slice(0, 10).map((r, i) => (
@@ -451,7 +458,7 @@ export default function Games() {
                   </motion.div>
                 ))}
               </AnimatePresence>
-              {(!lb || lb.length === 0) && <div className="text-xs text-muted-foreground text-center py-4">لم تُسجل نتائج بعد.</div>}
+              {(!lb || lb.length === 0) && <div className="text-xs text-muted-foreground text-center py-4">{t("noScoresYet")}</div>}
             </div>
           </div>
         </div>
