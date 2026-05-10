@@ -16,6 +16,7 @@ import missionsRouter from "./missions";
 import complaintsRouter from "./complaints";
 import aiRouter from "./ai";
 import adminRouter from "./admin";
+import contactRouter from "./contact";
 import v2Router from "./v2";
 import extrasRouter from "./extras";
 
@@ -38,6 +39,7 @@ router.use(missionsRouter);
 router.use(complaintsRouter);
 router.use(aiRouter);
 router.use(adminRouter);
+router.use(contactRouter);
 router.use(v2Router);
 router.use(extrasRouter);
 
