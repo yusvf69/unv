@@ -61,6 +61,7 @@ export default function Layout({ children }: { children: ReactNode }) {
     { href: "/students", label: t("students") },
     { href: "/leaderboard", label: t("leaderboard") },
     { href: "/talents", label: t("talents") },
+    { href: "/complaints", label: t("complaints") },
   ];
 
   if (isAdmin) appLinks.push({ href: "/admin", label: t("admin") });
