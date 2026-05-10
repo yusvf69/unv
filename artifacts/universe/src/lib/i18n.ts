@@ -166,8 +166,16 @@ export const globalI18n = {
   manageComplaints: { ar: "إدارة الشكاوى", en: "Manage Complaints" },
   dmMonitor: { ar: "مراقبة المراسلات", en: "DM Monitor" },
 
-  // Footer
+  // Home
+  heroBadge: { ar: "جامعتك الذكية للزراعة", en: "Your Smart Agriculture University" },
+  heroSubtitle: { ar: "منصة كلية الزراعة الذكية", en: "Smart Agriculture College Platform" },
+  heroDesc: { ar: "مكان واحد للطلاب والدكاتره والإداريين — جدولك، درجاتك، مقرراتك، مواهبك، اختباراتك، ومجتمعك في تجربة عصرية متكاملة.", en: "One place for students, professors, and administrators — your schedule, grades, courses, talents, exams, and community in a complete modern experience." },
+  ctaTitle: { ar: "ازرع طريقك للتميز", en: "Grow Your Path to Excellence" },
+  ctaDesc: { ar: "انضم لمجتمع UniVerse، شارك مواهبك، نافس زملاءك، وتعلّم بأسلوب جديد كلياً.", en: "Join the UniVerse community, share your talents, compete with your peers, and learn in a whole new way." },
+  browseTalents: { ar: "استعرض المواهب", en: "Browse Talents" },
+  tryGames: { ar: "جرّب الألعاب", en: "Try Games" },
   footerRights: { ar: "منصة كلية الزراعة الذكية", en: "Smart Agriculture College Platform" },
+  footerCredit: { ar: "UniVerse — منصة كلية الزراعة الذكية", en: "UniVerse — Smart Agriculture College Platform" },
   developedBy: { ar: "Developed by ONZ", en: "Developed by ONZ" },
 
   // Contact & Support

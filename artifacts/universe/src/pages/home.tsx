@@ -123,7 +123,7 @@ export default function Home() {
             className="inline-flex items-center gap-2 px-3 sm:px-4 py-1.5 sm:py-2 bg-primary/10 rounded-full border border-primary/20 mb-4 sm:mb-6"
           >
             <Sun className="h-3.5 w-3.5 sm:h-4 sm:w-4 text-accent-foreground" />
-            <span className="text-xs sm:text-sm font-medium text-primary">جامعتك الذكية للزراعة</span>
+            <span className="text-xs sm:text-sm font-medium text-primary">{t("heroBadge")}</span>
           </motion.div>
 
           <motion.h1
@@ -139,7 +139,7 @@ export default function Home() {
               transition={{ delay: 0.6 }}
               className="block text-xl sm:text-2xl md:text-4xl text-foreground mt-2 sm:mt-3 font-sans"
             >
-              منصة كلية الزراعة الذكية
+              {t("heroSubtitle")}
             </motion.span>
           </motion.h1>
 
@@ -149,8 +149,7 @@ export default function Home() {
             transition={{ duration: 0.7, delay: 0.3 }}
             className="text-base sm:text-lg md:text-xl text-muted-foreground max-w-2xl mx-auto mb-6 sm:mb-10 px-2"
           >
-            مكان واحد للطلاب والدكاتره والإداريين — جدولك، درجاتك، مقرراتك،
-            مواهبك، اختباراتك، ومجتمعك في تجربة عصرية متكاملة.
+            {t("heroDesc")}
           </motion.p>
 
           <motion.div
@@ -323,15 +322,15 @@ export default function Home() {
           </div>
           <div className="relative">
             <h2 className="text-xl sm:text-3xl md:text-4xl font-serif font-bold mb-3 sm:mb-4">
-              ازرع طريقك للتميز
+              {t("ctaTitle")}
             </h2>
             <p className="text-sm sm:text-lg opacity-90 mb-6 sm:mb-8 max-w-xl">
-              انضم لمجتمع UniVerse، شارك مواهبك، نافس زملاءك، وتعلّم بأسلوب جديد كلياً.
+              {t("ctaDesc")}
             </p>
             <div className="flex flex-wrap gap-2 sm:gap-3">
               <Link href="/talents">
                 <Button size="sm" variant="secondary" className="rounded-full sm:h-11">
-                  استعرض المواهب
+                  {t("browseTalents")}
                 </Button>
               </Link>
               <Link href="/games">
@@ -340,7 +339,7 @@ export default function Home() {
                   variant="outline"
                   className="rounded-full bg-white/10 text-white border-white/40 hover:bg-white/20 sm:h-11"
                 >
-                  جرّب الألعاب
+                  {t("tryGames")}
                 </Button>
               </Link>
             </div>
