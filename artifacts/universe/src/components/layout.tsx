@@ -193,7 +193,7 @@ export default function Layout({ children }: { children: ReactNode }) {
         <div className="container mx-auto px-3 sm:px-4 py-6 sm:py-8 flex flex-col sm:flex-row items-center justify-between gap-4 text-xs sm:text-sm text-muted-foreground">
           <div className="flex items-center gap-2">
             <Leaf className="h-3.5 w-3.5 sm:h-4 sm:w-4 text-primary" />
-            <span>UniVerse — منصة كلية الزراعة الذكية © {new Date().getFullYear()}</span>
+            <span>{t("footerCredit")} © {new Date().getFullYear()}</span>
           </div>
           <a
             href="https://onz-onz-website.vercel.app/"
