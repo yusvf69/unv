@@ -47,6 +47,9 @@ import AdminEvents from "@/pages/admin-events";
 import StudentSummaries from "@/pages/student-summaries";
 import Schedule from "@/pages/schedule";
 import StudentProfile from "@/pages/student-profile";
+import FAQ from "@/pages/faq";
+import Guide from "@/pages/guide";
+import Report from "@/pages/report";
 
 const PUBLIC_ROUTES = ["/", "/login", "/news"];
 
@@ -121,6 +124,9 @@ function Router() {
         <ProtectedRoute path="/summaries" component={StudentSummaries} />
         <ProtectedRoute path="/schedule" component={Schedule} />
         <ProtectedRoute path="/students/:id" component={StudentProfile} />
+        <ProtectedRoute path="/faq" component={FAQ} />
+        <ProtectedRoute path="/guide" component={Guide} />
+        <ProtectedRoute path="/report" component={Report} />
         <Route component={NotFound} />
       </Switch>
     </Layout>
