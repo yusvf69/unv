@@ -191,11 +191,11 @@ export default function AdminMaterials() {
                             <div className="text-[10px] sm:text-[11px] text-muted-foreground">{m.lecturer || "—"}</div>
                           </div>
                         </div>
-                         <button
-                           onClick={(e) => { e.stopPropagation(); handleDeleteMaterial(m.id); }}
-                           disabled={deleteMat.isPending}
-                           className="p-1 sm:p-1.5 rounded-lg hover:bg-destructive/10 text-destructive opacity-0 group-hover:opacity-100 transition-opacity disabled:opacity-50"
-                         >
+                          <button
+                            onClick={(e) => { e.stopPropagation(); handleDeleteMaterial(m.id); }}
+                            disabled={deleteMat.isPending}
+                            className="p-1 sm:p-1.5 rounded-lg hover:bg-destructive/10 text-destructive disabled:opacity-50"
+                          >
                            <Trash2 className="h-3.5 w-3.5 sm:h-4 sm:w-4" />
                          </button>
                       </div>
