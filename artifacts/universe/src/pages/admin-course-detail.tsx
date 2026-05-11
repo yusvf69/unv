@@ -197,6 +197,70 @@ function QuizTaking({ quiz, questions }: { quiz: any; questions: any[] }) {
   );
 }
 
+function QuizCard({ quiz, isSuper, onDelete, onAddQuestion, onTake, deleting, onDeleteQuestion, deletingQuestion }: {
+  quiz: any; isSuper: boolean; onDelete: () => void; onAddQuestion: () => void; onTake: (id: number) => void; deleting: boolean; onDeleteQuestion: (id: number) => void; deletingQuestion: number | null;
+}) {
+  const { data: attempts = [] } = useLectureQuizAttempts(quiz.id);
+  return (
+    <div className="p-3 border rounded-xl space-y-2">
+      <div className="flex items-center justify-between">
+        <div className="flex items-center gap-2">
+          <HelpCircle className="h-4 w-4 text-primary" />
+          <span className="font-bold text-sm">{quiz.title}</span>
+          <span className="text-xs text-muted-foreground">({quiz.questions.length} سؤال)</span>
+          {attempts.length > 0 && (
+            <span className="text-xs bg-primary/10 text-primary px-2 py-0.5 rounded-full">{attempts.length} محاولة</span>
+          )}
+        </div>
+        <div className="flex items-center gap-1">
+          <Button size="sm" variant="outline" onClick={() => onTake(quiz.id)}>حل</Button>
+          {isSuper && (
+            <>
+              <button onClick={onAddQuestion} className="text-xs text-primary underline">+ سؤال</button>
+              <button onClick={onDelete} disabled={deleting} className="p-1 rounded hover:bg-destructive/10 disabled:opacity-50">
+                {deleting ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Trash2 className="h-3.5 w-3.5 text-destructive" />}
+              </button>
+            </>
+          )}
+        </div>
+      </div>
+      {isSuper && quiz.questions.map((qq: any, qi: number) => (
+        <div key={qq.id} className="text-xs bg-muted/30 rounded-lg p-2 flex items-start justify-between gap-2">
+          <div>
+            <span className="font-bold">{qi + 1}.</span> {qq.text}
+            <div className="text-muted-foreground mt-0.5">الإجابة الصحيحة: {qq.options[qq.correctIndex]}</div>
+          </div>
+          <button onClick={() => onDeleteQuestion(qq.id)} disabled={deletingQuestion === qq.id} className="text-destructive flex-shrink-0 disabled:opacity-50">
+            {deletingQuestion === qq.id ? <Loader2 className="h-3 w-3 animate-spin" /> : <Trash2 className="h-3 w-3" />}
+          </button>
+        </div>
+      ))}
+      {attempts.length > 0 && (
+        <div className="mt-2 space-y-1">
+          <div className="text-xs font-bold text-muted-foreground">المحاولات:</div>
+          {attempts.slice(0, 5).map((a: any, i: number) => (
+            <div key={a.id || i} className="text-xs bg-muted/30 rounded-lg p-2 flex items-center justify-between">
+              <div className="flex items-center gap-2">
+                {a.userAvatar ? (
+                  <img src={a.userAvatar} alt="" className="h-5 w-5 rounded-full" />
+                ) : (
+                  <div className="h-5 w-5 rounded-full bg-primary/20 flex items-center justify-center text-[10px] font-bold">{a.userName?.[0] || "?"}</div>
+                )}
+                <span>{a.userName || "طالب"}</span>
+                {a.userGroup && <span className="text-[10px] bg-muted px-1.5 py-0.5 rounded">{a.userGroup}</span>}
+              </div>
+              <span className={`font-bold ${((a.score / a.total) >= 0.5) ? "text-green-600" : "text-destructive"}`}>{a.score}/{a.total}</span>
+            </div>
+          ))}
+          {attempts.length > 5 && (
+            <div className="text-xs text-muted-foreground text-center py-1">...و{attempts.length - 5} محاولات أخرى</div>
+          )}
+        </div>
+      )}
+    </div>
+  );
+}
+
 function LectureCard({ lecture, isSuper, videoProgress }: { lecture: LectureFull; isSuper: boolean; videoProgress: Record<number, boolean> }) {
   const deleteLecture = useDeleteLecture();
   const addVideo = useAddVideo();
@@ -401,64 +465,19 @@ function LectureCard({ lecture, isSuper, videoProgress }: { lecture: LectureFull
           <h4 className="text-sm font-bold flex items-center gap-1"><HelpCircle className="h-4 w-4" /> الاختبارات ({lecture.quizzes.length})</h4>
           {isSuper && <Button size="sm" variant="outline" onClick={() => setQuizDialog(true)}><Plus className="h-3.5 w-3.5 me-1" /> اختبار</Button>}
         </div>
-        {lecture.quizzes.map((q) => {
-          const { data: attempts = [] } = useLectureQuizAttempts(q.id);
-          return (
-          <div key={q.id} className="p-3 border rounded-xl space-y-2">
-            <div className="flex items-center justify-between">
-              <div className="flex items-center gap-2">
-                <HelpCircle className="h-4 w-4 text-primary" />
-                <span className="font-bold text-sm">{q.title}</span>
-                <span className="text-xs text-muted-foreground">({q.questions.length} سؤال)</span>
-                {attempts.length > 0 && (
-                  <span className="text-xs bg-primary/10 text-primary px-2 py-0.5 rounded-full">{attempts.length} محاولة</span>
-                )}
-              </div>
-              <div className="flex items-center gap-1">
-                <Button size="sm" variant="outline" onClick={() => setQuizTakeDialog(q.id)}>حل</Button>
-                {isSuper && (
-                  <>
-                    <button onClick={() => setQuestionDialog(q.id)} className="text-xs text-primary underline">+ سؤال</button>
-                    <button onClick={() => handleDeleteQuiz(q.id)} disabled={deletingQuiz === q.id} className="p-1 rounded hover:bg-destructive/10 disabled:opacity-50">
-                      {deletingQuiz === q.id ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Trash2 className="h-3.5 w-3.5 text-destructive" />}
-                    </button>
-                  </>
-                )}
-              </div>
-            </div>
-            {isSuper && q.questions.map((qq, qi) => (
-              <div key={qq.id} className="text-xs bg-muted/30 rounded-lg p-2 flex items-start justify-between gap-2">
-                <div>
-                  <span className="font-bold">{qi + 1}.</span> {qq.text}
-                  <div className="text-muted-foreground mt-0.5">الإجابة الصحيحة: {qq.options[qq.correctIndex]}</div>
-                </div>
-                <button onClick={() => handleDeleteQuestion(qq.id)} disabled={deletingQuestion === qq.id} className="text-destructive flex-shrink-0 disabled:opacity-50">
-                  {deletingQuestion === qq.id ? <Loader2 className="h-3 w-3 animate-spin" /> : <Trash2 className="h-3 w-3" />}
-                </button>
-              </div>
-            ))}
-            {attempts.length > 0 && (
-              <div className="mt-2 space-y-1">
-                <div className="text-xs font-bold text-muted-foreground">المحاولات:</div>
-                {attempts.slice(0, 5).map((a: any, i: number) => (
-                  <div key={a.id || i} className="text-xs bg-muted/30 rounded-lg p-2 flex items-center justify-between">
-                    <div className="flex items-center gap-2">
-                      {a.userAvatar ? (
-                        <img src={a.userAvatar} alt="" className="h-5 w-5 rounded-full" />
-                      ) : (
-                        <div className="h-5 w-5 rounded-full bg-primary/20 flex items-center justify-center text-[10px] font-bold">{a.userName?.[0] || "?"}</div>
-                      )}
-                      <span>{a.userName || "طالب"}</span>
-                      {a.userGroup && <span className="text-[10px] bg-muted px-1.5 py-0.5 rounded">{a.userGroup}</span>}
-                    </div>
-                    <span className={`font-bold ${((a.score / a.total) >= 0.5) ? "text-green-600" : "text-destructive"}`}>{a.score}/{a.total}</span>
-                  </div>
-                ))}
-              </div>
-            )}
-          </div>
-          );
-        })}
+        {lecture.quizzes.map((q) => (
+          <QuizCard
+            key={q.id}
+            quiz={q}
+            isSuper={isSuper}
+            onDelete={() => handleDeleteQuiz(q.id)}
+            onAddQuestion={() => setQuestionDialog(q.id)}
+            onTake={(id) => setQuizTakeDialog(id)}
+            deleting={deletingQuiz === q.id}
+            onDeleteQuestion={(qqId) => handleDeleteQuestion(qqId)}
+            deletingQuestion={deletingQuestion}
+          />
+        ))}
       </div>
 
       {/* Add Video Dialog */}
