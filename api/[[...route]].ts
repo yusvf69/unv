@@ -1803,7 +1803,7 @@ async function handleCourses(req: Request, parts: string[]): Promise<Response> {
     return handle(async () => sql`SELECT * FROM materials WHERE course_id = ${Number(parts[2])} ORDER BY ord`);
   }
   if (parts[2] && parts[3] === "all-files") {
-    return handle(async () => sql`SELECT * FROM material_files WHERE course_id = ${Number(parts[2])} AND (category IS NULL OR category != 'student-summary') ORDER BY created_at DESC`);
+    return handle(async () => sql`SELECT * FROM material_files WHERE course_id = ${Number(parts[2])} ORDER BY created_at DESC`);
   }
   if (parts[2] && parts[3] === "lectures") {
     return handle(async () => {
@@ -2244,7 +2244,7 @@ async function handleAdminCrud(req: Request, parts: string[]): Promise<Response>
 
 async function handleMaterialFiles(req: Request, parts: string[]): Promise<Response> {
     if (parts[1]) {
-    return handle(async () => sql`SELECT * FROM material_files WHERE material_id = ${Number(parts[1])} AND (category IS NULL OR category != 'student-summary') ORDER BY created_at DESC`);
+    return handle(async () => sql`SELECT * FROM material_files WHERE material_id = ${Number(parts[1])} ORDER BY created_at DESC`);
     }
     return jsonError("Not Found", 404);
   }

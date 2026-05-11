@@ -1535,14 +1535,14 @@ router.delete("/v2/admin/materials/:id", requireRole(["admin", "super_admin"]), 
 router.get("/v2/materials/:id/files", (req, res) => {
   void handle(res, async () => {
     const id = Number(req.params.id);
-    return await db.select().from(schema.materialFilesTable).where(and(eq(schema.materialFilesTable.materialId, id), sql`COALESCE(category, 'official') != 'student-summary'`)).orderBy(desc(schema.materialFilesTable.createdAt));
+    return await db.select().from(schema.materialFilesTable).where(eq(schema.materialFilesTable.materialId, id)).orderBy(desc(schema.materialFilesTable.createdAt));
   });
 });
 
 router.get("/v2/courses/:id/all-files", (req, res) => {
   void handle(res, async () => {
     const id = Number(req.params.id);
-    return await db.select().from(schema.materialFilesTable).where(and(eq(schema.materialFilesTable.courseId, id), sql`COALESCE(category, 'official') != 'student-summary'`)).orderBy(desc(schema.materialFilesTable.createdAt));
+    return await db.select().from(schema.materialFilesTable).where(eq(schema.materialFilesTable.courseId, id)).orderBy(desc(schema.materialFilesTable.createdAt));
   });
 });
 
