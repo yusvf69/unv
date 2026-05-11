@@ -295,7 +295,13 @@ async function handleDashboard(req: Request): Promise<Response> {
     const focusGoalMinutes = 600;
 
     const schedule = await sql`SELECT * FROM group_schedule WHERE group_name = ${me.group_name} AND year_in_college = ${me.year_in_college} ORDER BY CASE day WHEN 'الأحد' THEN 0 WHEN 'الاثنين' THEN 1 WHEN 'الإثنين' THEN 1 WHEN 'الثلاثاء' THEN 2 WHEN 'الأربعاء' THEN 3 WHEN 'الخميس' THEN 4 WHEN 'الجمعة' THEN 5 WHEN 'السبت' THEN 6 END`;
-    const scheduleItems = schedule.map((s: any) => ({ ...s, dayNumber: AR_DAY_TO_NUM[s.day] ?? 0 }));
+    const scheduleItems = schedule.map((s: any) => ({
+      id: s.id, groupName: s.group_name, yearInCollege: s.year_in_college,
+      day: s.day, dayNumber: AR_DAY_TO_NUM[s.day] ?? 0,
+      startTime: s.start_time, endTime: s.end_time,
+      courseTitle: s.course_title, courseCode: s.course_code,
+      instructor: s.instructor, room: s.room, type: s.type,
+    }));
 
     const attempts = await sql`SELECT qa.*, q.course_title FROM quiz_attempts qa LEFT JOIN quizzes q ON qa.quiz_id = q.id WHERE qa.user_id = ${userId} ORDER BY qa.completed_at DESC LIMIT 10`;
     const grades = attempts.map((a: any) => ({
@@ -1719,7 +1725,13 @@ async function handleGroupSchedule(req: Request, parts: string[]): Promise<Respo
         const year = Number(url.searchParams.get("year") || user?.year_in_college || 0);
         if (!group || !year) return [];
         const rows = await sql`SELECT * FROM group_schedule WHERE group_name = ${group} AND year_in_college = ${year}`;
-        return rows.map((r: any) => ({ ...r, dayNumber: AR_DAY_TO_NUM[r.day] ?? 0 }));
+        return rows.map((r: any) => ({
+          id: r.id, groupName: r.group_name, yearInCollege: r.year_in_college,
+          day: r.day, dayNumber: AR_DAY_TO_NUM[r.day] ?? 0,
+          startTime: r.start_time, endTime: r.end_time,
+          courseTitle: r.course_title, courseCode: r.course_code,
+          instructor: r.instructor, room: r.room, type: r.type,
+        }));
       } catch (err) {
         console.error("handleGroupSchedule GET error:", err);
         return [];
@@ -1766,7 +1778,12 @@ async function handleExamSchedule(req: Request, parts: string[]): Promise<Respon
         const group = url.searchParams.get("group") || user?.group_name;
         const year = Number(url.searchParams.get("year") || user?.year_in_college || 0);
         if (!group || !year) return [];
-        return await sql`SELECT * FROM exam_schedule WHERE group_name = ${group} AND year_in_college = ${year} ORDER BY date, time`;
+        const rows = await sql`SELECT * FROM exam_schedule WHERE group_name = ${group} AND year_in_college = ${year} ORDER BY date, time`;
+        return rows.map((r: any) => ({
+          id: r.id, groupName: r.group_name, yearInCollege: r.year_in_college,
+          day: r.day, date: r.date, time: r.time, courseTitle: r.course_title,
+          courseCode: r.course_code, room: r.room, type: r.type,
+        }));
       } catch (err) {
         console.error("handleExamSchedule GET error:", err);
         return [];
@@ -1778,7 +1795,12 @@ async function handleExamSchedule(req: Request, parts: string[]): Promise<Respon
   if (req.method === "GET") {
     return handle(async () => {
       try {
-        return await sql`SELECT * FROM exam_schedule ORDER BY year_in_college, group_name, date`;
+        const rows = await sql`SELECT * FROM exam_schedule ORDER BY year_in_college, group_name, date`;
+        return rows.map((r: any) => ({
+          id: r.id, groupName: r.group_name, yearInCollege: r.year_in_college,
+          day: r.day, date: r.date, time: r.time, courseTitle: r.course_title,
+          courseCode: r.course_code, room: r.room, type: r.type,
+        }));
       } catch (err) {
         console.error("handleExamSchedule admin GET error:", err);
         return [];
