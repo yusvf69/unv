@@ -2410,6 +2410,24 @@ async function handleComplaints(req: Request): Promise<Response> {
   });
 }
 
+async function handleGetComplaints(req: Request): Promise<Response> {
+  return handle(async () => {
+    const { userId } = requireAuth(req.headers);
+    const rows = await sql`SELECT c.*, u.name AS author_name, u.avatar_url AS author_avatar, u.role AS author_role FROM complaints c LEFT JOIN users u ON u.id = c.author_id WHERE c.author_id = ${userId} ORDER BY c.created_at DESC`;
+    if (!rows.length) return [];
+    return rows.map((r: any) => ({
+      id: r.id,
+      subject: r.subject,
+      body: r.body,
+      category: r.category,
+      status: r.status,
+      response: r.response,
+      author: { id: r.author_id, name: r.author_name, avatarUrl: r.author_avatar, role: r.author_role },
+      createdAt: new Date(r.created_at).toISOString(),
+    }));
+  });
+}
+
 const TYPE_LABELS: Record<string, string> = { complaint: "شكوى", suggestion: "اقتراح", inquiry: "استفسار", report: "بلاغ", other: "أخرى" };
 
 async function handleContact(req: Request): Promise<Response> {
@@ -2417,7 +2435,7 @@ async function handleContact(req: Request): Promise<Response> {
     const { userId } = requireAuth(req.headers);
     const { name, email, phone, type: contactType, subject, message } = await req.json();
     if (!subject || !message || !contactType) throw Object.assign(new Error("الموضوع والنوع والرسالة مطلوبون"), { status: 400 });
-    const [[user]] = await sql`SELECT * FROM users WHERE id = ${userId} LIMIT 1`;
+    const [user] = await sql`SELECT * FROM users WHERE id = ${userId} LIMIT 1`;
     if (!user) throw Object.assign(new Error("المستخدم غير موجود"), { status: 404 });
     const [created] = await sql`INSERT INTO complaints (subject, body, category, author_id) VALUES (${`[${contactType}] ${subject}`}, ${message}, ${contactType === "suggestion" ? "academic" : contactType === "inquiry" ? "other" : "technical"}, ${userId}) RETURNING *`;
     const displayName = name || user.name;
@@ -3358,7 +3376,10 @@ async function handleRequest(request: Request): Promise<Response> {
     "PATCH /v2/staff/:id": () => handleStaff(request, parts),
 
     // Complaints
+    "GET /complaints": () => handleGetComplaints(request),
+    "GET /v2/complaints": () => handleGetComplaints(request),
     "POST /complaints": () => handleComplaints(request),
+    "POST /v2/complaints": () => handleComplaints(request),
     "POST /v2/contact": () => handleContact(request),
 
     // AI Chat
