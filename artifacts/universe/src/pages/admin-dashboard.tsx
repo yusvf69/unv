@@ -1,4 +1,5 @@
 import { useGetAdminOverview, useGetMe } from "@workspace/api-client-react";
+import { useMeV2 } from "@/lib/api";
 import { Link } from "wouter";
 import { motion } from "framer-motion";
 import {
@@ -37,22 +38,30 @@ const COLORS = ['hsl(var(--primary))', 'hsl(var(--secondary))', 'hsl(var(--accen
 const AR_WEEKDAYS = ["أحد", "إثنين", "ثلاثاء", "أربعاء", "خميس", "جمعة", "سبت"];
 
 const ADMIN_MODULES_ALL = [
-  { href: "/admin/news", icon: Newspaper, title: "إدارة الأخبار", desc: "إضافة وتعديل الأخبار", color: "from-sky-500 to-sky-600", roles: ["admin", "super_admin"] },
-  { href: "/admin/staff", icon: GraduationCap, title: "هيئة التدريس", desc: "إضافة وحذف الأعضاء", color: "from-emerald-500 to-emerald-600", roles: ["admin", "super_admin"] },
-  { href: "/admin/users", icon: Users, title: "الطلاب", desc: "بيانات وأداء الطلاب", color: "from-amber-500 to-amber-600", roles: ["super_admin"] },
-  { href: "/admin/courses", icon: BookOpen, title: "إدارة المقررات", desc: "إضافة وتنظيم المقررات", color: "from-teal-500 to-teal-600", roles: ["admin", "super_admin"] },
-  { href: "/admin/quizzes", icon: ClipboardList, title: "إدارة الاختبارات", desc: "فتح/إغلاق + المحاولات", color: "from-indigo-500 to-indigo-600", roles: ["admin", "super_admin"] },
-  { href: "/admin/materials", icon: FolderUp, title: "ملفات المواد", desc: "رفع PDF وملفات للطلاب", color: "from-cyan-500 to-cyan-600", roles: ["admin", "super_admin"] },
-  { href: "/admin/schedule", icon: Calendar, title: "جداول المجموعات", desc: "محاضرات لكل مجموعة + سنة", color: "from-purple-500 to-purple-600", roles: ["super_admin"] },
-  { href: "/admin/talents", icon: Sparkles, title: "مراجعة المواهب", desc: "حذف وتحذير المخالف", color: "from-rose-500 to-rose-600", roles: ["admin", "super_admin"] },
-  { href: "/admin/proposals", icon: ShieldCheck, title: "الاقتراحات", desc: "موافقة السوبر أدمن", color: "from-violet-500 to-violet-600", roles: ["super_admin"] },
-  { href: "/admin/dm", icon: MessageSquare, title: "مراقبة المحادثات", desc: "عرض محادثات الطلاب", color: "from-pink-500 to-pink-600", roles: ["super_admin"] },
-  { href: "/leaderboard", icon: Trophy, title: "لوحة الشرف", desc: "ترتيب الطلاب", color: "from-orange-500 to-orange-600", roles: ["super_admin"] },
+  { href: "/admin/news", icon: Newspaper, title: "إدارة الأخبار", desc: "إضافة وتعديل الأخبار", color: "from-sky-500 to-sky-600", permKey: "manage_news" },
+  { href: "/admin/staff", icon: GraduationCap, title: "هيئة التدريس", desc: "إضافة وحذف الأعضاء", color: "from-emerald-500 to-emerald-600", permKey: "manage_staff" },
+  { href: "/admin/users", icon: Users, title: "الطلاب", desc: "بيانات وأداء الطلاب", color: "from-amber-500 to-amber-600", permKey: "manage_users" },
+  { href: "/admin/courses", icon: BookOpen, title: "إدارة المقررات", desc: "إضافة وتنظيم المقررات", color: "from-teal-500 to-teal-600", permKey: "manage_courses" },
+  { href: "/admin/quizzes", icon: ClipboardList, title: "إدارة الاختبارات", desc: "فتح/إغلاق + المحاولات", color: "from-indigo-500 to-indigo-600", permKey: "manage_quizzes" },
+  { href: "/admin/materials", icon: FolderUp, title: "ملفات المواد", desc: "رفع PDF وملفات للطلاب", color: "from-cyan-500 to-cyan-600", permKey: "manage_materials" },
+  { href: "/admin/schedule", icon: Calendar, title: "جداول المجموعات", desc: "محاضرات لكل مجموعة + سنة", color: "from-purple-500 to-purple-600", permKey: "manage_schedule" },
+  { href: "/admin/talents", icon: Sparkles, title: "مراجعة المواهب", desc: "حذف وتحذير المخالف", color: "from-rose-500 to-rose-600", permKey: "manage_talents" },
+  { href: "/admin/proposals", icon: ShieldCheck, title: "الاقتراحات", desc: "موافقة السوبر أدمن", color: "from-violet-500 to-violet-600", permKey: "manage_proposals" },
+  { href: "/admin/dm", icon: MessageSquare, title: "مراقبة المحادثات", desc: "عرض محادثات الطلاب", color: "from-pink-500 to-pink-600", permKey: "manage_dm" },
 ];
+
+function getAdminPerms(user: { role: string; adminPermissions: string | null } | undefined): string[] {
+  if (user?.role === "super_admin") return []; // super_admin bypasses permission check
+  if (user?.role === "admin" && user.adminPermissions) {
+    try { return JSON.parse(user.adminPermissions) as string[]; } catch { return []; }
+  }
+  return [];
+}
 
 export default function AdminDashboard() {
   const { data: overview, isLoading } = useGetAdminOverview();
   const { data: me } = useGetMe();
+  const { data: meV2 } = useMeV2();
   const { data: notes = [] } = useNotifications();
   const sendNotification = useSendSystemNotification();
   const { toast } = useToast();
@@ -64,6 +73,12 @@ export default function AdminDashboard() {
   const [sendSuccess, setSendSuccess] = useState(false);
   const pendingProposals = notes.filter((n) => n.title.includes("اقتراح") && !n.read).length;
   const isSuper = me?.role === "super_admin";
+  const userPerms = getAdminPerms(meV2);
+
+  const visibleModules = ADMIN_MODULES_ALL.filter((m) => {
+    if (isSuper) return true;
+    return userPerms.includes(m.permKey);
+  });
 
   const handleSendNotification = async () => {
     if (!notifTitle || !notifBody) return;
@@ -96,7 +111,7 @@ export default function AdminDashboard() {
             مركز التحكم
           </h1>
           <p className="text-xs sm:text-sm text-muted-foreground mt-1">
-            {isSuper ? "صلاحياتك كـ سوبر أدمن: تنفيذ مباشر + مراجعة الاقتراحات." : "صلاحياتك كأدمن: اقتراح التعديلات للسوبر أدمن."}
+            {isSuper ? "صلاحياتك كـ سوبر أدمن: تنفيذ مباشر + مراجعة الاقتراحات." : `الوحدات المتاحة لك: ${visibleModules.length} من أصل ${ADMIN_MODULES_ALL.length}`}
           </p>
         </div>
         {isSuper && pendingProposals > 0 && (
@@ -116,7 +131,7 @@ export default function AdminDashboard() {
 
       {/* MODULES GRID */}
       <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-2 sm:gap-3">
-        {ADMIN_MODULES_ALL.filter((m) => m.roles.includes(me?.role || "")).map((m, i) => (
+        {visibleModules.map((m, i) => (
           <motion.div
             key={m.href}
             initial={{ opacity: 0, y: 20 }}

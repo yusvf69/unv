@@ -39,7 +39,8 @@ export default function Layout({ children }: { children: ReactNode }) {
   const [location] = useLocation();
   const { theme, toggle: toggleTheme } = useTheme();
 
-  const isAdmin = user?.role === "admin" || user?.role === "super_admin";
+  const mePerms = meV2?.adminPermissions;
+  const isAdmin = user?.role === "admin" || user?.role === "super_admin" || (user?.role === "student" && !!mePerms);
 
   const publicLinks = [
     { href: "/", label: t("home") },

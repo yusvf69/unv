@@ -779,6 +779,7 @@ router.get("/v2/me", async (req, res) => {
       streak: user.streak,
       title: user.title,
       uniqueCode: user.uniqueCode,
+      adminPermissions: user.adminPermissions,
       emailVerified: user.emailVerified,
       phoneVerified: user.phoneVerified,
       unreadCount: unread[0]?.c ?? 0,

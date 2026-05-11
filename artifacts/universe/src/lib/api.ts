@@ -80,6 +80,7 @@ export interface MeV2 {
   unreadDmCount: number;
   username: string | null;
   uniqueCode: string | null;
+  adminPermissions: string | null;
 }
 
 export function useMeV2(opts?: Partial<UseQueryOptions<MeV2>>) {
