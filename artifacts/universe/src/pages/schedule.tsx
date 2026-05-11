@@ -1,6 +1,6 @@
 import { useMemo, useState, useEffect } from "react";
 import { motion } from "framer-motion";
-import { Calendar, Clock, MapPin, User as UserIcon, ChevronLeft, ChevronRight, FileText, AlertCircle, Award, Bell } from "lucide-react";
+import { Calendar, Clock, MapPin, User as UserIcon, ChevronLeft, ChevronRight, FileText, AlertCircle, Award, Bell, Loader2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { useMyGroupSchedule, useMyExamSchedule, useMeV2 } from "@/lib/api";
 import { formatDateFull, formatMonth, formatShortDate, formatShortDateYear } from "@/lib/dates";
@@ -27,7 +27,7 @@ const getWeekRange = (date: Date) => {
 };
 
 export default function Schedule() {
-  const { data: me } = useMeV2();
+  const { data: me, isLoading: meLoading } = useMeV2();
   const { data: rows = [], isLoading: scheduleLoading } = useMyGroupSchedule();
   const { data: exams = [], isLoading: examLoading } = useMyExamSchedule();
   const [scheduleView, setScheduleView] = useState<ViewMode>("week");
@@ -135,9 +135,9 @@ export default function Schedule() {
 
       {tab === "schedule" ? (
         <>
-          {scheduleLoading ? (
-            <p className="text-center text-muted-foreground py-12">{t("loading")}</p>
-          ) : rows.length === 0 ? (
+{meLoading || scheduleLoading ? (
+             <div className="flex items-center justify-center gap-2 text-muted-foreground py-12"><Loader2 className="h-4 w-4 animate-spin" /> {t("loading")}</div>
+           ) : rows.length === 0 ? (
             <div className="text-center py-16 bg-card border rounded-2xl">
               <Calendar className="h-12 w-12 mx-auto text-muted-foreground mb-3" />
               <p className="text-muted-foreground">{t("noSchedule")}. {t("noScheduleContact")}.</p>
@@ -145,7 +145,7 @@ export default function Schedule() {
           ) : scheduleView === "day" ? (
             <>
               <ViewToggle view={scheduleView} setView={setScheduleView} t={t} />
-              <DayView day={scheduleTodayName} items={byDay[scheduleTodayName] ?? []} cursor={scheduleCursor} setCursor={setScheduleCursor} t={t} typeLabel={typeLabel} typeColor={typeColor} />
+              <DayView isLoading={meLoading || scheduleLoading} day={scheduleTodayName} items={byDay[scheduleTodayName] ?? []} cursor={scheduleCursor} setCursor={setScheduleCursor} t={t} typeLabel={typeLabel} typeColor={typeColor} />
             </>
           ) : scheduleView === "week" ? (
             <>
@@ -155,21 +155,21 @@ export default function Schedule() {
           ) : (
             <>
               <ViewToggle view={scheduleView} setView={setScheduleView} t={t} />
-              <MonthView byDay={byDay} cursor={scheduleCursor} setCursor={setScheduleCursor} days={days} daysShort={daysShort} jsToAr={jsToAr} t={t} />
+              <MonthView isLoading={meLoading || scheduleLoading} byDay={byDay} cursor={scheduleCursor} setCursor={setScheduleCursor} days={days} daysShort={daysShort} jsToAr={jsToAr} t={t} />
             </>
           )}
         </>
       ) : (
         <>
-          {examLoading ? (
-            <p className="text-center text-muted-foreground py-12">{t("loading")}</p>
-          ) : exams.length === 0 ? (
+{meLoading || examLoading ? (
+             <div className="flex items-center justify-center gap-2 text-muted-foreground py-12"><Loader2 className="h-4 w-4 animate-spin" /> {t("loading")}</div>
+           ) : exams.length === 0 ? (
             <div className="text-center py-16 bg-card border rounded-2xl">
               <Award className="h-12 w-12 mx-auto text-muted-foreground mb-3" />
               <p className="text-muted-foreground">{t("noExams")}.</p>
             </div>
           ) : (
-            <ExamScheduleView exams={exams} view={examView} setView={setExamView} cursor={examCursor} setCursor={setExamCursor} t={t} jsToAr={jsToAr} examTypeLabel={examTypeLabel} examTypeColor={examTypeColor} daysShort={daysShort} />
+            <ExamScheduleView isLoading={meLoading || examLoading} exams={exams} view={examView} setView={setExamView} cursor={examCursor} setCursor={setExamCursor} t={t} jsToAr={jsToAr} examTypeLabel={examTypeLabel} examTypeColor={examTypeColor} daysShort={daysShort} />
           )}
         </>
       )}
@@ -193,7 +193,7 @@ function ViewToggle({ view, setView, t }: { view: ViewMode; setView: (v: ViewMod
   );
 }
 
-function ExamScheduleView({ exams, view, setView, cursor, setCursor, t, jsToAr, examTypeLabel, examTypeColor, daysShort }: { exams: any[]; view: ViewMode; setView: (v: ViewMode) => void; cursor: Date; setCursor: (d: Date) => void; t: (key: string) => string; jsToAr: Record<number, string>; examTypeLabel: Record<string, string>; examTypeColor: Record<string, string>; daysShort: string[] }) {
+function ExamScheduleView({ isLoading, exams, view, setView, cursor, setCursor, t, jsToAr, examTypeLabel, examTypeColor, daysShort }: { isLoading?: boolean; exams: any[]; view: ViewMode; setView: (v: ViewMode) => void; cursor: Date; setCursor: (d: Date) => void; t: (key: string) => string; jsToAr: Record<number, string>; examTypeLabel: Record<string, string>; examTypeColor: Record<string, string>; daysShort: string[] }) {
   const todayName = jsToAr[cursor.getDay()];
   const shift = (n: number) => {
     const d = new Date(cursor);
@@ -228,23 +228,25 @@ function ExamScheduleView({ exams, view, setView, cursor, setCursor, t, jsToAr, 
 
       <ViewToggle view={view} setView={setView} t={t} />
 
-      <div className="flex items-center justify-between mb-4 bg-card border rounded-xl p-3">
-        <Button size="sm" variant="ghost" onClick={() => shift(-1)}><ChevronRight className="h-4 w-4" /></Button>
-        <div className="text-center">
-          <div className="font-bold text-lg">{view === "day" ? todayName : view === "month" ? "" : t("currentWeek")}</div>
-          <div className="text-xs text-muted-foreground">
-            {view === "day" && formatDateFull(cursor)}
-            {view === "week" && (() => { const { start, end } = getWeekRange(cursor); return `${formatShortDate(start)} — ${formatShortDateYear(end)}`; })()}
-            {view === "month" && formatMonth(cursor)}
-          </div>
-        </div>
-        <Button size="sm" variant="ghost" onClick={() => shift(1)}><ChevronLeft className="h-4 w-4" /></Button>
-      </div>
+<div className="flex items-center justify-between mb-4 bg-card border rounded-xl p-3">
+         <Button size="sm" variant="ghost" onClick={() => shift(-1)} disabled={isLoading}>{isLoading ? <Loader2 className="h-4 w-4 animate-spin" /> : <ChevronRight className="h-4 w-4" />}</Button>
+         <div className="text-center">
+           <div className="font-bold text-lg">{view === "day" ? todayName : view === "month" ? "" : t("currentWeek")}</div>
+           <div className="text-xs text-muted-foreground">
+             {view === "day" && formatDateFull(cursor)}
+             {view === "week" && (() => { const { start, end } = getWeekRange(cursor); return `${formatShortDate(start)} — ${formatShortDateYear(end)}`; })()}
+             {view === "month" && formatMonth(cursor)}
+           </div>
+         </div>
+         <Button size="sm" variant="ghost" onClick={() => shift(1)} disabled={isLoading}>{isLoading ? <Loader2 className="h-4 w-4 animate-spin" /> : <ChevronLeft className="h-4 w-4" />}</Button>
+       </div>
 
-      {view === "day" ? (
-        displayExams.length === 0 ? (
-          <div className="text-center py-12 bg-card border rounded-2xl text-muted-foreground">{t("noExamsDay")}</div>
-        ) : (
+       {view === "day" ? (
+         isLoading ? (
+           <div className="flex items-center justify-center gap-2 text-muted-foreground py-12"><Loader2 className="h-4 w-4 animate-spin" /> {t("loading")}</div>
+         ) : displayExams.length === 0 ? (
+           <div className="text-center py-12 bg-card border rounded-2xl text-muted-foreground">{t("noExamsDay")}</div>
+         ) : (
           <div className="space-y-3">
             {displayExams.map((e, i) => <ExamCard key={e.id} exam={e} delay={i * 0.05} examTypeLabel={examTypeLabel} examTypeColor={examTypeColor} />)}
           </div>
@@ -335,19 +337,21 @@ function ExamCard({ exam, compact, delay, examTypeLabel, examTypeColor }: { exam
   );
 }
 
-function DayView({ day, items, cursor, setCursor, t, typeLabel, typeColor }: { day: string; items: any[]; cursor: Date; setCursor: (d: Date) => void; t: (key: string) => string; typeLabel: Record<string, string>; typeColor: Record<string, string> }) {
+function DayView({ isLoading, day, items, cursor, setCursor, t, typeLabel, typeColor }: { isLoading?: boolean; day: string; items: any[]; cursor: Date; setCursor: (d: Date) => void; t: (key: string) => string; typeLabel: Record<string, string>; typeColor: Record<string, string> }) {
   const shift = (n: number) => { const d = new Date(cursor); d.setDate(d.getDate() + n); setCursor(d); };
   return (
     <div>
       <div className="flex items-center justify-between mb-4 bg-card border rounded-xl p-3">
-        <Button size="sm" variant="ghost" onClick={() => shift(-1)}><ChevronRight className="h-4 w-4" /></Button>
+        <Button size="sm" variant="ghost" onClick={() => shift(-1)} disabled={isLoading}>{isLoading ? <Loader2 className="h-4 w-4 animate-spin" /> : <ChevronRight className="h-4 w-4" />}</Button>
         <div className="text-center">
           <div className="font-bold text-lg">{day}</div>
           <div className="text-xs text-muted-foreground">{formatDateFull(cursor)}</div>
         </div>
-        <Button size="sm" variant="ghost" onClick={() => shift(1)}><ChevronLeft className="h-4 w-4" /></Button>
+        <Button size="sm" variant="ghost" onClick={() => shift(1)} disabled={isLoading}>{isLoading ? <Loader2 className="h-4 w-4 animate-spin" /> : <ChevronLeft className="h-4 w-4" />}</Button>
       </div>
-      {items.length === 0 ? (
+      {isLoading ? (
+        <div className="flex items-center justify-center gap-2 text-muted-foreground py-12"><Loader2 className="h-4 w-4 animate-spin" /> {t("loading")}</div>
+      ) : items.length === 0 ? (
         <div className="text-center py-12 bg-card border rounded-2xl text-muted-foreground">{t("noClasses")}</div>
       ) : (
         <div className="space-y-3">
@@ -375,7 +379,7 @@ function WeekView({ byDay, days, daysShort, t, typeLabel, typeColor }: { byDay: 
   );
 }
 
-function MonthView({ byDay, cursor, setCursor, days, daysShort, jsToAr, t }: { byDay: Record<string, any[]>; cursor: Date; setCursor: (d: Date) => void; days: string[]; daysShort: string[]; jsToAr: Record<number, string>; t: (key: string) => string }) {
+function MonthView({ isLoading, byDay, cursor, setCursor, days, daysShort, jsToAr, t }: { isLoading?: boolean; byDay: Record<string, any[]>; cursor: Date; setCursor: (d: Date) => void; days: string[]; daysShort: string[]; jsToAr: Record<number, string>; t: (key: string) => string }) {
   const year = cursor.getFullYear();
   const month = cursor.getMonth();
   const first = new Date(year, month, 1);
@@ -389,9 +393,9 @@ function MonthView({ byDay, cursor, setCursor, days, daysShort, jsToAr, t }: { b
   return (
     <div>
       <div className="flex items-center justify-between mb-4 bg-card border rounded-xl p-3">
-        <Button size="sm" variant="ghost" onClick={() => shift(-1)}><ChevronRight className="h-4 w-4" /></Button>
+        <Button size="sm" variant="ghost" onClick={() => shift(-1)} disabled={isLoading}>{isLoading ? <Loader2 className="h-4 w-4 animate-spin" /> : <ChevronRight className="h-4 w-4" />}</Button>
         <div className="font-bold">{formatMonth(cursor)}</div>
-        <Button size="sm" variant="ghost" onClick={() => shift(1)}><ChevronLeft className="h-4 w-4" /></Button>
+        <Button size="sm" variant="ghost" onClick={() => shift(1)} disabled={isLoading}>{isLoading ? <Loader2 className="h-4 w-4 animate-spin" /> : <ChevronLeft className="h-4 w-4" />}</Button>
       </div>
       <div className="grid grid-cols-7 gap-1 text-center text-xs font-bold text-muted-foreground mb-1">
         {daysShort.map((d) => <div key={d}>{d}</div>)}

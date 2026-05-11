@@ -1,6 +1,6 @@
 import { useState, useEffect } from "react";
 import { useLocation } from "wouter";
-import { ChevronLeft, Search, User, Shield, GraduationCap, CheckCircle2, XCircle, Clock, Trash2, Copy, Key, Mail, Phone, AtSign, Award, Star, Plus, Minus, ChevronRight } from "lucide-react";
+import { ChevronLeft, Search, User, Shield, GraduationCap, CheckCircle2, XCircle, Clock, Trash2, Copy, Key, Mail, Phone, AtSign, Award, Star, Plus, Minus, ChevronRight, Loader2 } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
@@ -60,6 +60,8 @@ export default function AdminUsers() {
   const [selectedUser, setSelectedUser] = useState<AdminUser | null>(null);
   const [grantPoints, setGrantPoints] = useState(0);
   const [selectedTitle, setSelectedTitle] = useState("");
+  const [isGranting, setIsGranting] = useState(false);
+  const [isDeleting, setIsDeleting] = useState<number | null>(null);
 
   const { data: permissionsDefs = [] } = useAdminPermissions();
   const promote = usePromoteToAdmin();
@@ -115,12 +117,15 @@ export default function AdminUsers() {
       return;
     }
     if (!confirm(`هل أنت متأكد من حذف ${userName}؟`)) return;
+    setIsDeleting(userId);
     try {
       await api.del(`/v2/admin/users/${userId}`);
       toast({ title: "تم حذف المستخدم" });
       setUsers((prev) => prev.filter((u) => u.id !== userId));
     } catch (err) {
       toast({ title: "خطأ", description: (err as Error).message, variant: "destructive" });
+    } finally {
+      setIsDeleting(null);
     }
   };
 
@@ -135,6 +140,7 @@ export default function AdminUsers() {
       toast({ title: "أدخل نقاط أو اختر لقب", variant: "destructive" });
       return;
     }
+    setIsGranting(true);
     try {
       const body: { points?: number; title?: string } = {};
       if (grantPoints !== 0) body.points = grantPoints;
@@ -147,6 +153,8 @@ export default function AdminUsers() {
       setUsers((prev) => prev.map((u) => u.id === selectedUser.id ? { ...u, points: data.points, title: data.title } : u));
     } catch (err) {
       toast({ title: "خطأ", description: (err as Error).message, variant: "destructive" });
+    } finally {
+      setIsGranting(false);
     }
   };
 
@@ -274,9 +282,10 @@ export default function AdminUsers() {
                           variant="ghost"
                           size="sm"
                           className="text-xs h-8 text-destructive hover:text-destructive hover:bg-destructive/10"
+                          disabled={isDeleting === user.id}
                           onClick={() => deleteUser(user.id, user.name, user.role)}
                         >
-                          <Trash2 className="w-3.5 h-3.5 mr-1" /> حذف
+                          {isDeleting === user.id ? <Loader2 className="w-3.5 h-3.5 mr-1 animate-spin" /> : <Trash2 className="w-3.5 h-3.5 mr-1" />} حذف
                         </Button>
                       </div>
                     </TableCell>
@@ -412,8 +421,8 @@ export default function AdminUsers() {
                         </div>
                       </div>
 
-                      <Button onClick={handleGrant} className="w-full bg-gradient-to-r from-primary to-secondary">
-                        <Award className="w-4 h-4 mr-2" />
+                      <Button onClick={handleGrant} disabled={isGranting} className="w-full bg-gradient-to-r from-primary to-secondary">
+                        {isGranting ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : <Award className="w-4 h-4 mr-2" />}
                         منح
                       </Button>
                     </div>
@@ -464,9 +473,10 @@ export default function AdminUsers() {
                                   );
                                 }}
                                 size="sm"
+                                disabled={promote.isPending}
                                 className="bg-gradient-to-r from-primary to-secondary"
                               >
-                                <Shield className="w-4 h-4 ms-1" /> تأكيد الترقية
+                                {promote.isPending ? <Loader2 className="w-4 h-4 ms-1 animate-spin" /> : <Shield className="w-4 h-4 ms-1" />} تأكيد الترقية
                               </Button>
                             </div>
                           </div>
@@ -508,13 +518,15 @@ export default function AdminUsers() {
                               );
                             }}
                             size="sm"
+                            disabled={updatePerms.isPending}
                             className="bg-gradient-to-r from-primary to-secondary flex-1"
                           >
-                            <Shield className="w-4 h-4 ms-1" /> حفظ الصلاحيات
+                            {updatePerms.isPending ? <Loader2 className="w-4 h-4 ms-1 animate-spin" /> : <Shield className="w-4 h-4 ms-1" />} حفظ الصلاحيات
                           </Button>
                           <Button
                             variant="destructive"
                             size="sm"
+                            disabled={demote.isPending}
                             onClick={() => {
                               if (confirm(`هل أنت متأكد من إزالة صلاحيات الأدمن عن ${selectedUser.name}؟`)) {
                                 demote.mutate(selectedUser.id, {
@@ -527,7 +539,7 @@ export default function AdminUsers() {
                               }
                             }}
                           >
-                            إزالة الأدمن
+                            {demote.isPending ? <Loader2 className="w-4 h-4 ms-1 animate-spin" /> : null} إزالة الأدمن
                           </Button>
                         </div>
                       </div>

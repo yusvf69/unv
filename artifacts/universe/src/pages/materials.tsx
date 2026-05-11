@@ -166,11 +166,11 @@ function FileCard({ f }: { f: any }) {
 
 export default function Materials() {
   const t = useTranslation(globalI18n);
-  const { data: courses = [] } = useCourses();
+  const { data: courses = [], isLoading: coursesLoading } = useCourses();
   const [selected, setSelected] = useState<number | null>(null);
   const [tab, setTab] = useState<"files" | "summaries">("files");
-  const { data: files = [] } = useCourseFiles(selected || 0);
-  const { data: summaries = [] } = useCourseSummaries(selected || 0);
+  const { data: files = [], isLoading: filesLoading } = useCourseFiles(selected || 0);
+  const { data: summaries = [], isLoading: summariesLoading } = useCourseSummaries(selected || 0);
   const [q, setQ] = useState("");
   const filteredFiles = files.filter((f) => !q || f.name.toLowerCase().includes(q.toLowerCase()));
 
@@ -185,7 +185,7 @@ export default function Materials() {
         <div className="bg-card border rounded-xl sm:rounded-2xl p-2 sm:p-3 h-fit lg:sticky lg:top-20">
           <h2 className="font-bold text-xs sm:text-sm px-2 mb-2">{t("courses")}</h2>
           <div className="space-y-1 max-h-[30vh] sm:max-h-[60vh] overflow-y-auto">
-            {courses.length === 0 && <p className="text-xs text-muted-foreground p-3">{t("noCoursesAdmin")}</p>}
+            {!coursesLoading && courses.length === 0 && <p className="text-xs text-muted-foreground p-3">{t("noCoursesAdmin")}</p>}
             {courses.map((c) => (
               <button
                 key={c.id}
@@ -228,7 +228,11 @@ export default function Materials() {
                     <Search className="absolute start-3 top-1/2 -translate-y-1/2 h-3.5 w-3.5 sm:h-4 sm:w-4 text-muted-foreground" />
                     <Input value={q} onChange={(e) => setQ(e.target.value)} placeholder={t("searchFiles")} className="ps-9 h-9 sm:h-10 text-sm" />
                   </div>
-                  {filteredFiles.length === 0 ? (
+                  {filesLoading ? (
+                    <div className="bg-card border rounded-xl sm:rounded-2xl p-8 sm:p-12 text-center">
+                      <Loader2 className="h-8 w-8 sm:h-12 sm:w-12 mx-auto text-muted-foreground mb-2 sm:mb-3 animate-spin" />
+                    </div>
+                  ) : filteredFiles.length === 0 ? (
                     <div className="bg-card border rounded-xl sm:rounded-2xl p-8 sm:p-12 text-center">
                       <FileText className="h-8 w-8 sm:h-12 sm:w-12 mx-auto text-muted-foreground mb-2 sm:mb-3" />
                       <p className="text-muted-foreground text-sm">{t("noFiles")}</p>
@@ -247,7 +251,11 @@ export default function Materials() {
                       <Upload className="h-4 w-4" /> {t("uploadYourSummary")}
                     </Button>
                   </div>
-                  {summaries.length === 0 ? (
+                  {summariesLoading ? (
+                    <div className="bg-card border rounded-xl sm:rounded-2xl p-8 sm:p-12 text-center">
+                      <Loader2 className="h-8 w-8 sm:h-12 sm:w-12 mx-auto text-muted-foreground mb-2 sm:mb-3 animate-spin" />
+                    </div>
+                  ) : summaries.length === 0 ? (
                     <div className="bg-card border rounded-xl sm:rounded-2xl p-8 sm:p-12 text-center">
                       <GraduationCap className="h-8 w-8 sm:h-12 sm:w-12 mx-auto text-muted-foreground mb-2 sm:mb-3" />
                       <p className="text-muted-foreground text-sm">{t("noSummaries")}</p>

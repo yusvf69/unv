@@ -49,8 +49,7 @@ export default function StudentSummariesPage() {
   const [viewerOpen, setViewerOpen] = useState<{ name: string; url: string } | null>(null);
   const [viewing, setViewing] = useState<number | null>(null);
   const [liking, setLiking] = useState<number | null>(null);
-  const [deleting, setDeleting] = useState<number | null>(null);
-  const [uploading, setUploading] = useState(false);
+
   const [q, setQ] = useState("");
   const [form, setForm] = useState({ name: "", url: "", kind: "pdf", sizeBytes: 0, courseId: 0 });
   const t = useTranslation(globalI18n);
@@ -64,7 +63,6 @@ export default function StudentSummariesPage() {
       toast({ title: t("selectCourseAndUploadFile"), variant: "destructive" });
       return;
     }
-    setUploading(true);
     try {
       await upload.mutateAsync(form);
       toast({ title: t("summaryUploaded"), description: t("summaryUploadedDesc") });
@@ -72,8 +70,6 @@ export default function StudentSummariesPage() {
       setForm({ name: "", url: "", kind: "pdf", sizeBytes: 0, courseId: 0 });
     } catch (e) {
 toast({ title: t("error"), description: (e as Error).message, variant: "destructive" });
-    } finally {
-      setUploading(false);
     }
   };
 
@@ -90,10 +86,8 @@ toast({ title: t("error"), description: (e as Error).message, variant: "destruct
   };
   const onDelete = async (id: number) => {
     if (!confirm(t("confirmDeleteSummary"))) return;
-    setDeleting(id);
     try { await remove.mutateAsync(id); toast({ title: t("deleted") }); }
     catch (e) { toast({ title: t("error"), description: (e as Error).message, variant: "destructive" }); }
-    finally { setDeleting(null); }
   };
 
   return (
@@ -143,8 +137,8 @@ toast({ title: t("error"), description: (e as Error).message, variant: "destruct
                   <div className="text-xs text-muted-foreground mt-1">{formatSize(s.sizeBytes)} · {formatISODate(s.createdAt)}</div>
                 </div>
                 {me && s.uploadedById === me.id && (
-                  <Button size="icon" variant="ghost" onClick={() => onDelete(s.id)} disabled={deleting === s.id}>
-                    {deleting === s.id ? <Loader2 className="h-4 w-4 animate-spin" /> : <Trash2 className="h-4 w-4 text-destructive" />}
+                  <Button size="icon" variant="ghost" onClick={() => onDelete(s.id)} disabled={remove.isPending}>
+                    {remove.isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : <Trash2 className="h-4 w-4 text-destructive" />}
                   </Button>
                 )}
               </div>
@@ -207,8 +201,8 @@ toast({ title: t("error"), description: (e as Error).message, variant: "destruct
             </div>
           </div>
           <DialogFooter>
-            <Button variant="ghost" onClick={() => setOpen(false)} disabled={uploading}>{t("cancel")}</Button>
-            <Button onClick={submit} disabled={uploading}>{uploading ? <Loader2 className="h-4 w-4 animate-spin" /> : <><Send className="me-2 h-4 w-4" /> {t("upload")}</>}</Button>
+            <Button variant="ghost" onClick={() => setOpen(false)} disabled={upload.isPending}>{t("cancel")}</Button>
+            <Button onClick={submit} disabled={upload.isPending}>{upload.isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : <><Send className="me-2 h-4 w-4" /> {t("upload")}</>}</Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>

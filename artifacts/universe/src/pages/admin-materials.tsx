@@ -18,11 +18,11 @@ import { formatISODate } from "@/lib/dates";
 
 export default function AdminMaterials() {
   const { data: me } = useMeV2();
-  const { data: courses = [] } = useAdminCourses();
-  const { data: materials = [] } = useAdminMaterials();
+  const { data: courses = [], isLoading: coursesLoading } = useAdminCourses();
+  const { data: materials = [], isLoading: materialsLoading } = useAdminMaterials();
   const [courseId, setCourseId] = useState<number | null>(null);
   const [materialId, setMaterialId] = useState<number | null>(null);
-  const { data: files = [] } = useMaterialFiles(materialId || 0);
+  const { data: files = [], isLoading: filesLoading } = useMaterialFiles(materialId || 0);
   const upload = useUploadMaterialFile(materialId || 0);
   const del = useDeleteMaterialFile();
   const createMat = useCreateMaterial();
@@ -139,7 +139,8 @@ export default function AdminMaterials() {
                 <div className={`text-[10px] sm:text-[11px] mt-0.5 ${courseId === c.id ? "opacity-80" : "text-muted-foreground"}`}>{c.code} · {c.enrolled} طالب</div>
               </button>
             ))}
-            {!courses.length && <p className="text-xs text-muted-foreground p-3 text-center">لا توجد مقررات. <a href="/admin/courses" className="text-primary underline">أضفها أولاً</a></p>}
+             {coursesLoading && <Loader2 className="h-4 w-4 animate-spin mx-auto py-4" />}
+             {!coursesLoading && !courses.length && <p className="text-xs text-muted-foreground p-3 text-center">لا توجد مقررات. <a href="/admin/courses" className="text-primary underline">أضفها أولاً</a></p>}
           </div>
         </div>
 
@@ -161,13 +162,17 @@ export default function AdminMaterials() {
                 <Button size="sm" onClick={() => setAddMaterialOpen(true)} className="text-xs sm:text-sm h-8 sm:h-9"><Plus className="me-1.5 h-3 w-3 sm:h-4 sm:w-4" /> إضافة مادة</Button>
               </div>
 
-              {/* materials list */}
-              {!filteredMaterials.length ? (
-                <div className="bg-card border rounded-xl sm:rounded-2xl p-8 sm:p-12 text-center text-muted-foreground">
-                  <p className="font-bold text-sm sm:text-base mb-2">لا توجد مواد لهذا المقرر</p>
-                  <Button size="sm" onClick={() => setAddMaterialOpen(true)} className="text-xs h-8 sm:h-9"><Plus className="me-1.5 h-3 w-3 sm:h-4 sm:w-4" /> أضف مادة جديدة</Button>
-                </div>
-              ) : (
+               {/* materials list */}
+               {materialsLoading ? (
+                 <div className="bg-card border rounded-xl sm:rounded-2xl p-8 sm:p-12 text-center text-muted-foreground">
+                   <Loader2 className="h-6 w-6 animate-spin mx-auto mb-2" />
+                 </div>
+               ) : !filteredMaterials.length ? (
+                 <div className="bg-card border rounded-xl sm:rounded-2xl p-8 sm:p-12 text-center text-muted-foreground">
+                   <p className="font-bold text-sm sm:text-base mb-2">لا توجد مواد لهذا المقرر</p>
+                   <Button size="sm" onClick={() => setAddMaterialOpen(true)} className="text-xs h-8 sm:h-9"><Plus className="me-1.5 h-3 w-3 sm:h-4 sm:w-4" /> أضف مادة جديدة</Button>
+                 </div>
+               ) : (
                 <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2 sm:gap-3">
                   {filteredMaterials.map((m) => (
                     <motion.div
@@ -186,12 +191,13 @@ export default function AdminMaterials() {
                             <div className="text-[10px] sm:text-[11px] text-muted-foreground">{m.lecturer || "—"}</div>
                           </div>
                         </div>
-                        <button
-                          onClick={(e) => { e.stopPropagation(); handleDeleteMaterial(m.id); }}
-                          className="p-1 sm:p-1.5 rounded-lg hover:bg-destructive/10 text-destructive opacity-0 group-hover:opacity-100 transition-opacity"
-                        >
-                          <Trash2 className="h-3.5 w-3.5 sm:h-4 sm:w-4" />
-                        </button>
+                         <button
+                           onClick={(e) => { e.stopPropagation(); handleDeleteMaterial(m.id); }}
+                           disabled={deleteMat.isPending}
+                           className="p-1 sm:p-1.5 rounded-lg hover:bg-destructive/10 text-destructive opacity-0 group-hover:opacity-100 transition-opacity disabled:opacity-50"
+                         >
+                           <Trash2 className="h-3.5 w-3.5 sm:h-4 sm:w-4" />
+                         </button>
                       </div>
                       {m.durationMinutes && (
                         <div className="text-[10px] sm:text-[11px] mt-2 bg-secondary/10 text-secondary px-2 py-0.5 rounded inline-block">{m.durationMinutes} دقيقة</div>
@@ -230,9 +236,10 @@ export default function AdminMaterials() {
                   </div>
 
                   {/* files list */}
-                  <div className="bg-card border rounded-xl sm:rounded-2xl p-3 sm:p-4">
-                    <h3 className="font-bold text-sm sm:text-base mb-2 sm:mb-3 flex items-center gap-2"><FileText className="h-3.5 w-3.5 sm:h-4 sm:w-4 text-primary" /> الملفات ({files.length})</h3>
-                    {!files.length && <p className="text-sm text-muted-foreground py-6 text-center">لا توجد ملفات بعد</p>}
+                   <div className="bg-card border rounded-xl sm:rounded-2xl p-3 sm:p-4">
+                     <h3 className="font-bold text-sm sm:text-base mb-2 sm:mb-3 flex items-center gap-2"><FileText className="h-3.5 w-3.5 sm:h-4 sm:w-4 text-primary" /> الملفات ({files.length})</h3>
+                     {filesLoading && <Loader2 className="h-5 w-5 animate-spin mx-auto py-6" />}
+                     {!filesLoading && !files.length && <p className="text-sm text-muted-foreground py-6 text-center">لا توجد ملفات بعد</p>}
                     <div className="space-y-2">
                       {files.map((f) => (
                         <div key={f.id} className="flex items-center gap-2 sm:gap-3 p-2 sm:p-3 border rounded-xl hover:bg-muted/30 transition">
