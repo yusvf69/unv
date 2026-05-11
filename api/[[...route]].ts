@@ -1960,12 +1960,25 @@ async function handleAdminCrud(req: Request, parts: string[]): Promise<Response>
 
   // All courses
   if (parts[2] === "all-courses") {
-    return handle(async () => sql`SELECT * FROM courses ORDER BY code`);
+    return handle(async () => {
+      const rows = await sql`SELECT * FROM courses ORDER BY code`;
+      return rows.map((c: any) => ({
+        id: c.id, title: c.title, code: c.code, description: c.description,
+        credits: c.credits, department: c.department, instructor: c.instructor,
+        coverUrl: c.cover_url, enrolled: c.enrolled, semester: c.semester,
+      }));
+    });
   }
 
   // All materials
   if (parts[2] === "all-materials") {
-    return handle(async () => sql`SELECT * FROM materials ORDER BY course_id`);
+    return handle(async () => {
+      const rows = await sql`SELECT * FROM materials ORDER BY course_id`;
+      return rows.map((m: any) => ({
+        id: m.id, courseId: m.course_id, title: m.title, kind: m.kind,
+        url: m.url, lecturer: m.lecturer, durationMinutes: m.duration_minutes, ord: m.ord,
+      }));
+    });
   }
 
   // Admin DM threads
