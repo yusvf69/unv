@@ -2405,8 +2405,65 @@ async function handleComplaints(req: Request): Promise<Response> {
     const body = await req.json();
     const { title, body: msgBody, category } = body;
     if (!title || !msgBody) throw Object.assign(new Error("بيانات ناقصة"), { status: 400 });
-    await sql`INSERT INTO complaints (user_id, title, body, category) VALUES (${userId}, ${title}, ${msgBody}, ${category || "عام"})`;
+    await sql`INSERT INTO complaints (subject, body, category, author_id) VALUES (${title}, ${msgBody}, ${category || "عام"}, ${userId})`;
     return { ok: true };
+  });
+}
+
+const TYPE_LABELS: Record<string, string> = { complaint: "شكوى", suggestion: "اقتراح", inquiry: "استفسار", report: "بلاغ", other: "أخرى" };
+
+async function handleContact(req: Request): Promise<Response> {
+  return handle(async () => {
+    const { userId } = requireAuth(req.headers);
+    const { name, email, phone, type: contactType, subject, message } = await req.json();
+    if (!subject || !message || !contactType) throw Object.assign(new Error("الموضوع والنوع والرسالة مطلوبون"), { status: 400 });
+    const [[user]] = await sql`SELECT * FROM users WHERE id = ${userId} LIMIT 1`;
+    if (!user) throw Object.assign(new Error("المستخدم غير موجود"), { status: 404 });
+    const [created] = await sql`INSERT INTO complaints (subject, body, category, author_id) VALUES (${`[${contactType}] ${subject}`}, ${message}, ${contactType === "suggestion" ? "academic" : contactType === "inquiry" ? "other" : "technical"}, ${userId}) RETURNING *`;
+    const displayName = name || user.name;
+    const contactEmail = email || user.email;
+    const m = getMailer();
+    if (m) {
+      const adminEmail = process.env.GMAIL_USER!;
+      await m.sendMail({ to: adminEmail, subject: `[UniVerse] رسالة جديدة: ${TYPE_LABELS[contactType] || "أخرى"} من ${displayName}`, html: `
+        <div dir="rtl" style="font-family: Arial, sans-serif; max-width:600px;margin:0 auto;padding:20px;">
+          <div style="background:linear-gradient(135deg,#2d6a4f,#40916c);padding:30px;border-radius:12px 12px 0 0;text-align:center;">
+            <h1 style="color:white;margin:0;">🌿 UniVerse</h1>
+            <p style="color:rgba(255,255,255,0.85);margin-top:8px;">رسالة جديدة من مستخدم</p>
+          </div>
+          <div style="background:white;padding:30px;border-radius:0 0 12px 12px;border:1px solid #e5e7eb;">
+            <p><strong>من:</strong> ${displayName} (${contactEmail})</p>
+            <p><strong>النوع:</strong> ${TYPE_LABELS[contactType] || "أخرى"}</p>
+            ${phone ? `<p><strong>الهاتف:</strong> ${phone}</p>` : ""}
+            <div style="background:#f3f4f6;padding:16px;border-radius:8px;margin:16px 0;">
+              <p><strong>الموضوع:</strong> ${subject}</p>
+              <p><strong>الرسالة:</strong></p>
+              <p style="margin-top:4px;">${message}</p>
+            </div>
+            <p style="color:#6b7280;font-size:14px;">رقم التذكرة: #${created.id}</p>
+          </div>
+        </div>` });
+      await m.sendMail({ to: contactEmail, subject: `[UniVerse] تم استلام ${TYPE_LABELS[contactType] || "رسالتك"}`, html: `
+        <div dir="rtl" style="font-family: Arial, sans-serif; max-width:600px;margin:0 auto;padding:20px;">
+          <div style="background:linear-gradient(135deg,#2d6a4f,#40916c);padding:30px;border-radius:12px 12px 0 0;text-align:center;">
+            <h1 style="color:white;margin:0;">🌿 UniVerse</h1>
+            <p style="color:rgba(255,255,255,0.85);margin-top:8px;">منصة كلية الزراعة الذكية</p>
+          </div>
+          <div style="background:white;padding:30px;border-radius:0 0 12px 12px;border:1px solid #e5e7eb;">
+            <p>مرحباً <strong>${displayName}</strong>،</p>
+            <p>تم استلام <strong>${TYPE_LABELS[contactType] || "رسالتك"}</strong> بنجاح. فريق الدعم سيراجعها في أقرب وقت ممكن.</p>
+            <div style="background:#f3f4f6;padding:16px;border-radius:8px;margin:16px 0;">
+              <p><strong>الموضوع:</strong> ${subject}</p>
+              <p><strong>الرسالة:</strong></p>
+              <p style="margin-top:4px;">${message}</p>
+            </div>
+            <p style="color:#6b7280;font-size:14px;">رقم التذكرة: #${created.id}</p>
+            <hr style="border:none;border-top:1px solid #e5e7eb;margin:20px 0;" />
+            <p style="color:#9ca3af;font-size:12px;">هذه رسالة تلقائية، يرجى عدم الرد عليها.</p>
+          </div>
+        </div>` });
+    }
+    return { id: created.id, subject: created.subject, body: created.body, category: created.category, status: created.status, createdAt: new Date(created.created_at).toISOString() };
   });
 }
 
@@ -3302,6 +3359,7 @@ async function handleRequest(request: Request): Promise<Response> {
 
     // Complaints
     "POST /complaints": () => handleComplaints(request),
+    "POST /v2/contact": () => handleContact(request),
 
     // AI Chat
     "POST /ai/chat": () => handleAiChat(request),
