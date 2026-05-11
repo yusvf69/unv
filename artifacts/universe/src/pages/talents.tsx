@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import {
   Heart,
@@ -35,33 +35,43 @@ function CommentSheet({ talentId, open, onClose }: { talentId: number; open: boo
   const [body, setBody] = useState("");
   const [comments, setComments] = useState<any[]>([]);
   const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
   const t = useTranslation(globalI18n);
 
-  const load = async () => {
-    setLoading(true);
-    try {
-      setComments(await api.get<any[]>(`/v2/talents/${talentId}/comments`));
-    } finally {
-      setLoading(false);
+  useEffect(() => {
+    if (open) {
+      setError(null);
+      setLoading(true);
+      api.get<any[]>(`/v2/talents/${talentId}/comments`)
+        .then(setComments)
+        .catch((e) => setError((e as Error).message))
+        .finally(() => setLoading(false));
     }
-  };
+  }, [open, talentId]);
 
   const send = async () => {
     if (!body.trim()) return;
     await api.post(`/v2/talents/${talentId}/comments`, { body });
     setBody("");
-    await load();
+    setLoading(true);
+    api.get<any[]>(`/v2/talents/${talentId}/comments`)
+      .then(setComments)
+      .catch((e) => setError((e as Error).message))
+      .finally(() => setLoading(false));
   };
 
   return (
-    <Dialog open={open} onOpenChange={(o) => { if (o) load(); else onClose(); }}>
+    <Dialog open={open} onOpenChange={(o) => { if (!o) onClose(); }}>
       <DialogContent className="max-w-md max-h-[80vh] flex flex-col p-0">
         <DialogHeader className="p-4 border-b">
           <DialogTitle>{t("comments")}</DialogTitle>
         </DialogHeader>
         <div className="flex-1 overflow-y-auto p-4 space-y-3">
           {loading && <Loader2 className="h-5 w-5 animate-spin mx-auto" />}
-          {comments.length === 0 && !loading && (
+          {error && (
+            <div className="text-sm text-destructive text-center py-4 px-4">{error}</div>
+          )}
+          {comments.length === 0 && !loading && !error && (
             <div className="text-sm text-muted-foreground text-center py-8">{t("beFirstToComment")}</div>
           )}
           {comments.map((c) => (
