@@ -1711,20 +1711,20 @@ router.delete("/v2/admin/exam-schedule/:id", requireRole(["admin", "super_admin"
 // ---------- ADMIN PERMISSIONS ----------
 const ADMIN_PERMISSION_DEFS = [
   { key: "manage_courses", ar: "إدارة المقررات", en: "Manage Courses" },
-  { key: "manage_materials", ar: "إدارة المواد", en: "Manage Materials" },
+  { key: "manage_materials", ar: "ملفات المواد", en: "Manage Materials" },
   { key: "manage_quizzes", ar: "إدارة الاختبارات", en: "Manage Quizzes" },
   { key: "manage_exams", ar: "إدارة الامتحانات", en: "Manage Exams" },
-  { key: "manage_schedule", ar: "إدارة الجدول", en: "Manage Schedule" },
+  { key: "manage_schedule", ar: "جداول المجموعات", en: "Manage Schedule" },
   { key: "manage_events", ar: "إدارة الأحداث", en: "Manage Events" },
   { key: "manage_news", ar: "إدارة الأخبار", en: "Manage News" },
-  { key: "manage_talents", ar: "إدارة المواهب", en: "Manage Talents" },
+  { key: "manage_talents", ar: "مراجعة المواهب", en: "Manage Talents" },
   { key: "manage_forum", ar: "إدارة المنتدى", en: "Manage Forum" },
-  { key: "manage_users", ar: "إدارة المستخدمين", en: "Manage Users" },
-  { key: "manage_staff", ar: "إدارة أعضاء هيئة التدريس", en: "Manage Staff" },
+  { key: "manage_users", ar: "الطلاب", en: "Manage Users" },
+  { key: "manage_staff", ar: "هيئة التدريس", en: "Manage Staff" },
   { key: "manage_complaints", ar: "إدارة الشكاوى", en: "Manage Complaints" },
   { key: "manage_notifications", ar: "الإشعارات", en: "Manage Notifications" },
   { key: "manage_dm", ar: "مراقبة المحادثات", en: "Monitor DMs" },
-  { key: "manage_proposals", ar: "إدارة الاقتراحات", en: "Manage Proposals" },
+  { key: "manage_proposals", ar: "الاقتراحات", en: "Manage Proposals" },
 ];
 
 function getAdminPermissions(user: typeof schema.usersTable.$inferSelect): string[] {
