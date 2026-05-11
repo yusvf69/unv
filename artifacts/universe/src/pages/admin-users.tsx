@@ -16,7 +16,7 @@ import { Button } from "@/components/ui/button";
 import { useToast } from "@/hooks/use-toast";
 import { Sheet, SheetContent, SheetHeader, SheetTitle } from "@/components/ui/sheet";
 import { useGetMe } from "@workspace/api-client-react";
-import { api } from "@/lib/api";
+import { api, useAdminPermissions, usePromoteToAdmin, useUpdateAdminPermissions, useDemoteAdmin, useAdminAdmins } from "@/lib/api";
 
 const AVAILABLE_TITLES = [
   "طالب متميز",
@@ -61,6 +61,30 @@ export default function AdminUsers() {
   const [grantPoints, setGrantPoints] = useState(0);
   const [selectedTitle, setSelectedTitle] = useState("");
 
+  const { data: permissionsDefs = [] } = useAdminPermissions();
+  const promote = usePromoteToAdmin();
+  const updatePerms = useUpdateAdminPermissions();
+  const demote = useDemoteAdmin();
+  const { data: admins = [] } = useAdminAdmins();
+  const [selectedPerms, setSelectedPerms] = useState<string[]>([]);
+  const [showPromote, setShowPromote] = useState(false);
+  const [editPerms, setEditPerms] = useState<string[]>([]);
+
+  const togglePerm = (key: string) => {
+    setSelectedPerms((prev) =>
+      prev.includes(key) ? prev.filter((k) => k !== key) : [...prev, key]
+    );
+  };
+
+  const toggleEditPerm = (key: string) => {
+    setEditPerms((prev) =>
+      prev.includes(key) ? prev.filter((k) => k !== key) : [...prev, key]
+    );
+  };
+
+  const isAdmin = (user: AdminUser) => user.role === "admin" || user.role === "super_admin";
+  const isStudent = (user: AdminUser) => user.role === "student";
+
   const fetchUsers = async () => {
     setLoading(true);
     try {
@@ -77,6 +101,13 @@ export default function AdminUsers() {
   useEffect(() => {
     void fetchUsers();
   }, [role]);
+
+  useEffect(() => {
+    if (selectedUser && isAdmin(selectedUser) && selectedUser.role !== "super_admin") {
+      const admin = admins.find((a: any) => a.id === selectedUser.id);
+      setEditPerms(admin?.permissions || []);
+    }
+  }, [selectedUser, admins]);
 
   const deleteUser = async (userId: number, userName: string, userRole: string) => {
     if (userRole === "super_admin") {
@@ -345,46 +376,173 @@ export default function AdminUsers() {
                 </div>
 
                 {me?.role === "super_admin" && (
-                  <div className="border rounded-2xl p-4 space-y-3 bg-muted/20">
-                    <h3 className="font-bold text-sm flex items-center gap-2">
-                      <Award className="w-4 h-4 text-primary" /> منح نقاط وألقاب
-                    </h3>
+                  <>
+                    <div className="border rounded-2xl p-4 space-y-3 bg-muted/20">
+                      <h3 className="font-bold text-sm flex items-center gap-2">
+                        <Award className="w-4 h-4 text-primary" /> منح نقاط وألقاب
+                      </h3>
 
-                    <div className="space-y-2">
-                      <label className="text-xs text-muted-foreground">النقاط (موجب لزيادة، سالب لنقصان)</label>
-                      <div className="flex gap-2">
-                        <Button variant="outline" size="sm" onClick={() => setGrantPoints((p) => p + 10)}><Plus className="w-3 h-3" /></Button>
-                        <Button variant="outline" size="sm" onClick={() => setGrantPoints((p) => p - 10)}><Minus className="w-3 h-3" /></Button>
-                        <Input
-                          type="number"
-                          value={grantPoints}
-                          onChange={(e) => setGrantPoints(Number(e.target.value))}
-                          className="h-9"
-                        />
+                      <div className="space-y-2">
+                        <label className="text-xs text-muted-foreground">النقاط (موجب لزيادة، سالب لنقصان)</label>
+                        <div className="flex gap-2">
+                          <Button variant="outline" size="sm" onClick={() => setGrantPoints((p) => p + 10)}><Plus className="w-3 h-3" /></Button>
+                          <Button variant="outline" size="sm" onClick={() => setGrantPoints((p) => p - 10)}><Minus className="w-3 h-3" /></Button>
+                          <Input
+                            type="number"
+                            value={grantPoints}
+                            onChange={(e) => setGrantPoints(Number(e.target.value))}
+                            className="h-9"
+                          />
+                        </div>
                       </div>
+
+                      <div className="space-y-2">
+                        <label className="text-xs text-muted-foreground">اختر لقب</label>
+                        <div className="grid grid-cols-2 gap-1.5 max-h-40 overflow-y-auto">
+                          {AVAILABLE_TITLES.map((t) => (
+                            <button
+                              key={t}
+                              type="button"
+                              onClick={() => setSelectedTitle(selectedTitle === t ? "" : t)}
+                              className={`text-xs px-2 py-1.5 rounded-md border transition ${selectedTitle === t ? "bg-primary text-primary-foreground border-primary" : "bg-background hover:bg-muted/50"}`}
+                            >
+                              {t}
+                            </button>
+                          ))}
+                        </div>
+                      </div>
+
+                      <Button onClick={handleGrant} className="w-full bg-gradient-to-r from-primary to-secondary">
+                        <Award className="w-4 h-4 mr-2" />
+                        منح
+                      </Button>
                     </div>
 
-                    <div className="space-y-2">
-                      <label className="text-xs text-muted-foreground">اختر لقب</label>
-                      <div className="grid grid-cols-2 gap-1.5 max-h-40 overflow-y-auto">
-                        {AVAILABLE_TITLES.map((t) => (
-                          <button
-                            key={t}
-                            type="button"
-                            onClick={() => setSelectedTitle(selectedTitle === t ? "" : t)}
-                            className={`text-xs px-2 py-1.5 rounded-md border transition ${selectedTitle === t ? "bg-primary text-primary-foreground border-primary" : "bg-background hover:bg-muted/50"}`}
+                    {isStudent(selectedUser) && (
+                      <div className="border rounded-2xl p-4 space-y-3 bg-muted/20">
+                        <h3 className="font-bold text-sm flex items-center gap-2">
+                          <Shield className="w-4 h-4 text-primary" /> ترقية إلى أدمن
+                        </h3>
+                        {!showPromote ? (
+                          <Button onClick={() => setShowPromote(true)} className="w-full">
+                            <Shield className="w-4 h-4 ms-2" /> ترقية إلى أدمن
+                          </Button>
+                        ) : (
+                          <div className="space-y-2">
+                            <label className="text-xs text-muted-foreground">صلاحيات الأدمن</label>
+                            <div className="grid grid-cols-1 gap-1.5 max-h-60 overflow-y-auto">
+                              {permissionsDefs.map((perm) => (
+                                <label
+                                  key={perm.key}
+                                  className="flex items-center gap-2 text-xs px-2 py-1.5 rounded-md border bg-background hover:bg-muted/50 cursor-pointer"
+                                >
+                                  <input
+                                    type="checkbox"
+                                    checked={selectedPerms.includes(perm.key)}
+                                    onChange={() => togglePerm(perm.key)}
+                                    className="rounded"
+                                  />
+                                  {perm.ar}
+                                </label>
+                              ))}
+                            </div>
+                            <div className="flex gap-2">
+                              <Button onClick={() => { setShowPromote(false); setSelectedPerms([]); }} variant="outline" size="sm">إلغاء</Button>
+                              <Button
+                                onClick={() => {
+                                  promote.mutate(
+                                    { userId: selectedUser.id, permissions: selectedPerms },
+                                    {
+                                      onSuccess: () => {
+                                        toast({ title: "تمت الترقية", description: "تم ترقية المستخدم إلى أدمن" });
+                                        setShowPromote(false);
+                                        setSelectedPerms([]);
+                                        setSelectedUser({ ...selectedUser, role: "admin" });
+                                        setUsers((prev) => prev.map((u) => u.id === selectedUser.id ? { ...u, role: "admin" } : u));
+                                      },
+                                    }
+                                  );
+                                }}
+                                size="sm"
+                                className="bg-gradient-to-r from-primary to-secondary"
+                              >
+                                <Shield className="w-4 h-4 ms-1" /> تأكيد الترقية
+                              </Button>
+                            </div>
+                          </div>
+                        )}
+                      </div>
+                    )}
+
+                    {isAdmin(selectedUser) && selectedUser.role !== "super_admin" && (
+                      <div className="border rounded-2xl p-4 space-y-3 bg-muted/20">
+                        <h3 className="font-bold text-sm flex items-center gap-2">
+                          <Shield className="w-4 h-4 text-primary" /> صلاحيات الأدمن
+                        </h3>
+                        <div className="grid grid-cols-1 gap-1.5 max-h-60 overflow-y-auto">
+                          {permissionsDefs.map((perm) => (
+                            <label
+                              key={perm.key}
+                              className="flex items-center gap-2 text-xs px-2 py-1.5 rounded-md border bg-background hover:bg-muted/50 cursor-pointer"
+                            >
+                              <input
+                                type="checkbox"
+                                checked={editPerms.includes(perm.key)}
+                                onChange={() => toggleEditPerm(perm.key)}
+                                className="rounded"
+                              />
+                              {perm.ar}
+                            </label>
+                          ))}
+                        </div>
+                        <div className="flex gap-2">
+                          <Button
+                            onClick={() => {
+                              updatePerms.mutate(
+                                { id: selectedUser.id, permissions: editPerms },
+                                {
+                                  onSuccess: () => {
+                                    toast({ title: "تم الحفظ", description: "تم تحديث الصلاحيات" });
+                                  },
+                                }
+                              );
+                            }}
+                            size="sm"
+                            className="bg-gradient-to-r from-primary to-secondary flex-1"
                           >
-                            {t}
-                          </button>
-                        ))}
+                            <Shield className="w-4 h-4 ms-1" /> حفظ الصلاحيات
+                          </Button>
+                          <Button
+                            variant="destructive"
+                            size="sm"
+                            onClick={() => {
+                              if (confirm(`هل أنت متأكد من إزالة صلاحيات الأدمن عن ${selectedUser.name}؟`)) {
+                                demote.mutate(selectedUser.id, {
+                                  onSuccess: () => {
+                                    toast({ title: "تم الإزالة", description: "تم إرجاع المستخدم إلى طالب" });
+                                    setSelectedUser({ ...selectedUser, role: "student" });
+                                    setUsers((prev) => prev.map((u) => u.id === selectedUser.id ? { ...u, role: "student" } : u));
+                                  },
+                                });
+                              }
+                            }}
+                          >
+                            إزالة الأدمن
+                          </Button>
+                        </div>
                       </div>
-                    </div>
+                    )}
 
-                    <Button onClick={handleGrant} className="w-full bg-gradient-to-r from-primary to-secondary">
-                      <Award className="w-4 h-4 mr-2" />
-                      منح
-                    </Button>
-                  </div>
+                    {selectedUser.role === "super_admin" && (
+                      <div className="border rounded-2xl p-4 space-y-3 bg-muted/20">
+                        <div className="flex items-center gap-2 text-sm">
+                          <Shield className="w-4 h-4 text-accent" />
+                          <span className="font-bold">سوبر أدمن</span>
+                          <span className="text-xs text-muted-foreground">— لا يمكن تعديل صلاحيات السوبر أدمن</span>
+                        </div>
+                      </div>
+                    )}
+                  </>
                 )}
               </div>
             </>
