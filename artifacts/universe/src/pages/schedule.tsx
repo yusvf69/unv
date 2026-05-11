@@ -38,10 +38,11 @@ export default function Schedule() {
   const [upcomingAlerts, setUpcomingAlerts] = useState<any[]>([]);
   const t = useTranslation(globalI18n);
 
+  const ARABIC_DAYS = ["السبت", "الأحد", "الاثنين", "الثلاثاء", "الأربعاء", "الخميس", "الجمعة"];
   const days = [t("sat"), t("sun"), t("mon"), t("tue"), t("wed"), t("thu"), t("fri")];
   const daysShort = [t("satShort"), t("sunShort"), t("monShort"), t("tueShort"), t("wedShort"), t("thuShort"), t("friShort")];
   const jsToAr: Record<number, string> = { 6: t("sat"), 0: t("sun"), 1: t("mon"), 2: t("tue"), 3: t("wed"), 4: t("thu"), 5: t("fri") };
-  const typeLabel: Record<string, string> = { lecture: t("lecture"), lab: t("lab"), practical: t("tutorial") };
+  const typeLabel: Record<string, string> = { lecture: t("lecture"), lab: t("lab"), tutorial: t("tutorial"), practical: t("practical") };
   const typeColor: Record<string, string> = {
     lecture: "from-primary/20 to-primary/5 border-primary/30",
     lab: "from-secondary/20 to-secondary/5 border-secondary/30",
@@ -59,13 +60,14 @@ export default function Schedule() {
     const m: Record<string, typeof rows> = {};
     for (const d of days) m[d] = [];
     for (const r of rows) {
-      const day = r.day in m ? r.day : days.find((d) => r.day.includes(d.replace("ال", ""))) || r.day;
-      m[day] ||= [];
-      m[day].push(r);
+      const dayIndex = ARABIC_DAYS.indexOf(r.day);
+      const dayKey = dayIndex >= 0 ? days[dayIndex] : r.day;
+      m[dayKey] ||= [];
+      m[dayKey].push(r);
     }
     for (const d of Object.keys(m)) m[d].sort((a, b) => a.startTime.localeCompare(b.startTime));
     return m;
-  }, [rows]);
+  }, [rows, days]);
 
   // Compute upcoming exam alerts (within 24 hours)
   useEffect(() => {

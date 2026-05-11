@@ -4,6 +4,7 @@ import { db, schema } from "../lib/db";
 import { handle } from "../lib/util";
 import { setDemoUser } from "../lib/session";
 import bcrypt from "bcryptjs";
+import { isMailConfigured, sendMail } from "../lib/mail";
 
 const router: IRouter = Router();
 
@@ -120,6 +121,105 @@ router.post("/v2/auth/logout", (_req, res) => {
   void handle(res, async () => {
     res.clearCookie("uv_demo_user");
     return { ok: true };
+  });
+});
+
+// ---------- FORGOT PASSWORD (in-memory codes) ----------
+const resetCodes = new Map<string, { code: string; expiresAt: Date }>();
+
+router.post("/v2/auth/forgot-password", (req, res) => {
+  void handle(res, async () => {
+    const { email, phone } = req.body as { email?: string; phone?: string };
+    const identifier = email || phone;
+    if (!identifier) throw Object.assign(new Error("البريد أو الهاتف مطلوب"), { status: 400 });
+
+    const [user] = await db
+      .select()
+      .from(schema.usersTable)
+      .where(email ? eq(schema.usersTable.email, identifier) : eq(schema.usersTable.phone, identifier))
+      .limit(1);
+    if (!user) throw Object.assign(new Error("الحساب غير موجود"), { status: 404 });
+
+    const code = Math.floor(100000 + Math.random() * 900000).toString();
+    resetCodes.set(identifier, { code, expiresAt: new Date(Date.now() + 10 * 60 * 1000) });
+
+    // Send code via email if email provided
+    if (email && isMailConfigured()) {
+      await sendMail({
+        to: email,
+        subject: "[UniVerse] كود استعادة كلمة المرور",
+        html: `
+          <div dir="rtl" style="font-family: 'Cairo', Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px;">
+            <div style="background: linear-gradient(135deg, #2d6a4f, #40916c); padding: 30px; border-radius: 12px 12px 0 0; text-align: center;">
+              <h1 style="color: white; margin: 0; font-size: 24px;">🌿 UniVerse</h1>
+              <p style="color: rgba(255,255,255,0.85); margin-top: 8px;">استعادة كلمة المرور</p>
+            </div>
+            <div style="background: white; padding: 30px; border-radius: 0 0 12px 12px; border: 1px solid #e5e7eb; text-align: center;">
+              <p style="color: #374151; font-size: 16px;">مرحباً <strong>${user.name}</strong>،</p>
+              <p style="color: #374151; font-size: 16px;">كود استعادة كلمة المرور الخاص بك هو:</p>
+              <div style="background: #f3f4f6; padding: 20px; border-radius: 12px; margin: 20px 0; font-size: 32px; letter-spacing: 8px; font-weight: bold; color: #2d6a4f;">${code}</div>
+              <p style="color: #6b7280; font-size: 14px;">هذا الكود صالح لمدة 10 دقائق.</p>
+              <p style="color: #9ca3af; font-size: 12px;">إذا لم تطلب استعادة كلمة المرور، تجاهل هذه الرسالة.</p>
+            </div>
+          </div>
+        `,
+      });
+    }
+
+    return { ok: true, identifier: email ? "email" : "phone" };
+  });
+});
+
+router.post("/v2/auth/verify-reset-code", (req, res) => {
+  void handle(res, async () => {
+    const { email, phone, code } = req.body as { email?: string; phone?: string; code?: string };
+    const identifier = email || phone;
+    if (!identifier || !code) throw Object.assign(new Error("البيانات ناقصة"), { status: 400 });
+
+    const stored = resetCodes.get(identifier);
+    if (!stored) throw Object.assign(new Error("لم يتم طلب استعادة كلمة المرور"), { status: 400 });
+    if (new Date() > stored.expiresAt) {
+      resetCodes.delete(identifier);
+      throw Object.assign(new Error("انتهت صلاحية الكود، أعد الطلب"), { status: 400 });
+    }
+    if (stored.code !== code) throw Object.assign(new Error("الكود غير صحيح"), { status: 401 });
+
+    return { ok: true, verified: true };
+  });
+});
+
+router.post("/v2/auth/reset-password", (req, res) => {
+  void handle(res, async () => {
+    const { email, phone, code, newPassword } = req.body as { email?: string; phone?: string; code?: string; newPassword?: string };
+    const identifier = email || phone;
+    if (!identifier || !code || !newPassword) throw Object.assign(new Error("البيانات ناقصة"), { status: 400 });
+    if (newPassword.length < 6) throw Object.assign(new Error("كلمة المرور يجب أن تكون 6 أحرف على الأقل"), { status: 400 });
+
+    const stored = resetCodes.get(identifier);
+    if (!stored) throw Object.assign(new Error("لم يتم طلب استعادة كلمة المرور"), { status: 400 });
+    if (new Date() > stored.expiresAt) {
+      resetCodes.delete(identifier);
+      throw Object.assign(new Error("انتهت صلاحية الكود، أعد الطلب"), { status: 400 });
+    }
+    if (stored.code !== code) throw Object.assign(new Error("الكود غير صحيح"), { status: 401 });
+
+    const hashedPassword = await bcrypt.hash(newPassword, 10);
+    await db
+      .update(schema.usersTable)
+      .set({ password: hashedPassword })
+      .where(email ? eq(schema.usersTable.email, identifier) : eq(schema.usersTable.phone, identifier));
+
+    resetCodes.delete(identifier);
+
+    // Log the user in after reset
+    const [user] = await db
+      .select()
+      .from(schema.usersTable)
+      .where(email ? eq(schema.usersTable.email, identifier) : eq(schema.usersTable.phone, identifier))
+      .limit(1);
+    if (user) setDemoUser(res, user.id);
+
+    return { ok: true, token: "reset" };
   });
 });
 

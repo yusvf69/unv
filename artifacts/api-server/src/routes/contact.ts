@@ -49,6 +49,32 @@ router.post("/v2/contact", (req, res) => {
     };
 
     if (isMailConfigured()) {
+      const adminEmail = process.env.GMAIL_USER!;
+      // Send notification to admin
+      await sendMail({
+        to: adminEmail,
+        subject: `[UniVerse] رسالة جديدة: ${typeLabels[contactType] || "أخرى"} من ${displayName}`,
+        html: `
+          <div dir="rtl" style="font-family: 'Cairo', Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px;">
+            <div style="background: linear-gradient(135deg, #2d6a4f, #40916c); padding: 30px; border-radius: 12px 12px 0 0; text-align: center;">
+              <h1 style="color: white; margin: 0; font-size: 24px;">🌿 UniVerse</h1>
+              <p style="color: rgba(255,255,255,0.85); margin-top: 8px;">رسالة جديدة من مستخدم</p>
+            </div>
+            <div style="background: white; padding: 30px; border-radius: 0 0 12px 12px; border: 1px solid #e5e7eb;">
+              <p style="color: #374151; font-size: 16px;"><strong>من:</strong> ${displayName} (${contactEmail})</p>
+              <p style="color: #374151; font-size: 16px;"><strong>النوع:</strong> ${typeLabels[contactType] || "أخرى"}</p>
+              ${phone ? `<p style="color: #374151; font-size: 16px;"><strong>الهاتف:</strong> ${phone}</p>` : ""}
+              <div style="background: #f3f4f6; padding: 16px; border-radius: 8px; margin: 16px 0;">
+                <p style="margin: 0 0 8px; color: #6b7280; font-size: 14px;"><strong>الموضوع:</strong> ${subject}</p>
+                <p style="margin: 0; color: #6b7280; font-size: 14px;"><strong>الرسالة:</strong></p>
+                <p style="margin: 4px 0 0; color: #374151;">${message}</p>
+              </div>
+              <p style="color: #6b7280; font-size: 14px;">رقم التذكرة: #${created.id}</p>
+            </div>
+          </div>
+        `,
+      });
+      // Also send confirmation to the user
       await sendMail({
         to: contactEmail,
         subject: `[UniVerse] تم استلام ${typeLabels[contactType] || "رسالتك"}`,
