@@ -2163,7 +2163,7 @@ async function handleAdminCrud(req: Request, parts: string[]): Promise<Response>
 
   // Admin materials CRUD
   if (parts[2] === "materials") {
-    if (req.method === "POST") {
+    if (req.method === "POST" && !parts[3]) {
       return handle(async () => {
         const body = await req.json();
         const { courseId, title, kind, url, lecturer, durationMinutes, ord } = body;
@@ -2243,11 +2243,11 @@ async function handleAdminCrud(req: Request, parts: string[]): Promise<Response>
 }
 
 async function handleMaterialFiles(req: Request, parts: string[]): Promise<Response> {
-  if (parts[2]) {
-    return handle(async () => sql`SELECT * FROM material_files WHERE material_id = ${Number(parts[2])} ORDER BY created_at DESC`);
+    if (parts[1]) {
+    return handle(async () => sql`SELECT * FROM material_files WHERE material_id = ${Number(parts[1])} ORDER BY created_at DESC`);
+    }
+    return jsonError("Not Found", 404);
   }
-  return jsonError("Not Found", 404);
-}
 
 async function handleLectureQuizSubmit(req: Request, parts: string[]): Promise<Response> {
   return handle(async () => {
