@@ -60,7 +60,7 @@ export default function Schedule() {
     const m: Record<string, typeof rows> = {};
     for (const d of days) m[d] = [];
     for (const r of rows) {
-      const dayIndex = r.dayNumber !== undefined ? r.dayNumber : ARABIC_DAYS.indexOf(r.day);
+      const dayIndex = r.dayNumber !== undefined ? (r.dayNumber + 1) % 7 : ARABIC_DAYS.indexOf(r.day);
       const dayKey = dayIndex >= 0 ? days[dayIndex] : r.day;
       m[dayKey] ||= [];
       m[dayKey].push(r);
