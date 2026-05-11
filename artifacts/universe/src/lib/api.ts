@@ -1162,3 +1162,57 @@ export function useDeleteMaterialComment() {
   });
 }
 
+// ---------- ADMIN PERMISSIONS ----------
+export interface AdminPermissionDef {
+  key: string;
+  ar: string;
+  en: string;
+}
+
+export function useAdminPermissions() {
+  return useQuery({
+    queryKey: ["v2", "admin", "permissions"],
+    queryFn: () => api.get<AdminPermissionDef[]>("/v2/admin/permissions"),
+  });
+}
+
+export function useAdminAdmins() {
+  return useQuery({
+    queryKey: ["v2", "admin", "admins"],
+    queryFn: () => api.get<any[]>("/v2/admin/admins"),
+  });
+}
+
+export function usePromoteToAdmin() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (body: { userId: number; permissions: string[] }) => api.post("/v2/admin/admins", body),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["v2", "admin", "admins"] });
+      qc.invalidateQueries({ queryKey: ["v2", "users", "students"] });
+    },
+  });
+}
+
+export function useUpdateAdminPermissions() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: ({ id, permissions }: { id: number; permissions: string[] }) =>
+      api.patch(`/v2/admin/admins/${id}`, { permissions }),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["v2", "admin", "admins"] });
+    },
+  });
+}
+
+export function useDemoteAdmin() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (id: number) => api.del(`/v2/admin/admins/${id}`),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["v2", "admin", "admins"] });
+      qc.invalidateQueries({ queryKey: ["v2", "users", "students"] });
+    },
+  });
+}
+

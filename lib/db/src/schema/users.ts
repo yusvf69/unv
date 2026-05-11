@@ -27,6 +27,7 @@ export const usersTable = pgTable("users", {
   uniqueCode: text("unique_code").notNull().unique(),
   emailVerified: boolean("email_verified").notNull().default(false),
   phoneVerified: boolean("phone_verified").notNull().default(false),
+  adminPermissions: text("admin_permissions"),
   lastSeen: timestamp("last_seen", { withTimezone: true }).notNull().defaultNow(),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
 });

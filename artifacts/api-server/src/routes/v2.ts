@@ -1707,6 +1707,125 @@ router.delete("/v2/admin/exam-schedule/:id", requireRole(["admin", "super_admin"
   });
 });
 
+// ---------- ADMIN PERMISSIONS ----------
+const ADMIN_PERMISSION_DEFS = [
+  { key: "manage_courses", ar: "إدارة المقررات", en: "Manage Courses" },
+  { key: "manage_materials", ar: "إدارة المواد", en: "Manage Materials" },
+  { key: "manage_quizzes", ar: "إدارة الاختبارات", en: "Manage Quizzes" },
+  { key: "manage_exams", ar: "إدارة الامتحانات", en: "Manage Exams" },
+  { key: "manage_schedule", ar: "إدارة الجدول", en: "Manage Schedule" },
+  { key: "manage_events", ar: "إدارة الأحداث", en: "Manage Events" },
+  { key: "manage_news", ar: "إدارة الأخبار", en: "Manage News" },
+  { key: "manage_talents", ar: "إدارة المواهب", en: "Manage Talents" },
+  { key: "manage_forum", ar: "إدارة المنتدى", en: "Manage Forum" },
+  { key: "manage_users", ar: "إدارة المستخدمين", en: "Manage Users" },
+  { key: "manage_staff", ar: "إدارة أعضاء هيئة التدريس", en: "Manage Staff" },
+  { key: "manage_complaints", ar: "إدارة الشكاوى", en: "Manage Complaints" },
+  { key: "manage_notifications", ar: "الإشعارات", en: "Manage Notifications" },
+  { key: "manage_dm", ar: "مراقبة المحادثات", en: "Monitor DMs" },
+  { key: "manage_proposals", ar: "إدارة الاقتراحات", en: "Manage Proposals" },
+];
+
+function getAdminPermissions(user: typeof schema.usersTable.$inferSelect): string[] {
+  if (user.role === "super_admin") return ADMIN_PERMISSION_DEFS.map((p) => p.key);
+  if (user.role === "admin" && user.adminPermissions) {
+    try { return JSON.parse(user.adminPermissions); } catch { return []; }
+  }
+  return [];
+}
+
+// Check if user has a specific admin permission (super_admin has all)
+function ensurePermission(req: Request, permission: string) {
+  const user = (req as any).currentUser as typeof schema.usersTable.$inferSelect;
+  if (!user) throw Object.assign(new Error("غير مصرح"), { status: 403 });
+  if (user.role === "super_admin") return;
+  const perms = user.adminPermissions ? (JSON.parse(user.adminPermissions) as string[]) : [];
+  if (!perms.includes(permission)) throw Object.assign(new Error("ليس لديك صلاحية لهذا الإجراء"), { status: 403 });
+}
+
+// GET /v2/admin/permissions — list all available permissions
+router.get("/v2/admin/permissions", requireRole(["admin", "super_admin"]), (_req, res) => {
+  void handle(res, async () => ADMIN_PERMISSION_DEFS);
+});
+
+// GET /v2/admin/admins — list all admins (super_admin only)
+router.get("/v2/admin/admins", requireRole(["super_admin"]), (_req, res) => {
+  void handle(res, async () => {
+    const admins = await db
+      .select()
+      .from(schema.usersTable)
+      .where(inArray(schema.usersTable.role, ["admin", "super_admin"]))
+      .orderBy(schema.usersTable.role);
+    return admins.map((u) => ({
+      id: u.id,
+      name: u.name,
+      role: u.role,
+      permissions: getAdminPermissions(u),
+      adminPermissions: u.adminPermissions,
+      avatarUrl: u.avatarUrl,
+    }));
+  });
+});
+
+// POST /v2/admin/admins — promote a student to admin (super_admin only)
+router.post("/v2/admin/admins", requireRole(["super_admin"]), (req, res) => {
+  void handle(res, async () => {
+    const { userId, permissions } = req.body as { userId: number; permissions: string[] };
+    if (!userId) throw Object.assign(new Error("معرف المستخدم مطلوب"), { status: 400 });
+    const [user] = await db.select().from(schema.usersTable).where(eq(schema.usersTable.id, userId)).limit(1);
+    if (!user) throw Object.assign(new Error("المستخدم غير موجود"), { status: 404 });
+    if (user.role !== "student") throw Object.assign(new Error("يمكن ترقية الطلاب فقط"), { status: 400 });
+
+    const validKeys = ADMIN_PERMISSION_DEFS.map((p) => p.key);
+    const filteredPerms = (permissions || []).filter((p: string) => validKeys.includes(p));
+
+    await db
+      .update(schema.usersTable)
+      .set({ role: "admin", adminPermissions: JSON.stringify(filteredPerms) })
+      .where(eq(schema.usersTable.id, userId));
+
+    return { ok: true, role: "admin", permissions: filteredPerms };
+  });
+});
+
+// PATCH /v2/admin/admins/:id — update admin permissions (super_admin only)
+router.patch("/v2/admin/admins/:id", requireRole(["super_admin"]), (req, res) => {
+  void handle(res, async () => {
+    const id = Number(req.params.id);
+    const { permissions } = req.body as { permissions: string[] };
+    const [user] = await db.select().from(schema.usersTable).where(eq(schema.usersTable.id, id)).limit(1);
+    if (!user) throw Object.assign(new Error("المستخدم غير موجود"), { status: 404 });
+    if (user.role !== "admin") throw Object.assign(new Error("المستخدم ليس أدمن"), { status: 400 });
+
+    const validKeys = ADMIN_PERMISSION_DEFS.map((p) => p.key);
+    const filteredPerms = (permissions || []).filter((p: string) => validKeys.includes(p));
+
+    await db
+      .update(schema.usersTable)
+      .set({ adminPermissions: JSON.stringify(filteredPerms) })
+      .where(eq(schema.usersTable.id, id));
+
+    return { ok: true, permissions: filteredPerms };
+  });
+});
+
+// DELETE /v2/admin/admins/:id — demote admin back to student (super_admin only)
+router.delete("/v2/admin/admins/:id", requireRole(["super_admin"]), (req, res) => {
+  void handle(res, async () => {
+    const id = Number(req.params.id);
+    const [user] = await db.select().from(schema.usersTable).where(eq(schema.usersTable.id, id)).limit(1);
+    if (!user) throw Object.assign(new Error("المستخدم غير موجود"), { status: 404 });
+    if (user.role !== "admin") throw Object.assign(new Error("المستخدم ليس أدمن"), { status: 400 });
+
+    await db
+      .update(schema.usersTable)
+      .set({ role: "student", adminPermissions: null })
+      .where(eq(schema.usersTable.id, id));
+
+    return { ok: true, role: "student" };
+  });
+});
+
 // ---------- ADMIN: direct CRUD (super_admin only — admin must use proposals) ----------
 function ensureSuper(req: Request) {
   const u = (req as any).currentUser as typeof schema.usersTable.$inferSelect;
