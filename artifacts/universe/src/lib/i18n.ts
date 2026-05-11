@@ -245,6 +245,10 @@ export const globalI18n = {
   selectCourse: { ar: "اختر مقرراً من القائمة لعرض ملفاته", en: "Select a course from the list to view its files" },
   searchFiles: { ar: "ابحث في الملفات...", en: "Search files..." },
   noFiles: { ar: "لا توجد ملفات لهذا المقرر بعد", en: "No files for this course yet" },
+  officialFiles: { ar: "الملفات الرسمية", en: "Official Files" },
+  studentSummaries: { ar: "ملخصات الطلاب", en: "Student Summaries" },
+  noSummaries: { ar: "لا توجد ملخصات من الطلاب بعد", en: "No student summaries yet" },
+  uploadYourSummary: { ar: "ارفع ملخصك", en: "Upload your summary" },
 
   // Dashboard - additional
   nightGreeting: { ar: "ليلة هادئة، ", en: "Good night, " },

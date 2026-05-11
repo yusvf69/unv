@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { motion } from "framer-motion";
-import { FileText, Folder, Download, Calendar, Search, Heart, Eye, MessageCircle, Send, Loader2 } from "lucide-react";
+import { FileText, Folder, Download, Calendar, Search, Heart, Eye, MessageCircle, Send, Loader2, GraduationCap, Upload } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
@@ -8,6 +8,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/u
 import {
   useCourses,
   useCourseFiles,
+  useCourseSummaries,
   useToggleMaterialFileLike,
   useCountMaterialFileView,
   useFileComments,
@@ -167,7 +168,9 @@ export default function Materials() {
   const t = useTranslation(globalI18n);
   const { data: courses = [] } = useCourses();
   const [selected, setSelected] = useState<number | null>(null);
+  const [tab, setTab] = useState<"files" | "summaries">("files");
   const { data: files = [] } = useCourseFiles(selected || 0);
+  const { data: summaries = [] } = useCourseSummaries(selected || 0);
   const [q, setQ] = useState("");
 
   const filtered = files.filter((f) => !q || f.name.toLowerCase().includes(q.toLowerCase()));
@@ -187,7 +190,7 @@ export default function Materials() {
             {courses.map((c) => (
               <button
                 key={c.id}
-                onClick={() => setSelected(c.id)}
+                onClick={() => { setSelected(c.id); setQ(""); }}
                 className={`w-full text-start px-3 py-2 rounded-lg text-xs sm:text-sm transition ${selected === c.id ? "bg-primary text-primary-foreground" : "hover:bg-muted"}`}
               >
                 <div className="font-bold truncate">{c.title}</div>
@@ -205,19 +208,57 @@ export default function Materials() {
             </div>
           ) : (
             <>
-              <div className="relative mb-3 sm:mb-4">
-                <Search className="absolute start-3 top-1/2 -translate-y-1/2 h-3.5 w-3.5 sm:h-4 sm:w-4 text-muted-foreground" />
-                <Input value={q} onChange={(e) => setQ(e.target.value)} placeholder={t("searchFiles")} className="ps-9 h-9 sm:h-10 text-sm" />
+              <div className="flex gap-1 mb-3 sm:mb-4 bg-muted rounded-lg p-1">
+                <button
+                  onClick={() => setTab("files")}
+                  className={`flex-1 flex items-center justify-center gap-2 px-3 py-2 rounded-md text-xs sm:text-sm font-bold transition ${tab === "files" ? "bg-background shadow-sm" : "text-muted-foreground hover:text-foreground"}`}
+                >
+                  <FileText className="h-4 w-4" /> {t("officialFiles")}
+                </button>
+                <button
+                  onClick={() => setTab("summaries")}
+                  className={`flex-1 flex items-center justify-center gap-2 px-3 py-2 rounded-md text-xs sm:text-sm font-bold transition ${tab === "summaries" ? "bg-background shadow-sm" : "text-muted-foreground hover:text-foreground"}`}
+                >
+                  <GraduationCap className="h-4 w-4" /> {t("studentSummaries")}
+                </button>
               </div>
-              {filtered.length === 0 ? (
-                <div className="bg-card border rounded-xl sm:rounded-2xl p-8 sm:p-12 text-center">
-                  <FileText className="h-8 w-8 sm:h-12 sm:w-12 mx-auto text-muted-foreground mb-2 sm:mb-3" />
-                  <p className="text-muted-foreground text-sm">{t("noFiles")}</p>
-                </div>
+
+              {tab === "files" ? (
+                <>
+                  <div className="relative mb-3 sm:mb-4">
+                    <Search className="absolute start-3 top-1/2 -translate-y-1/2 h-3.5 w-3.5 sm:h-4 sm:w-4 text-muted-foreground" />
+                    <Input value={q} onChange={(e) => setQ(e.target.value)} placeholder={t("searchFiles")} className="ps-9 h-9 sm:h-10 text-sm" />
+                  </div>
+                  {filtered.length === 0 ? (
+                    <div className="bg-card border rounded-xl sm:rounded-2xl p-8 sm:p-12 text-center">
+                      <FileText className="h-8 w-8 sm:h-12 sm:w-12 mx-auto text-muted-foreground mb-2 sm:mb-3" />
+                      <p className="text-muted-foreground text-sm">{t("noFiles")}</p>
+                    </div>
+                  ) : (
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 sm:gap-3">
+                      {filtered.map((f) => <FileCard key={f.id} f={f} />)}
+                    </div>
+                  )}
+                </>
               ) : (
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 sm:gap-3">
-                  {filtered.map((f) => <FileCard key={f.id} f={f} />)}
-                </div>
+                <>
+                  <div className="flex items-center justify-between mb-3 sm:mb-4">
+                    <p className="text-xs sm:text-sm text-muted-foreground">{summaries.length} {t("studentSummaries")}</p>
+                    <Button size="sm" variant="outline" onClick={() => window.location.href = "/student-summaries"} className="gap-1">
+                      <Upload className="h-4 w-4" /> {t("uploadYourSummary")}
+                    </Button>
+                  </div>
+                  {summaries.length === 0 ? (
+                    <div className="bg-card border rounded-xl sm:rounded-2xl p-8 sm:p-12 text-center">
+                      <GraduationCap className="h-8 w-8 sm:h-12 sm:w-12 mx-auto text-muted-foreground mb-2 sm:mb-3" />
+                      <p className="text-muted-foreground text-sm">{t("noSummaries")}</p>
+                    </div>
+                  ) : (
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 sm:gap-3">
+                      {summaries.map((f) => <FileCard key={f.id} f={f} />)}
+                    </div>
+                  )}
+                </>
               )}
             </>
           )}

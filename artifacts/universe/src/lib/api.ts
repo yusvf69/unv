@@ -552,6 +552,7 @@ export function useDeleteMaterial() {
 export interface MaterialFileRow {
   id: number; materialId: number; courseId: number; name: string; kind: string; url: string;
   sizeBytes: number; uploadedById: number; uploadedByName: string; createdAt: string;
+  category?: string; views?: number; likes?: number;
 }
 export function useCourseFiles(courseId: number) {
   return useQuery<MaterialFileRow[]>({
