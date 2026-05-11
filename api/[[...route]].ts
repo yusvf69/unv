@@ -30,20 +30,27 @@ function generateUniqueCode(): string {
 const ADMIN_PERMISSION_DEFS = [
   { key: "manage_courses", ar: "إدارة المقررات", en: "Manage Courses" },
   { key: "manage_materials", ar: "ملفات المواد", en: "Manage Materials" },
-  { key: "manage_quizzes", ar: "إدارة الاختبارات", en: "Manage Quizzes" },
-  { key: "manage_exams", ar: "إدارة الامتحانات", en: "Manage Exams" },
-  { key: "manage_schedule", ar: "جداول المجموعات", en: "Manage Schedule" },
-  { key: "manage_events", ar: "إدارة الأحداث", en: "Manage Events" },
-  { key: "manage_news", ar: "إدارة الأخبار", en: "Manage News" },
-  { key: "manage_talents", ar: "مراجعة المواهب", en: "Manage Talents" },
-  { key: "manage_forum", ar: "إدارة المنتدى", en: "Manage Forum" },
-  { key: "manage_users", ar: "الطلاب", en: "Manage Users" },
+  { key: "manage_students", ar: "الطلاب", en: "Manage Students" },
   { key: "manage_staff", ar: "هيئة التدريس", en: "Manage Staff" },
+  { key: "manage_schedule", ar: "الجدول", en: "Manage Schedule" },
+  { key: "manage_exams", ar: "الامتحانات", en: "Manage Exams" },
+  { key: "manage_news", ar: "الأخبار", en: "Manage News" },
+  { key: "manage_talents", ar: "المواهب", en: "Manage Talents" },
+  { key: "manage_forum", ar: "المنتدى", en: "Manage Forum" },
+  { key: "manage_events", ar: "الفعاليات", en: "Manage Events" },
   { key: "manage_complaints", ar: "إدارة الشكاوى", en: "Manage Complaints" },
-  { key: "manage_notifications", ar: "الإشعارات", en: "Manage Notifications" },
-  { key: "manage_dm", ar: "مراقبة المحادثات", en: "Monitor DMs" },
-  { key: "manage_proposals", ar: "الاقتراحات", en: "Manage Proposals" },
+  { key: "manage_admins", ar: "المشرفين", en: "Manage Admins" },
+  { key: "manage_dm", ar: "الرسائل", en: "Manage DM" },
+  { key: "manage_achievements", ar: "الإنجازات", en: "Manage Achievements" },
+  { key: "manage_grades", ar: "الدرجات", en: "Manage Grades" },
 ];
+
+function ensureAdminPermission(user: any, permission: string) {
+  if (!user) throw Object.assign(new Error("غير مصرح"), { status: 403 });
+  if (user.role === "super_admin") return;
+  const perms: string[] = user.admin_permissions ? JSON.parse(user.admin_permissions) : [];
+  if (!perms.includes(permission)) throw Object.assign(new Error("ليس لديك صلاحية لهذا الإجراء"), { status: 403 });
+}
 
 const AR_DAY_TO_NUM: Record<string, number> = {
   "الأحد": 0, "الاثنين": 1, "الإثنين": 1, "الثلاثاء": 2, "الأربعاء": 3, "الخميس": 4, "الجمعة": 5, "السبت": 6,
@@ -1884,6 +1891,7 @@ async function handleAdminCrud(req: Request, parts: string[]): Promise<Response>
 
   // Students list
   if (parts[2] === "students") {
+    ensureAdminPermission(user, "manage_students");
     return handle(async () => {
       const rows = await sql`SELECT * FROM users WHERE role = 'student' ORDER BY points DESC`;
       return rows.map((u: any) => ({ ...u, lastSeen: u.last_seen?.toISOString(), createdAt: u.created_at?.toISOString() }));
@@ -1892,6 +1900,7 @@ async function handleAdminCrud(req: Request, parts: string[]): Promise<Response>
 
   // Staff list
   if (parts[2] === "staff") {
+    ensureAdminPermission(user, "manage_staff");
     return handle(async () => {
       const rows = await sql`SELECT * FROM users WHERE role IN ('doctor', 'ta', 'admin', 'super_admin') ORDER BY role`;
       return rows.map((u: any) => ({ ...u, lastSeen: u.last_seen?.toISOString(), createdAt: u.created_at?.toISOString() }));
@@ -1946,6 +1955,7 @@ async function handleAdminCrud(req: Request, parts: string[]): Promise<Response>
 
   // Talents moderation
   if (parts[2] === "talents") {
+    ensureAdminPermission(user, "manage_talents");
     if (req.method === "GET") {
       return handle(async () => {
         const rows = await sql`SELECT * FROM talents ORDER BY created_at DESC`;
@@ -2058,6 +2068,7 @@ async function handleAdminCrud(req: Request, parts: string[]): Promise<Response>
 
   // Admin lectures
   if (parts[2] === "courses" && parts[4] === "lectures" && req.method === "POST") {
+    ensureAdminPermission(user, "manage_courses");
     return handle(async () => {
       const courseId = Number(parts[3]);
       const body = await req.json();
@@ -2070,6 +2081,7 @@ async function handleAdminCrud(req: Request, parts: string[]): Promise<Response>
   }
 
   if (parts[2] === "lectures" && parts[3] && !parts[4]) {
+    ensureAdminPermission(user, "manage_courses");
     if (req.method === "PATCH") {
       return handle(async () => {
         const id = Number(parts[3]);
@@ -2086,6 +2098,7 @@ async function handleAdminCrud(req: Request, parts: string[]): Promise<Response>
 
   // Admin videos
   if (parts[2] === "lectures" && parts[4] === "videos" && req.method === "POST") {
+    ensureAdminPermission(user, "manage_courses");
     return handle(async () => {
       const lectureId = Number(parts[3]);
       const body = await req.json();
@@ -2100,11 +2113,13 @@ async function handleAdminCrud(req: Request, parts: string[]): Promise<Response>
   }
 
   if (parts[2] === "videos" && req.method === "DELETE") {
+    ensureAdminPermission(user, "manage_courses");
     return handle(async () => { await sql`DELETE FROM lecture_videos WHERE id = ${Number(parts[3])}`; return { ok: true }; });
   }
 
   // Admin PDFs
   if (parts[2] === "lectures" && parts[4] === "pdfs" && req.method === "POST") {
+    ensureAdminPermission(user, "manage_courses");
     return handle(async () => {
       const lectureId = Number(parts[3]);
       const body = await req.json();
@@ -2120,6 +2135,7 @@ async function handleAdminCrud(req: Request, parts: string[]): Promise<Response>
   }
 
   if (parts[2] === "lecture-pdfs" && req.method === "DELETE") {
+    ensureAdminPermission(user, "manage_courses");
     return handle(async () => {
       const id = Number(parts[3]);
       const [p] = await sql`SELECT * FROM lecture_pdfs WHERE id = ${id}`;
@@ -2132,6 +2148,7 @@ async function handleAdminCrud(req: Request, parts: string[]): Promise<Response>
 
   // Admin lecture quizzes
   if (parts[2] === "lectures" && parts[4] === "quizzes" && req.method === "POST") {
+    ensureAdminPermission(user, "manage_courses");
     return handle(async () => {
       const lectureId = Number(parts[3]);
       const body = await req.json();
@@ -2148,10 +2165,12 @@ async function handleAdminCrud(req: Request, parts: string[]): Promise<Response>
   }
 
   if (parts[2] === "lecture-quizzes" && req.method === "DELETE") {
+    ensureAdminPermission(user, "manage_courses");
     return handle(async () => { await sql`DELETE FROM lecture_quizzes WHERE id = ${Number(parts[3])}`; return { ok: true }; });
   }
 
   if (parts[2] === "lecture-quizzes" && parts[4] === "questions" && req.method === "POST") {
+    ensureAdminPermission(user, "manage_courses");
     return handle(async () => {
       try {
         await sql`CREATE TABLE IF NOT EXISTS lecture_quiz_questions (id SERIAL PRIMARY KEY, quiz_id INT, text TEXT, options TEXT[], correct_index INT, points INT, ord INT)`;
@@ -2176,15 +2195,18 @@ async function handleAdminCrud(req: Request, parts: string[]): Promise<Response>
   }
 
   if (parts[2] === "lecture-quizzes" && parts[4] === "questions" && req.method === "GET") {
+    ensureAdminPermission(user, "manage_courses");
     return handle(async () => sql`SELECT * FROM lecture_quiz_questions WHERE quiz_id = ${Number(parts[3])} ORDER BY ord`);
   }
 
   if (parts[2] === "lecture-quiz-questions" && req.method === "DELETE") {
+    ensureAdminPermission(user, "manage_courses");
     return handle(async () => { await sql`DELETE FROM lecture_quiz_questions WHERE id = ${Number(parts[3])}`; return { ok: true }; });
   }
 
   // Admin materials CRUD
   if (parts[2] === "materials") {
+    ensureAdminPermission(user, "manage_materials");
     if (req.method === "POST" && !parts[3]) {
       return handle(async () => {
         const body = await req.json();
@@ -2230,6 +2252,7 @@ async function handleAdminCrud(req: Request, parts: string[]): Promise<Response>
   }
 
   if (parts[2] === "material-files" && req.method === "DELETE") {
+    ensureAdminPermission(user, "manage_materials");
     return handle(async () => { await sql`DELETE FROM material_files WHERE id = ${Number(parts[3])}`; return { ok: true }; });
   }
 

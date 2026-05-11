@@ -582,7 +582,8 @@ router.get("/v2/games/leaderboard", (req, res) => {
 
 // ---------- ADMIN: Direct CRUD (super_admin) or proposals (admin) ----------
 // These thin endpoints help frontend without computing payload again.
-router.get("/v2/admin/students", requireRole(["admin", "super_admin"]), (_req, res) => {
+router.get("/v2/admin/students", requireRole(["admin", "super_admin"]), (req, res) => {
+  ensurePermission(req, "manage_students");
   void handle(res, async () => {
     const rows = await db
       .select()
@@ -606,6 +607,7 @@ router.delete("/v2/admin/users/:id", requireRole(["admin", "super_admin"]), (req
 });
 
 router.patch("/v2/admin/users/:id/grant", requireRole(["super_admin"]), (req, res) => {
+  ensurePermission(req, "manage_students");
   void handle(res, async () => {
     const id = Number(req.params.id);
     const { points, title } = req.body as { points?: number; title?: string };
@@ -622,6 +624,7 @@ router.patch("/v2/admin/users/:id/grant", requireRole(["super_admin"]), (req, re
 });
 
 router.get("/v2/admin/student/:id/full", requireRole(["admin", "super_admin"]), (req, res) => {
+  ensurePermission(req, "manage_students");
   void handle(res, async () => {
     const id = Number(req.params.id);
     const [user] = await db.select().from(schema.usersTable).where(eq(schema.usersTable.id, id));
@@ -641,7 +644,8 @@ router.get("/v2/admin/student/:id/full", requireRole(["admin", "super_admin"]), 
 });
 
 // All staff for admin
-router.get("/v2/admin/staff", requireRole(["admin", "super_admin"]), (_req, res) => {
+router.get("/v2/admin/staff", requireRole(["admin", "super_admin"]), (req, res) => {
+  ensurePermission(req, "manage_staff");
   void handle(res, async () => {
     const rows = await db
       .select()
@@ -653,7 +657,8 @@ router.get("/v2/admin/staff", requireRole(["admin", "super_admin"]), (_req, res)
 });
 
 // Admin moderation panel: list talents (including removed)
-router.get("/v2/admin/talents", requireRole(["admin", "super_admin"]), (_req, res) => {
+router.get("/v2/admin/talents", requireRole(["admin", "super_admin"]), (req, res) => {
+  ensurePermission(req, "manage_talents");
   void handle(res, async () => {
     const rows = await db.select().from(schema.talentsTable).orderBy(desc(schema.talentsTable.createdAt));
     const ownerIds = Array.from(new Set(rows.map((t) => t.ownerId)));
@@ -670,6 +675,7 @@ router.get("/v2/admin/talents", requireRole(["admin", "super_admin"]), (_req, re
 
 // Admin delete talent post
 router.delete("/v2/admin/talents/:id", requireRole(["admin", "super_admin"]), (req, res) => {
+  ensurePermission(req, "manage_talents");
   void handle(res, async () => {
     const id = Number(req.params.id);
     await db.delete(schema.talentsTable).where(eq(schema.talentsTable.id, id));
@@ -1493,6 +1499,7 @@ router.get("/v2/admin/all-materials", requireRole(["admin", "super_admin"]), (_r
 });
 
 router.post("/v2/admin/materials", requireRole(["admin", "super_admin"]), (req, res) => {
+  ensurePermission(req, "manage_materials");
   void handle(res, async () => {
     const { courseId, title, kind, url, lecturer, durationMinutes, ord } = req.body as any;
     if (!courseId || !title || !kind) throw Object.assign(new Error("المقرر والعنوان والنوع مطلوبة"), { status: 400 });
@@ -1505,6 +1512,7 @@ router.post("/v2/admin/materials", requireRole(["admin", "super_admin"]), (req, 
 });
 
 router.patch("/v2/admin/materials/:id", requireRole(["admin", "super_admin"]), (req, res) => {
+  ensurePermission(req, "manage_materials");
   void handle(res, async () => {
     const id = Number(req.params.id);
     const { title, kind, lecturer, durationMinutes, ord } = req.body as any;
@@ -1522,6 +1530,7 @@ router.patch("/v2/admin/materials/:id", requireRole(["admin", "super_admin"]), (
 });
 
 router.delete("/v2/admin/materials/:id", requireRole(["admin", "super_admin"]), (req, res) => {
+  ensurePermission(req, "manage_materials");
   void handle(res, async () => {
     const id = Number(req.params.id);
     const [existing] = await db.select().from(schema.materialsTable).where(eq(schema.materialsTable.id, id));
@@ -1547,6 +1556,7 @@ router.get("/v2/courses/:id/all-files", (req, res) => {
 });
 
 router.post("/v2/admin/materials/:id/files", requireRole(["admin", "super_admin"]), (req, res) => {
+  ensurePermission(req, "manage_materials");
   void handle(res, async () => {
     const id = Number(req.params.id);
     const user = (req as any).currentUser as typeof schema.usersTable.$inferSelect;
@@ -1569,6 +1579,7 @@ router.post("/v2/admin/materials/:id/files", requireRole(["admin", "super_admin"
 });
 
 router.delete("/v2/admin/material-files/:id", requireRole(["admin", "super_admin"]), (req, res) => {
+  ensurePermission(req, "manage_materials");
   void handle(res, async () => {
     const id = Number(req.params.id);
     await db.delete(schema.materialFilesTable).where(eq(schema.materialFilesTable.id, id));
@@ -1910,6 +1921,7 @@ router.get("/v2/courses/:id/lectures", (req, res) => {
 
 // Admin: create lecture/section
 router.post("/v2/admin/courses/:courseId/lectures", requireRole(["admin", "super_admin"]), (req, res) => {
+  ensurePermission(req, "manage_courses");
   void handle(res, async () => {
     const courseId = Number(req.params.id || req.params.courseId);
     const { title, type, ord } = req.body as { title: string; type: "lecture" | "section"; ord?: number };
@@ -1922,6 +1934,7 @@ router.post("/v2/admin/courses/:courseId/lectures", requireRole(["admin", "super
 
 // Admin: update lecture
 router.patch("/v2/admin/lectures/:id", requireRole(["admin", "super_admin"]), (req, res) => {
+  ensurePermission(req, "manage_courses");
   void handle(res, async () => {
     const id = Number(req.params.id);
     const { title, ord } = req.body as { title?: string; ord?: number };
@@ -1932,6 +1945,7 @@ router.patch("/v2/admin/lectures/:id", requireRole(["admin", "super_admin"]), (r
 
 // Admin: delete lecture
 router.delete("/v2/admin/lectures/:id", requireRole(["admin", "super_admin"]), (req, res) => {
+  ensurePermission(req, "manage_courses");
   void handle(res, async () => {
     const id = Number(req.params.id);
     await db.delete(schema.lecturesTable).where(eq(schema.lecturesTable.id, id));
@@ -1941,6 +1955,7 @@ router.delete("/v2/admin/lectures/:id", requireRole(["admin", "super_admin"]), (
 
 // Admin: add video to lecture
 router.post("/v2/admin/lectures/:lectureId/videos", requireRole(["admin", "super_admin"]), (req, res) => {
+  ensurePermission(req, "manage_courses");
   void handle(res, async () => {
     const lectureId = Number(req.params.lectureId);
     const { title, youtubeUrl, ord } = req.body as { title: string; youtubeUrl: string; ord?: number };
@@ -1955,6 +1970,7 @@ router.post("/v2/admin/lectures/:lectureId/videos", requireRole(["admin", "super
 
 // Admin: delete video
 router.delete("/v2/admin/videos/:id", requireRole(["admin", "super_admin"]), (req, res) => {
+  ensurePermission(req, "manage_courses");
   void handle(res, async () => {
     const id = Number(req.params.id);
     await db.delete(schema.lectureVideosTable).where(eq(schema.lectureVideosTable.id, id));
@@ -1964,6 +1980,7 @@ router.delete("/v2/admin/videos/:id", requireRole(["admin", "super_admin"]), (re
 
 // Admin: add PDF to lecture (also creates material_files entry)
 router.post("/v2/admin/lectures/:lectureId/pdfs", requireRole(["admin", "super_admin"]), (req, res) => {
+  ensurePermission(req, "manage_courses");
   void handle(res, async () => {
     const lectureId = Number(req.params.lectureId);
     const user = (req as any).currentUser as typeof schema.usersTable.$inferSelect;
@@ -1991,6 +2008,7 @@ router.post("/v2/admin/lectures/:lectureId/pdfs", requireRole(["admin", "super_a
 
 // Admin: delete PDF
 router.delete("/v2/admin/lecture-pdfs/:id", requireRole(["admin", "super_admin"]), (req, res) => {
+  ensurePermission(req, "manage_courses");
   void handle(res, async () => {
     const id = Number(req.params.id);
     const [p] = await db.select().from(schema.lecturePdfsTable).where(eq(schema.lecturePdfsTable.id, id));
@@ -2003,6 +2021,7 @@ router.delete("/v2/admin/lecture-pdfs/:id", requireRole(["admin", "super_admin"]
 
 // Admin: create quiz for lecture
 router.post("/v2/admin/lectures/:lectureId/quizzes", requireRole(["admin", "super_admin"]), (req, res) => {
+  ensurePermission(req, "manage_courses");
   void handle(res, async () => {
     const lectureId = Number(req.params.lectureId);
     const { title, questions } = req.body as { title: string; questions?: { text: string; options: string[]; correctIndex: number; points?: number; ord?: number }[] };
@@ -2019,6 +2038,7 @@ router.post("/v2/admin/lectures/:lectureId/quizzes", requireRole(["admin", "supe
 
 // Admin: add question to quiz
 router.post("/v2/admin/quizzes/:quizId/questions", requireRole(["admin", "super_admin"]), (req, res) => {
+  ensurePermission(req, "manage_courses");
   void handle(res, async () => {
     const quizId = Number(req.params.quizId);
     const { text, options, correctIndex, points, ord } = req.body as { text: string; options: string[]; correctIndex: number; points?: number; ord?: number };
@@ -2031,6 +2051,7 @@ router.post("/v2/admin/quizzes/:quizId/questions", requireRole(["admin", "super_
 
 // Admin: delete quiz
 router.delete("/v2/admin/lecture-quizzes/:id", requireRole(["admin", "super_admin"]), (req, res) => {
+  ensurePermission(req, "manage_courses");
   void handle(res, async () => {
     const id = Number(req.params.id);
     await db.delete(schema.lectureQuizzesTable).where(eq(schema.lectureQuizzesTable.id, id));
@@ -2040,6 +2061,7 @@ router.delete("/v2/admin/lecture-quizzes/:id", requireRole(["admin", "super_admi
 
 // Admin: delete question
 router.delete("/v2/admin/quiz-questions/:id", requireRole(["admin", "super_admin"]), (req, res) => {
+  ensurePermission(req, "manage_courses");
   void handle(res, async () => {
     const id = Number(req.params.id);
     await db.delete(schema.lectureQuizQuestionsTable).where(eq(schema.lectureQuizQuestionsTable.id, id));
