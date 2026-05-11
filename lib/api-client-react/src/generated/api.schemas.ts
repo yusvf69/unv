@@ -38,6 +38,8 @@ export interface CurrentUser {
   streak: number;
   /** @nullable */
   title?: string | null;
+  /** @nullable */
+  adminPermissions?: string | null;
 }
 
 export interface SwitchRoleBody {

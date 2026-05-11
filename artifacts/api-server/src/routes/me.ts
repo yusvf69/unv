@@ -21,6 +21,7 @@ function toCurrentUser(u: typeof schema.usersTable.$inferSelect) {
     streak: u.streak,
     title: u.title,
     uniqueCode: u.uniqueCode,
+    adminPermissions: u.adminPermissions,
   };
 }
 

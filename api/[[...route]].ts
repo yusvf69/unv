@@ -27,6 +27,24 @@ function generateUniqueCode(): string {
   return code;
 }
 
+const ADMIN_PERMISSION_DEFS = [
+  { key: "manage_courses", ar: "إدارة المقررات", en: "Manage Courses" },
+  { key: "manage_materials", ar: "ملفات المواد", en: "Manage Materials" },
+  { key: "manage_quizzes", ar: "إدارة الاختبارات", en: "Manage Quizzes" },
+  { key: "manage_exams", ar: "إدارة الامتحانات", en: "Manage Exams" },
+  { key: "manage_schedule", ar: "جداول المجموعات", en: "Manage Schedule" },
+  { key: "manage_events", ar: "إدارة الأحداث", en: "Manage Events" },
+  { key: "manage_news", ar: "إدارة الأخبار", en: "Manage News" },
+  { key: "manage_talents", ar: "مراجعة المواهب", en: "Manage Talents" },
+  { key: "manage_forum", ar: "إدارة المنتدى", en: "Manage Forum" },
+  { key: "manage_users", ar: "الطلاب", en: "Manage Users" },
+  { key: "manage_staff", ar: "هيئة التدريس", en: "Manage Staff" },
+  { key: "manage_complaints", ar: "إدارة الشكاوى", en: "Manage Complaints" },
+  { key: "manage_notifications", ar: "الإشعارات", en: "Manage Notifications" },
+  { key: "manage_dm", ar: "مراقبة المحادثات", en: "Monitor DMs" },
+  { key: "manage_proposals", ar: "الاقتراحات", en: "Manage Proposals" },
+];
+
 const AR_DAY_TO_NUM: Record<string, number> = {
   "الأحد": 0, "الاثنين": 1, "الإثنين": 1, "الثلاثاء": 2, "الأربعاء": 3, "الخميس": 4, "الجمعة": 5, "السبت": 6,
   "sun": 0, "mon": 1, "tue": 2, "wed": 3, "thu": 4, "fri": 5, "sat": 6,
@@ -727,7 +745,8 @@ async function handleMe(req: Request): Promise<Response> {
       role: user.role, groupName: user.group_name, avatarUrl: user.avatar_url, department: user.department,
       year: user.year, yearInCollege: user.year_in_college, specialization: user.specialization,
       points: user.points, level: user.level, streak: user.streak, title: user.title,
-      uniqueCode: user.unique_code, emailVerified: user.email_verified, phoneVerified: user.phone_verified,
+      uniqueCode: user.unique_code, adminPermissions: user.admin_permissions,
+      emailVerified: user.email_verified, phoneVerified: user.phone_verified,
       unreadCount, unreadDmCount,
     };
   });
@@ -3039,6 +3058,62 @@ async function handleRequest(request: Request): Promise<Response> {
     "POST /v2/admin/news/:id/approve": () => handleAdminNews(request, ["admin", "news", parts[3], "approve"]),
     "POST /v2/admin/news/:id/reject": () => handleAdminNews(request, ["admin", "news", parts[3], "reject"]),
     "DELETE /v2/admin/news/:id": () => handleAdminNews(request, ["admin", "news", parts[3]]),
+
+    // Admin permissions
+    "GET /v2/admin/permissions": () => handle(async () => ADMIN_PERMISSION_DEFS),
+    "GET /v2/admin/admins": () => handle(async () => {
+      const { userId } = requireAuth(request.headers);
+      const user = await getCurrentUser(userId);
+      requireRole(user, ["super_admin"]);
+      const rows = await sql`SELECT * FROM users WHERE role IN ('admin', 'super_admin') ORDER BY role`;
+      return rows.map((u: any) => ({
+        id: u.id, name: u.name, role: u.role,
+        permissions: u.role === "super_admin" ? ADMIN_PERMISSION_DEFS.map((p) => p.key) : (() => { try { return JSON.parse(u.admin_permissions); } catch { return []; } })(),
+        adminPermissions: u.admin_permissions,
+        avatarUrl: u.avatar_url,
+      }));
+    }),
+    "POST /v2/admin/admins": () => handle(async () => {
+      const { userId } = requireAuth(request.headers);
+      const user = await getCurrentUser(userId);
+      requireRole(user, ["super_admin"]);
+      const body = await request.json();
+      const { userId: targetId, permissions } = body;
+      if (!targetId) throw Object.assign(new Error("معرف المستخدم مطلوب"), { status: 400 });
+      const [target] = await sql`SELECT * FROM users WHERE id = ${targetId} LIMIT 1`;
+      if (!target) throw Object.assign(new Error("المستخدم غير موجود"), { status: 404 });
+      if (target.role !== "student") throw Object.assign(new Error("يمكن ترقية الطلاب فقط"), { status: 400 });
+      const validKeys = ADMIN_PERMISSION_DEFS.map((p) => p.key);
+      const filteredPerms = (permissions || []).filter((p: string) => validKeys.includes(p));
+      await sql`UPDATE users SET role = 'admin', admin_permissions = ${JSON.stringify(filteredPerms)} WHERE id = ${targetId}`;
+      return { ok: true, role: "admin", permissions: filteredPerms };
+    }),
+    "PATCH /v2/admin/admins/:id": () => handle(async () => {
+      const { userId } = requireAuth(request.headers);
+      const user = await getCurrentUser(userId);
+      requireRole(user, ["super_admin"]);
+      const id = Number(parts[3]);
+      const body = await request.json();
+      const { permissions } = body;
+      const [target] = await sql`SELECT * FROM users WHERE id = ${id} LIMIT 1`;
+      if (!target) throw Object.assign(new Error("المستخدم غير موجود"), { status: 404 });
+      if (target.role !== "admin") throw Object.assign(new Error("المستخدم ليس أدمن"), { status: 400 });
+      const validKeys = ADMIN_PERMISSION_DEFS.map((p) => p.key);
+      const filteredPerms = (permissions || []).filter((p: string) => validKeys.includes(p));
+      await sql`UPDATE users SET admin_permissions = ${JSON.stringify(filteredPerms)} WHERE id = ${id}`;
+      return { ok: true, permissions: filteredPerms };
+    }),
+    "DELETE /v2/admin/admins/:id": () => handle(async () => {
+      const { userId } = requireAuth(request.headers);
+      const user = await getCurrentUser(userId);
+      requireRole(user, ["super_admin"]);
+      const id = Number(parts[3]);
+      const [target] = await sql`SELECT * FROM users WHERE id = ${id} LIMIT 1`;
+      if (!target) throw Object.assign(new Error("المستخدم غير موجود"), { status: 404 });
+      if (target.role !== "admin") throw Object.assign(new Error("المستخدم ليس أدمن"), { status: 400 });
+      await sql`UPDATE users SET role = 'student', admin_permissions = NULL WHERE id = ${id}`;
+      return { ok: true, role: "student" };
+    }),
 
     // Talents
     "GET /talents": () => handleTalentsFeed(request, ["talents"]),

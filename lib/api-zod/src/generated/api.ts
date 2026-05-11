@@ -29,6 +29,7 @@ export const GetMeResponse = zod.object({
   level: zod.number(),
   streak: zod.number(),
   title: zod.string().nullish(),
+  adminPermissions: zod.string().nullish(),
 });
 
 /**
