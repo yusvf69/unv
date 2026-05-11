@@ -2765,7 +2765,7 @@ async function handleStudentSummaries(req: Request, parts: string[]): Promise<Re
 
 async function handleCourseSummaries(req: Request, parts: string[]): Promise<Response> {
   return handle(async () => {
-    const courseId = Number(parts[2]);
+    const courseId = Number(parts[1]);
     return await sql`SELECT * FROM material_files WHERE course_id = ${courseId} AND category = 'student-summary' ORDER BY created_at DESC`;
   });
 }
