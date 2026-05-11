@@ -537,8 +537,7 @@ export default function AdminCourseDetail() {
   const courseId = Number(id);
   const [, navigate] = useLocation();
   const { data: me } = useMeV2();
-  const isSuper = me?.role === "super_admin";
-  const isAdmin = me?.role === "admin" || isSuper;
+  const isAdmin = me?.role === "admin" || me?.role === "super_admin";
   const { data: lectures = [] } = useCourseLectures(courseId);
   const { data: progress } = useCourseProgress(courseId);
   const { data: videoProgressRaw } = useCourseVideoProgress(courseId);
@@ -617,7 +616,7 @@ export default function AdminCourseDetail() {
       <div className="space-y-6">
         {filtered.length === 0 && <div className="text-center text-muted-foreground py-12">لا توجد محاضرات بعد. أضف محاضرة أو سكشن.</div>}
         {filtered.map((l) => (
-          <LectureCard key={l.id} lecture={l} isSuper={!!isSuper} videoProgress={videoProgress} />
+          <LectureCard key={l.id} lecture={l} isSuper={!!isAdmin} videoProgress={videoProgress} />
         ))}
       </div>
 
