@@ -1031,7 +1031,7 @@ async function handleTalentsFeed(req: Request, parts: string[]): Promise<Respons
         const tComments = comments.filter((c: any) => c.talent_id === t.id);
         const owner = ownerById.get(t.owner_id);
         return {
-          ...t, createdAt: t.created_at?.toISOString(),
+          ...t, mediaUrl: t.media_url, createdAt: t.created_at?.toISOString(),
           owner: owner ? { id: owner.id, name: owner.name, avatarUrl: owner.avatar_url, groupName: owner.group_name, department: owner.department } : null,
           likesCount: tLikes.length, likedByMe: tLikes.some((l: any) => l.user_id === userId),
           commentsCount: tComments.length,
@@ -1514,7 +1514,7 @@ async function handleHomeFeed(): Promise<Response> {
     return jsonResponse({
       stats: { students: students || 0, staff: staff || 0, courses: courses || 0, researchProjects: researchProjects || 0 },
       dean: deanRow ? { name: deanRow.name, bio: deanRow.bio || "مرحباً بكم في كلية الزراعة" } : null,
-      latestNews: news.map((n: any) => ({ ...n, createdAt: n.created_at?.toISOString() })),
+      latestNews: news.map((n: any) => ({ ...n, imageUrl: n.image_url, publishedAt: n.published_at?.toISOString?.() ?? n.published_at, createdAt: n.created_at?.toISOString() })),
     });
   } catch (err: any) {
     console.error("🔴 [handleHomeFeed] Error:", err?.message);
@@ -1525,7 +1525,11 @@ async function handleHomeFeed(): Promise<Response> {
 async function handleNews(): Promise<Response> {
   return handle(async () => {
     const rows = await sql`SELECT * FROM news WHERE status = 'approved' ORDER BY published_at DESC`;
-    return rows;
+    return rows.map((r: any) => ({
+      id: r.id, title: r.title, excerpt: r.excerpt, body: r.body, category: r.category,
+      imageUrl: r.image_url, author: r.author,
+      publishedAt: r.published_at?.toISOString?.() ?? r.published_at,
+    }));
   });
 }
 
@@ -1533,7 +1537,11 @@ async function handleNewsById(id: string): Promise<Response> {
   return handle(async () => {
     const [row] = await sql`SELECT * FROM news WHERE id = ${Number(id)} LIMIT 1`;
     if (!row) throw Object.assign(new Error("News not found"), { status: 404 });
-    return row;
+    return {
+      id: row.id, title: row.title, excerpt: row.excerpt, body: row.body, category: row.category,
+      imageUrl: row.image_url, author: row.author,
+      publishedAt: row.published_at?.toISOString?.() ?? row.published_at,
+    };
   });
 }
 
@@ -1962,7 +1970,7 @@ async function handleAdminCrud(req: Request, parts: string[]): Promise<Response>
         const ownerIds = Array.from(new Set(rows.map((t: any) => t.owner_id)));
         const owners = ownerIds.length ? await sql`SELECT * FROM users WHERE id = ANY(${ownerIds})` : [];
         const byId = new Map(owners.map((u: any) => [u.id, u]));
-        return rows.map((t: any) => ({ ...t, createdAt: t.created_at?.toISOString(), ownerName: byId.get(t.owner_id)?.name, ownerGroup: byId.get(t.owner_id)?.group_name }));
+        return rows.map((t: any) => ({ ...t, mediaUrl: t.media_url, createdAt: t.created_at?.toISOString(), ownerName: byId.get(t.owner_id)?.name, ownerGroup: byId.get(t.owner_id)?.group_name }));
       });
     }
     if (req.method === "DELETE") {
@@ -2874,7 +2882,14 @@ async function handleAdminNews(req: Request, parts: string[]): Promise<Response>
   requireRole(user, ["admin", "super_admin"]);
 
   if (req.method === "GET") {
-    return handle(async () => sql`SELECT * FROM news ORDER BY published_at DESC`);
+    return handle(async () => {
+      const rows = await sql`SELECT * FROM news ORDER BY published_at DESC`;
+      return rows.map((r: any) => ({
+        id: r.id, title: r.title, excerpt: r.excerpt, body: r.body, category: r.category,
+        imageUrl: r.image_url, author: r.author, authorId: r.author_id,
+        status: r.status, publishedAt: r.published_at?.toISOString?.() ?? r.published_at,
+      }));
+    });
   }
 
   if (req.method === "POST" && !parts[2]) {
@@ -2886,7 +2901,11 @@ async function handleAdminNews(req: Request, parts: string[]): Promise<Response>
         INSERT INTO news (title, excerpt, body, category, image_url, status, author, author_id, published_at)
         VALUES (${title}, ${excerpt || ""}, ${newsBody || ""}, ${category || ""}, ${imageUrl || null}, 'pending', ${user.name}, ${userId}, ${new Date()})
         RETURNING *`;
-      return n;
+      return {
+        id: n.id, title: n.title, excerpt: n.excerpt, body: n.body, category: n.category,
+        imageUrl: n.image_url, author: n.author, authorId: n.author_id,
+        status: n.status, publishedAt: n.published_at?.toISOString?.() ?? n.published_at,
+      };
     });
   }
 
