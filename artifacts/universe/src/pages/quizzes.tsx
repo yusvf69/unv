@@ -4,8 +4,10 @@ import { motion } from "framer-motion";
 import {
   Brain, Clock, Target, Play, Trophy, AlertCircle,
   ArrowLeft, CheckCircle, XCircle, Loader2, HelpCircle, Eye,
+  ChevronLeft, ChevronRight,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { api } from "@/lib/api";
@@ -85,13 +87,15 @@ export function QuizTakePage() {
   const t = useTranslation(globalI18n);
   const [quiz, setQuiz] = useState<any>(null);
   const [questions, setQuestions] = useState<any[]>([]);
-  const [answers, setAnswers] = useState<Record<number, number>>({});
+  const [answers, setAnswers] = useState<Record<number, any>>({});
   const [result, setResult] = useState<any>(null);
   const [loading, setLoading] = useState(true);
   const [submitting, setSubmitting] = useState(false);
-  const [timeLeft, setTimeLeft] = useState(0);
+  const [timeLeft, setTimeLeft] = useState(-1);
   const [showConfirm, setShowConfirm] = useState(false);
   const [timeUp, setTimeUp] = useState(false);
+  const [page, setPage] = useState(0);
+  const PER_PAGE = 25;
 
   useEffect(() => {
     if (!id) return;
@@ -105,7 +109,8 @@ export function QuizTakePage() {
   }, [id]);
 
   useEffect(() => {
-    if (timeLeft <= 0) {
+    if (timeLeft < 0) return;
+    if (timeLeft === 0) {
       setTimeUp(true);
       handleSubmit();
       return;
@@ -115,15 +120,16 @@ export function QuizTakePage() {
   }, [timeLeft]);
 
   const handleSubmit = async () => {
-    if (submitting) return;
+    if (submitting || !quiz) return;
     setSubmitting(true);
     setShowConfirm(false);
     try {
       const ansArr = questions.map((q) => ({
         questionId: q.id,
-        chosenOriginalIndex: q.optionMap[answers[q.id] ?? 0] ?? 0,
+        chosenOriginalIndex: q.type === "complete" ? 0 : q.optionMap[answers[q.id] ?? 0] ?? 0,
+        ...(q.type === "complete" ? { textAnswer: answers[q.id] || "" } : {}),
       }));
-      const durationSec = quiz.durationMinutes * 60 - timeLeft;
+      const durationSec = quiz.durationMinutes * 60 - Math.max(timeLeft, 0);
       const res = await api.post(`/v2/quizzes/${quiz.id}/submit`, { answers: ansArr, durationSec });
       setResult(res);
     } catch (e: any) {
@@ -142,6 +148,10 @@ export function QuizTakePage() {
 
   const answeredCount = Object.keys(answers).length;
   const allAnswered = answeredCount === questions.length;
+  const totalPages = Math.ceil(questions.length / PER_PAGE);
+  const safePage = Math.min(page, Math.max(0, totalPages - 1));
+  const pageStart = safePage * PER_PAGE;
+  const pageQuestions = questions.slice(pageStart, pageStart + PER_PAGE);
 
   if (result) {
     const pct = result.total ? Math.round((result.score / result.total) * 100) : 0;
@@ -192,21 +202,36 @@ export function QuizTakePage() {
 
               {/* Options */}
               <div className="px-4 py-3 space-y-2">
-                {d.options.map((opt: string, oi: number) => {
-                  const isCorrect = oi === d.correctIndex;
-                  const isUserChoice = oi === d.userChosen;
-                  let cls = "border-muted";
-                  if (isCorrect) cls = "bg-green-500/10 border-green-500";
-                  if (isUserChoice && !d.correct) cls = "bg-red-500/10 border-red-500";
-                  return (
-                    <div key={oi} className={`flex items-center gap-2 p-2.5 rounded-lg border text-sm ${cls}`}>
-                      {isCorrect ? <CheckCircle className="h-4 w-4 text-green-600 flex-shrink-0" /> : isUserChoice ? <XCircle className="h-4 w-4 text-destructive flex-shrink-0" /> : <div className="h-4 w-4 flex-shrink-0" />}
-                      <span className="flex-1">{opt}</span>
-                      {isCorrect && <span className="text-[10px] font-bold text-green-600">{t("correctAnswer")}</span>}
-                      {isUserChoice && !d.correct && <span className="text-[10px] font-bold text-destructive">{t("yourAnswer")}</span>}
+                {d.type === "complete" ? (
+                  <div className="space-y-2">
+                    <div className={`flex items-center gap-2 p-2.5 rounded-lg border text-sm ${d.correct ? "bg-green-500/10 border-green-500" : "bg-red-500/10 border-red-500"}`}>
+                      {d.correct ? <CheckCircle className="h-4 w-4 text-green-600 flex-shrink-0" /> : <XCircle className="h-4 w-4 text-destructive flex-shrink-0" />}
+                      <span className="font-bold text-xs">إجابتك:</span>
+                      <span className="flex-1">{d.textAnswer ? d.textAnswer : "(لم تجب)"}</span>
                     </div>
-                  );
-                })}
+                    <div className="flex items-center gap-2 p-2.5 rounded-lg border text-sm bg-green-500/10 border-green-500">
+                      <CheckCircle className="h-4 w-4 text-green-600 flex-shrink-0" />
+                      <span className="font-bold text-xs">الإجابة الصحيحة:</span>
+                      <span className="flex-1">{d.options[d.correctIndex]}</span>
+                    </div>
+                  </div>
+                ) : (
+                  d.options.map((opt: string, oi: number) => {
+                    const isCorrect = oi === d.correctIndex;
+                    const isUserChoice = oi === d.userChosen;
+                    let cls = "border-muted";
+                    if (isCorrect) cls = "bg-green-500/10 border-green-500";
+                    if (isUserChoice && !d.correct) cls = "bg-red-500/10 border-red-500";
+                    return (
+                      <div key={oi} className={`flex items-center gap-2 p-2.5 rounded-lg border text-sm ${cls}`}>
+                        {isCorrect ? <CheckCircle className="h-4 w-4 text-green-600 flex-shrink-0" /> : isUserChoice ? <XCircle className="h-4 w-4 text-destructive flex-shrink-0" /> : <div className="h-4 w-4 flex-shrink-0" />}
+                        <span className="flex-1">{opt}</span>
+                        {isCorrect && <span className="text-[10px] font-bold text-green-600">{t("correctAnswer")}</span>}
+                        {isUserChoice && !d.correct && <span className="text-[10px] font-bold text-destructive">{t("yourAnswer")}</span>}
+                      </div>
+                    );
+                  })
+                )}
               </div>
 
               {/* Explanation */}
@@ -233,55 +258,105 @@ export function QuizTakePage() {
 
   return (
     <div className="container mx-auto px-3 py-6 max-w-3xl">
-      {/* Header */}
-      <div className="flex items-center justify-between mb-4 gap-2">
-        <Button variant="ghost" size="sm" onClick={() => navigate("/quizzes")}><ArrowLeft className="me-1 h-3.5 w-3.5" /></Button>
-        <h1 className="text-lg font-bold truncate flex-1 text-center">{quiz.title}</h1>
-        <div className={`flex items-center gap-1.5 px-2.5 py-1 rounded-full font-bold text-xs whitespace-nowrap ${timeLeft < 60 ? "bg-destructive/15 text-destructive animate-pulse" : timeLeft < 180 ? "bg-amber-500/15 text-amber-700" : "bg-primary/10 text-primary"}`}>
-          <Clock className="h-3.5 w-3.5" /> {formatTime(timeLeft)}
-        </div>
-      </div>
-
-      {/* Progress */}
-      <div className="mb-4 p-3 bg-card border rounded-xl">
-        <div className="flex items-center justify-between text-xs text-muted-foreground mb-2">
-          <span>{t("answered")} {answeredCount}/{questions.length}</span>
-          <span>{t("points")}: {quiz.totalPoints}</span>
-        </div>
-        <div className="w-full bg-muted rounded-full h-2">
-          <div className="bg-primary h-2 rounded-full transition-all" style={{ width: `${(answeredCount / questions.length) * 100}%` }} />
-        </div>
-      </div>
-
-      {/* Questions */}
-      <div className="space-y-3 mb-6">
-        {questions.map((q, qi) => (
-          <div key={q.id} className="bg-card border rounded-xl p-4">
-            <div className="flex items-center gap-2 mb-3 flex-wrap">
-              <span className="text-xs font-bold bg-muted px-2 py-0.5 rounded-full">{qi + 1}</span>
-              <span className="font-bold text-sm">{q.text}</span>
-              <span className="text-[10px] bg-amber-500/15 text-amber-600 px-1.5 py-0.5 rounded-full">{q.points} {t("point")}</span>
-            </div>
-            <div className="space-y-2">
-              {q.options.map((opt: string, oi: number) => (
-                <label key={oi} className={`flex items-center gap-3 p-3 rounded-lg border cursor-pointer transition ${answers[q.id] === oi ? "bg-primary/10 border-primary" : "hover:bg-muted"}`}>
-                  <input type="radio" name={`q-${q.id}`} checked={answers[q.id] === oi} onChange={() => setAnswers((a) => ({ ...a, [q.id]: oi }))} className="accent-primary w-4 h-4" />
-                  <span className="text-sm">{opt}</span>
-                </label>
-              ))}
-            </div>
+      {/* Header with timer and question count */}
+      <div className="bg-card border rounded-xl p-3 mb-4">
+        <div className="flex items-center justify-between gap-2 mb-2">
+          <h1 className="text-sm sm:text-lg font-bold truncate">{quiz.title}</h1>
+          <div className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full font-bold text-sm whitespace-nowrap ${timeLeft < 60 ? "bg-destructive/15 text-destructive animate-pulse" : timeLeft < 180 ? "bg-amber-500/15 text-amber-700" : "bg-emerald-500/15 text-emerald-700"}`}>
+            <Clock className="h-4 w-4" /> {formatTime(timeLeft)}
           </div>
-        ))}
+        </div>
+        <div className="flex items-center justify-between text-xs text-muted-foreground">
+          <div className="flex items-center gap-3">
+            <span className="flex items-center gap-1"><Target className="h-3.5 w-3.5" /> {answeredCount}/{questions.length}</span>
+            {totalPages > 1 && <span className="text-[10px] bg-muted px-1.5 py-0.5 rounded">صفحة {safePage + 1}/{totalPages}</span>}
+          </div>
+          <span className="flex items-center gap-1"><Trophy className="h-3.5 w-3.5" /> {quiz.totalPoints} {t("point")}</span>
+        </div>
+        <div className="w-full bg-muted rounded-full h-1.5 mt-2">
+          <div className="bg-primary h-1.5 rounded-full transition-all" style={{ width: `${(answeredCount / questions.length) * 100}%` }} />
+        </div>
       </div>
 
-      {/* Submit */}
-      <div className="sticky bottom-0 bg-background/80 backdrop-blur p-4 border-t flex items-center justify-between gap-3">
-        <div className="text-xs text-muted-foreground">
-          {!allAnswered && <span className="flex items-center gap-1"><AlertCircle className="h-3.5 w-3.5" /> {t("unansweredQuestions").replace("{count}", String(questions.length - answeredCount))}</span>}
+      {/* Page navigation top */}
+      {totalPages > 1 && (
+        <div className="flex items-center justify-between mb-3">
+          <Button variant="outline" size="sm" disabled={safePage === 0} onClick={() => setPage(safePage - 1)} className="text-xs h-8">
+            <ChevronRight className="h-3.5 w-3.5 ms-1" /> السابق
+          </Button>
+          <div className="flex gap-1">
+            {Array.from({ length: totalPages }, (_, i) => (
+              <button
+                key={i}
+                onClick={() => setPage(i)}
+                className={`w-7 h-7 rounded-full text-xs font-bold transition ${i === safePage ? "bg-primary text-primary-foreground" : "bg-muted hover:bg-muted/70"}`}
+              >
+                {i + 1}
+              </button>
+            ))}
+          </div>
+          <Button variant="outline" size="sm" disabled={safePage >= totalPages - 1} onClick={() => setPage(safePage + 1)} className="text-xs h-8">
+            التالي <ChevronLeft className="h-3.5 w-3.5 me-1" />
+          </Button>
         </div>
-        <Button onClick={() => setShowConfirm(true)} disabled={!allAnswered && !timeUp}>
-          {submitting ? <Loader2 className="h-4 w-4 animate-spin" /> : <><CheckCircle className="me-2 h-4 w-4" /> {t("submit")}</>}
-        </Button>
+      )}
+
+      {/* Questions (current page) */}
+      <div className="space-y-3 mb-6">
+        {pageQuestions.map((q, qi) => {
+          const globalIdx = pageStart + qi;
+          return (
+            <div key={q.id} className="bg-card border rounded-xl p-4">
+              <div className="flex items-center gap-2 mb-3 flex-wrap">
+                <span className="text-xs font-bold bg-primary/10 text-primary px-2 py-0.5 rounded-full">سؤال {globalIdx + 1}</span>
+                <span className="font-bold text-sm flex-1">{q.text}</span>
+                <span className="text-[10px] bg-amber-500/15 text-amber-600 px-1.5 py-0.5 rounded-full">{q.points} {t("point")}</span>
+              </div>
+              {q.type === "complete" ? (
+                <div>
+                  <Input
+                    value={answers[q.id] || ""}
+                    onChange={(e) => setAnswers((a) => ({ ...a, [q.id]: e.target.value }))}
+                    placeholder="اكتب إجابتك..."
+                    className="h-10 text-sm"
+                    dir="auto"
+                  />
+                </div>
+              ) : (
+                <div className="space-y-2">
+                  {q.options.map((opt: string, oi: number) => (
+                    <label key={oi} className={`flex items-center gap-3 p-3 rounded-lg border cursor-pointer transition ${answers[q.id] === oi ? "bg-primary/10 border-primary" : "hover:bg-muted"}`}>
+                      <input type="radio" name={`q-${q.id}`} checked={answers[q.id] === oi} onChange={() => setAnswers((a) => ({ ...a, [q.id]: oi }))} className="accent-primary w-4 h-4" />
+                      <span className="text-sm">{opt}</span>
+                    </label>
+                  ))}
+                </div>
+              )}
+            </div>
+          );
+        })}
+      </div>
+
+      {/* Navigation + Submit */}
+      <div className="sticky bottom-0 bg-background/80 backdrop-blur p-3 border-t rounded-t-xl">
+        <div className="flex items-center justify-between gap-2">
+          <div className="flex items-center gap-2">
+            <Button variant="outline" size="sm" disabled={safePage === 0} onClick={() => setPage(Math.max(0, safePage - 1))} className="text-xs h-8">
+              <ChevronRight className="h-3.5 w-3.5" />
+            </Button>
+            <span className="text-[10px] text-muted-foreground font-bold">{safePage + 1}/{Math.max(totalPages, 1)}</span>
+            <Button variant="outline" size="sm" disabled={safePage >= totalPages - 1} onClick={() => setPage(safePage + 1)} className="text-xs h-8">
+              <ChevronLeft className="h-3.5 w-3.5" />
+            </Button>
+          </div>
+          <div className="text-xs text-muted-foreground flex-1 text-center">
+            {!allAnswered && <span className="flex items-center gap-1 justify-center"><AlertCircle className="h-3.5 w-3.5" /> {t("unansweredQuestions").replace("{count}", String(questions.length - answeredCount))}</span>}
+            {allAnswered && <span className="flex items-center gap-1 text-emerald-600 font-bold justify-center"><CheckCircle className="h-3.5 w-3.5" /> تمت الإجابة على الكل</span>}
+          </div>
+          <Button onClick={() => setShowConfirm(true)} disabled={!allAnswered && !timeUp} className="h-9 text-sm flex-shrink-0">
+            {submitting ? <Loader2 className="h-4 w-4 animate-spin" /> : <><CheckCircle className="me-2 h-4 w-4" /> {t("submit")}</>}
+          </Button>
+        </div>
       </div>
 
       {/* Confirm Dialog */}

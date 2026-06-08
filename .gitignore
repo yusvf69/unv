@@ -48,6 +48,13 @@ Thumbs.db
 .cache/
 .local/
 
+# Capacitor / Android
+android/
+local.properties
+
+# APK
+*.apk
+
 # Environment
 .env
 .env.local

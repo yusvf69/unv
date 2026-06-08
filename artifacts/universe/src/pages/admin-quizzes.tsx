@@ -3,7 +3,7 @@ import { motion } from "framer-motion";
 import {
   Plus, Trash2, Eye, Users, Clock, Trophy,
   Send, Loader2, Edit2, CheckCircle, XCircle,
-  HelpCircle, AlertCircle, BookOpen, Settings, ChevronRight,
+  HelpCircle, AlertCircle, BookOpen, Settings, ChevronRight, Upload,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -455,7 +455,8 @@ function ManageQuestionsDialog({ quizId, onClose }: { quizId: number; onClose: (
   const deleteQ = useDeleteQuizQuestion();
   const { toast } = useToast();
   const [adding, setAdding] = useState(false);
-  const [newQ, setNewQ] = useState({ text: "", type: "mc" as "mc" | "tf", options: ["", "", "", ""], correctIndex: 0, points: 10, explanation: "" });
+  const [bulkImportOpen, setBulkImportOpen] = useState(false);
+  const [newQ, setNewQ] = useState({ text: "", type: "mc" as "mc" | "tf" | "complete", options: ["", "", "", ""], correctIndex: 0, points: 10, explanation: "" });
 
   const load = async () => {
     setLoading(true);
@@ -472,7 +473,7 @@ function ManageQuestionsDialog({ quizId, onClose }: { quizId: number; onClose: (
       toast({ title: "بيانات السؤال ناقصة", variant: "destructive" });
       return;
     }
-    const opts = newQ.type === "tf" ? ["صح", "خطأ"] : newQ.options;
+    const opts = newQ.type === "tf" ? ["صح", "خطأ"] : newQ.type === "complete" ? [newQ.options[0] || ""] : newQ.options;
     await addQ.mutateAsync(quizId, { ...newQ, options: opts });
     setAdding(false);
     setNewQ({ text: "", type: "mc", options: ["", "", "", ""], correctIndex: 0, points: 10, explanation: "" });
@@ -485,6 +486,12 @@ function ManageQuestionsDialog({ quizId, onClose }: { quizId: number; onClose: (
     load();
   };
 
+  const typeBadge = (t: string) => {
+    if (t === "tf") return { label: "صح/خطأ", cls: "bg-blue-500/15 text-blue-600" };
+    if (t === "complete") return { label: "أكمل", cls: "bg-orange-500/15 text-orange-600" };
+    return { label: "اختيار", cls: "bg-purple-500/15 text-purple-600" };
+  };
+
   return (
     <Dialog open onOpenChange={(o) => !o && onClose()}>
       <DialogContent className="max-w-3xl max-h-[90vh] overflow-y-auto">
@@ -492,15 +499,26 @@ function ManageQuestionsDialog({ quizId, onClose }: { quizId: number; onClose: (
           <DialogTitle className="text-base sm:text-lg">إدارة الأسئلة</DialogTitle>
         </DialogHeader>
 
-        {!adding ? (
-          <Button onClick={() => setAdding(true)} className="mb-3 h-9 text-sm"><Plus className="me-2 h-3.5 w-3.5 sm:h-4 sm:w-4" /> إضافة سؤال</Button>
-        ) : (
+        <div className="flex gap-2 mb-3">
+          {!adding ? (
+            <Button onClick={() => setAdding(true)} className="h-9 text-sm"><Plus className="me-2 h-3.5 w-3.5" /> إضافة سؤال</Button>
+          ) : null}
+          <Button variant="outline" onClick={() => setBulkImportOpen(true)} className="h-9 text-sm">
+            <Upload className="me-2 h-3.5 w-3.5" /> استيراد دفعة واحدة
+          </Button>
+        </div>
+
+        {adding ? (
           <div className="space-y-3 p-2 sm:p-3 border rounded-xl mb-3 bg-muted/20">
             <div className="grid grid-cols-2 gap-2 sm:gap-3">
               <div><Label className="text-xs">نوع السؤال</Label>
-                <select value={newQ.type} onChange={(e) => setNewQ({ ...newQ, type: e.target.value as "mc" | "tf" })} className="w-full h-9 px-3 border-2 border-input rounded-md bg-background text-sm">
+                <select value={newQ.type} onChange={(e) => {
+                  const t = e.target.value as "mc" | "tf" | "complete";
+                  setNewQ({ ...newQ, type: t, options: t === "tf" ? ["", ""] : t === "complete" ? [""] : ["", "", "", ""], correctIndex: 0 });
+                }} className="w-full h-9 px-3 border-2 border-input rounded-md bg-background text-sm">
                   <option value="mc">اختيار من متعدد</option>
                   <option value="tf">صح / خطأ</option>
+                  <option value="complete">أكمل</option>
                 </select>
               </div>
               <div><Label className="text-xs">النقاط</Label><Input type="number" value={newQ.points} onChange={(e) => setNewQ({ ...newQ, points: Number(e.target.value) })} className="h-9 text-sm" /></div>
@@ -529,13 +547,16 @@ function ManageQuestionsDialog({ quizId, onClose }: { quizId: number; onClose: (
                 </label>
               </div>
             )}
+            {newQ.type === "complete" && (
+              <div><Label className="text-xs">الإجابة الصحيحة</Label><Input value={newQ.options[0] || ""} onChange={(e) => setNewQ({ ...newQ, options: [e.target.value] })} placeholder="اكتب الإجابة الصحيحة..." className="h-9 text-sm" /></div>
+            )}
             <div><Label className="text-xs">الشرح (اختياري)</Label><Textarea value={newQ.explanation} onChange={(e) => setNewQ({ ...newQ, explanation: e.target.value })} placeholder="شرح الإجابة..." rows={1} className="text-sm" /></div>
             <div className="flex gap-2">
               <Button variant="outline" onClick={() => setAdding(false)} className="text-xs sm:text-sm">إلغاء</Button>
               <Button onClick={submit} disabled={addQ.isPending} className="text-xs sm:text-sm">{addQ.isPending ? <Loader2 className="h-3.5 w-3.5 sm:h-4 sm:w-4 animate-spin" /> : "إضافة"}</Button>
             </div>
           </div>
-        )}
+        ) : null}
 
         {loading ? (
           <p className="text-center text-muted-foreground py-4">جاري التحميل...</p>
@@ -543,31 +564,190 @@ function ManageQuestionsDialog({ quizId, onClose }: { quizId: number; onClose: (
           <p className="text-center text-muted-foreground py-4">لا توجد أسئلة بعد</p>
         ) : (
           <div className="space-y-2">
-            {questions.map((q, i) => (
-              <div key={q.id} className="p-3 border rounded-lg flex items-start gap-3">
-                <span className="text-xs font-bold text-muted-foreground mt-1">{i + 1}.</span>
-                <div className="flex-1">
-                  <div className="flex items-center gap-2 flex-wrap">
-                    <span className="text-sm font-bold">{q.text}</span>
-                    <span className={`text-[10px] px-1.5 py-0.5 rounded-full ${q.type === "tf" ? "bg-blue-500/15 text-blue-600" : "bg-purple-500/15 text-purple-600"}`}>
-                      {q.type === "tf" ? "صح/خطأ" : "اختيار"}
-                    </span>
-                    <span className="text-[10px] bg-amber-500/15 text-amber-600 px-1.5 py-0.5 rounded-full">{q.points} نقطة</span>
+            {questions.map((q, i) => {
+              const tb = typeBadge(q.type);
+              return (
+                <div key={q.id} className="p-3 border rounded-lg flex items-start gap-3">
+                  <span className="text-xs font-bold text-muted-foreground mt-1">{i + 1}.</span>
+                  <div className="flex-1">
+                    <div className="flex items-center gap-2 flex-wrap">
+                      <span className="text-sm font-bold">{q.text}</span>
+                      <span className={`text-[10px] px-1.5 py-0.5 rounded-full ${tb.cls}`}>{tb.label}</span>
+                      <span className="text-[10px] bg-amber-500/15 text-amber-600 px-1.5 py-0.5 rounded-full">{q.points} نقطة</span>
+                    </div>
+                    <div className="text-xs text-muted-foreground mt-1">
+                      {q.type === "tf" ? (
+                        <span className={q.correctIndex === 0 ? "text-green-600 font-bold" : "text-destructive font-bold"}>الإجابة: {q.correctIndex === 0 ? "صح" : "خطأ"}</span>
+                      ) : q.type === "complete" ? (
+                        <span className="text-green-600 font-bold">الإجابة: {q.options[q.correctIndex]}</span>
+                      ) : (
+                        <>الإجابة: {q.options[q.correctIndex]}</>
+                      )}
+                      {q.explanation && <div className="mt-0.5 text-muted-foreground/70">شرح: {q.explanation}</div>}
+                    </div>
                   </div>
-                  <div className="text-xs text-muted-foreground mt-1">
-                    {q.type === "tf" ? (
-                      <span className={q.correctIndex === 0 ? "text-green-600 font-bold" : "text-destructive font-bold"}>الإجابة: {q.correctIndex === 0 ? "صح" : "خطأ"}</span>
-                    ) : (
-                      <>الإجابة: {q.options[q.correctIndex]}</>
-                    )}
-                    {q.explanation && <div className="mt-0.5 text-muted-foreground/70">شرح: {q.explanation}</div>}
-                  </div>
+                  <button onClick={() => handleDelete(q.id)} className="p-1 rounded hover:bg-destructive/10"><Trash2 className="h-3.5 w-3.5 text-destructive" /></button>
                 </div>
-                <button onClick={() => handleDelete(q.id)} className="p-1 rounded hover:bg-destructive/10"><Trash2 className="h-3.5 w-3.5 text-destructive" /></button>
-              </div>
-            ))}
+              );
+            })}
           </div>
         )}
+
+        {!loading && questions.length > 0 && (
+          <Button
+            variant="ghost"
+            size="sm"
+            className="text-destructive text-xs w-full mt-1"
+            onClick={async () => {
+              if (!confirm("مسح كل الأسئلة؟ هذا لا يمكن التراجع عنه")) return;
+              try {
+                await api.del(`/v2/admin/quizzes/${quizId}/questions`);
+                toast({ title: "تم مسح كل الأسئلة" });
+                load();
+              } catch (e: any) {
+                toast({ title: "خطأ", description: e.message, variant: "destructive" });
+              }
+            }}
+          >
+            <Trash2 className="me-1.5 h-3 w-3" /> مسح الكل ({questions.length})
+          </Button>
+        )}
+
+        <BulkImportDialog
+          open={bulkImportOpen}
+          onClose={() => setBulkImportOpen(false)}
+          quizId={quizId}
+          onImported={load}
+        />
+      </DialogContent>
+    </Dialog>
+  );
+}
+
+function BulkImportDialog({ open, onClose, quizId, onImported }: { open: boolean; onClose: () => void; quizId: number; onImported: () => void }) {
+  const { toast } = useToast();
+  const [raw, setRaw] = useState("");
+  const [parsed, setParsed] = useState<any[] | null>(null);
+  const [importing, setImporting] = useState(false);
+
+  const typeMap: Record<string, string> = {
+    mc: "mc", اختيار: "mc", اختر: "mc",
+    tf: "tf", صح: "tf",
+    complete: "complete", أكمل: "complete", اكمل: "complete",
+  };
+
+  const parse = () => {
+    const lines = raw.split("\n").map(l => l.trim()).filter(Boolean);
+    const result: any[] = [];
+    for (const line of lines) {
+      const parts = line.split("||").map(p => p.trim());
+      if (parts.length < 3) continue;
+      const rawType = parts[0].trim();
+      const type = typeMap[rawType];
+      if (!type) continue;
+      const text = parts[1].trim();
+      if (!text) continue;
+      const rawOptions = parts[2] || "";
+      const correctIndex = parseInt(parts[3] || "0", 10) || 0;
+      const points = parseInt(parts[4] || "10", 10) || 10;
+      const explanation = parts[5] || "";
+
+      let options: string[];
+      if (type === "tf") {
+        options = ["صح", "خطأ"];
+      } else if (type === "complete") {
+        options = [rawOptions];
+      } else {
+        options = rawOptions.split(",").map(o => o.trim()).filter(Boolean);
+      }
+
+      result.push({
+        text,
+        type,
+        options,
+        correctIndex: type === "tf" ? (rawOptions.includes("خطأ") && !rawOptions.includes("صح") ? 1 : correctIndex) : correctIndex,
+        points,
+        explanation,
+      });
+    }
+    setParsed(result);
+    if (!result.length) {
+      toast({ title: "لم يتم التعرف على أي أسئلة", description: "تأكد من التنسيق: النوع || السؤال || الخيارات || رقم الإجابة || النقاط || الشرح", variant: "destructive" });
+    }
+  };
+
+  const importAll = async () => {
+    if (!parsed || !parsed.length) return;
+    setImporting(true);
+    try {
+      const res = await api.post<{ created: number }>(`/v2/admin/quizzes/${quizId}/questions/bulk`, { questions: parsed });
+      toast({ title: `تم استيراد ${res.created} سؤال بنجاح` });
+      setParsed(null);
+      setRaw("");
+      onClose();
+      onImported();
+    } catch (e: any) {
+      toast({ title: "خطأ في الاستيراد", description: e.message, variant: "destructive" });
+    } finally { setImporting(false); }
+  };
+
+  return (
+    <Dialog open={open} onOpenChange={(o) => !o && onClose()}>
+      <DialogContent className="max-w-3xl max-h-[90vh] overflow-y-auto">
+        <DialogHeader>
+          <DialogTitle className="text-base sm:text-lg">استيراد أسئلة دفعة واحدة</DialogTitle>
+        </DialogHeader>
+
+        <div className="bg-muted/30 rounded-lg p-3 text-xs space-y-1 mb-3">
+          <p className="font-bold text-sm mb-1">التنسيق المطلوب (كل سؤال في سطر منفصل):</p>
+          <code className="block text-[11px] leading-relaxed" dir="ltr">
+            النوع || نص السؤال || الخيارات (مفصولة بفاصلة) || رقم الإجابة الصحيحة || النقاط || الشرح
+          </code>
+          <div className="mt-2 space-y-1 text-muted-foreground">
+            <p>• <b>اختيار</b>: <code dir="ltr">اختيار || ما عاصمة فرنسا؟ || باريس, لندن, برلين, مدريد || 0 || 10 || باريس هي العاصمة</code></p>
+            <p>• <b>صح/خطأ</b>: <code dir="ltr">صح || الأرض مسطحة || خطأ || 1 || 5 || الأرض كروية</code></p>
+            <p>• <b>أكمل</b>: <code dir="ltr">أكمل || الرمز الكيميائي للماء ____ || H2O || 0 || 10 || الماء يتكون من H2O</code></p>
+          </div>
+          <p className="text-muted-foreground mt-1">يمكنك استخدام: <b>mc/اختيار/اختر</b>، <b>tf/صح</b>، <b>complete/أكمل/اكمل</b></p>
+        </div>
+
+        <Textarea
+          value={raw}
+          onChange={(e) => { setRaw(e.target.value); setParsed(null); }}
+          placeholder={`اختيار || ما عاصمة فرنسا؟ || باريس, لندن, برلين, مدريد || 0 || 10 || باريس هي العاصمة\nصح || الأرض مسطحة || خطأ || 1 || 5 || الأرض كروية\nأكمل || الرمز الكيميائي للماء ____ || H2O || 0 || 10 || الماء H2O`}
+          rows={8}
+          className="text-sm font-mono"
+        />
+
+        <Button onClick={parse} disabled={!raw.trim()} variant="secondary" className="w-full text-sm">
+          تحليل ومعاينة
+        </Button>
+
+        {parsed && parsed.length > 0 && (
+          <div className="space-y-2 mt-2">
+            <p className="text-sm font-bold">تم التعرف على {parsed.length} سؤال:</p>
+            {parsed.map((q, i) => {
+              const typeLabel: Record<string, string> = { mc: "اختيار", tf: "صح/خطأ", complete: "أكمل" };
+              return (
+                <div key={i} className="p-2 border rounded text-xs">
+                  <span className="font-bold">{i + 1}.</span> {q.text}
+                  <span className="mx-1 text-muted-foreground">[{typeLabel[q.type]}]</span>
+                  <span className="text-green-600">← {q.type === "tf" ? (q.correctIndex === 0 ? "صح" : "خطأ") : q.type === "complete" ? q.options[0] : q.options[q.correctIndex]}</span>
+                  {q.explanation && <span className="text-muted-foreground"> | {q.explanation.slice(0, 40)}</span>}
+                  <span className="text-amber-600"> | {q.points} نقطة</span>
+                </div>
+              );
+            })}
+          </div>
+        )}
+
+        <div className="flex gap-2 mt-2">
+          <Button variant="outline" onClick={onClose} className="text-sm">إلغاء</Button>
+          <Button onClick={importAll} disabled={!parsed || !parsed.length || importing} className="text-sm flex-1">
+            {importing ? <Loader2 className="h-3.5 w-3.5 animate-spin ms-2" /> : <Upload className="me-2 h-3.5 w-3.5" />}
+            {importing ? "جاري الاستيراد..." : `استيراد ${parsed?.length || 0} سؤال`}
+          </Button>
+        </div>
       </DialogContent>
     </Dialog>
   );

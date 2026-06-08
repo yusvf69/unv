@@ -1,7 +1,19 @@
 import { useQuery, useMutation, useQueryClient, type UseQueryOptions } from "@tanstack/react-query";
 import { getGetDashboardQueryKey } from "@workspace/api-client-react";
 
-const API_BASE = "/api";
+export function getApiBase(): string {
+  if (typeof window !== "undefined" && (window as any).__API_BASE__) {
+    return (window as any).__API_BASE__;
+  }
+  try {
+    if (typeof import.meta !== "undefined" && import.meta.env?.VITE_API_URL) {
+      return import.meta.env.VITE_API_URL;
+    }
+  } catch {}
+  return "/api";
+}
+
+const API_BASE = getApiBase();
 
 function getToken(): string | null {
   if (typeof window === "undefined") return null;
@@ -427,7 +439,7 @@ export function useOpenQuizzes() {
 }
 export interface QuizSession {
   quiz: QuizOpenItem;
-  questions: { id: number; text: string; options: string[]; optionMap: number[]; points: number }[];
+  questions: { id: number; text: string; type: string; options: string[]; optionMap: number[]; points: number }[];
 }
 export function useStartQuiz(id: number) {
   return useQuery<QuizSession>({
@@ -441,7 +453,7 @@ export function useStartQuiz(id: number) {
 export function useSubmitQuiz(id: number) {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: (body: { answers: { questionId: number; chosenOriginalIndex: number }[]; durationSec: number }) =>
+    mutationFn: (body: { answers: { questionId: number; chosenOriginalIndex: number; textAnswer?: string }[]; durationSec: number }) =>
       api.post(`/v2/quizzes/${id}/submit`, body),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ["v2", "quizzes", "open"] });

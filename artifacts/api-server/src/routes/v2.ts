@@ -1250,15 +1250,16 @@ router.get("/v2/quizzes/:id/start", (req, res) => {
     if (!q.isOpen) throw Object.assign(new Error("هذا الاختبار مغلق حالياً"), { status: 403 });
     const questions = await db.select().from(schema.quizQuestionsTable).where(eq(schema.quizQuestionsTable.quizId, id));
     // randomize question order + option order, never repeat exactly the same set
-    const shuffled = [...questions].sort(() => Math.random() - 0.5).slice(0, Math.min(10, questions.length));
+    const shuffled = [...questions].sort(() => Math.random() - 0.5);
     const out = shuffled.map((qq) => {
       const opts = qq.options.map((o, i) => ({ text: o, originalIndex: i }));
       const shuffledOpts = [...opts].sort(() => Math.random() - 0.5);
       return {
         id: qq.id,
         text: qq.text,
-        options: shuffledOpts.map((o) => o.text),
-        optionMap: shuffledOpts.map((o) => o.originalIndex), // server uses to verify
+        type: qq.type,
+        options: qq.type === "complete" ? qq.options : shuffledOpts.map((o) => o.text),
+        optionMap: qq.type === "complete" ? [0] : shuffledOpts.map((o) => o.originalIndex), // server uses to verify
         points: qq.points,
       };
     });
@@ -1281,9 +1282,21 @@ router.post("/v2/quizzes/:id/submit", (req, res) => {
       const qq = questions.find((x) => x.id === a.questionId);
       if (!qq) continue;
       total += qq.points;
-      const correct = qq.correctIndex === a.chosenOriginalIndex;
+      let correct: boolean;
+      if (qq.type === "complete") {
+        const userText = (a as any).textAnswer || "";
+        const expectedAnswer = qq.options[qq.correctIndex] || "";
+        correct = userText.trim().toLowerCase() === expectedAnswer.trim().toLowerCase();
+      } else {
+        correct = qq.correctIndex === a.chosenOriginalIndex;
+      }
       if (correct) score += qq.points;
-      ans.push({ questionId: qq.id, chosen: a.chosenOriginalIndex, correct });
+      ans.push({
+        questionId: qq.id,
+        chosen: a.chosenOriginalIndex,
+        correct,
+        ...(qq.type === "complete" ? { textAnswer: (a as any).textAnswer || "" } : {}),
+      });
     }
     const pct = total > 0 ? Math.round((score / total) * 100) : 0;
     const passed = pct >= (q.passPercent || 50);
@@ -1300,11 +1313,13 @@ router.post("/v2/quizzes/:id/submit", (req, res) => {
       return {
         questionId: qq.id,
         text: qq.text,
+        type: qq.type,
         options: qq.options,
         correctIndex: qq.correctIndex,
         explanation: qq.explanation,
         points: qq.points,
         userChosen: userAns?.chosen ?? -1,
+        textAnswer: (userAns as any)?.textAnswer,
         correct: userAns?.correct ?? false,
       };
     });
@@ -1353,11 +1368,13 @@ async function getAttemptDetail(attemptId: number) {
     return {
       questionId: qq.id,
       text: qq.text,
+      type: qq.type,
       options: qq.options,
       correctIndex: qq.correctIndex,
       explanation: qq.explanation,
       points: qq.points,
       userChosen: userAns?.chosen ?? -1,
+      textAnswer: (userAns as any)?.textAnswer,
       correct: userAns?.correct ?? false,
     };
   });
@@ -1462,6 +1479,36 @@ router.post("/v2/admin/quizzes/:quizId/questions", requireRole(["admin", "super_
   });
 });
 
+router.post("/v2/admin/quizzes/:quizId/questions/bulk", requireRole(["admin", "super_admin"]), (req, res) => {
+  void handle(res, async () => {
+    const quizId = Number(req.params.quizId);
+    const { questions } = req.body as any;
+    if (!Array.isArray(questions) || !questions.length) {
+      throw Object.assign(new Error("لم يتم إرسال أي أسئلة"), { status: 400 });
+    }
+    const created: any[] = [];
+    for (const q of questions) {
+      const { text, type, options, correctIndex, points, explanation } = q;
+      if (!text || !options || typeof correctIndex !== "number") {
+        throw Object.assign(new Error(`بيانات السؤال ناقصة: "${(text || "").slice(0, 50)}"`), { status: 400 });
+      }
+      const maxOrd = await db.select({ max: schema.quizQuestionsTable.ord }).from(schema.quizQuestionsTable).where(eq(schema.quizQuestionsTable.quizId, quizId));
+      const [qq] = await db.insert(schema.quizQuestionsTable).values({
+        quizId,
+        text,
+        type: type || "mc",
+        options,
+        correctIndex,
+        points: points ?? 10,
+        explanation: explanation || "",
+        ord: (maxOrd[0]?.max ?? 0) + 1,
+      }).returning();
+      created.push(qq);
+    }
+    return { created: created.length };
+  });
+});
+
 router.put("/v2/admin/quiz-questions/:id", requireRole(["admin", "super_admin"]), (req, res) => {
   void handle(res, async () => {
     const id = Number(req.params.id);
@@ -1482,6 +1529,14 @@ router.delete("/v2/admin/quiz-questions/:id", requireRole(["admin", "super_admin
   void handle(res, async () => {
     const id = Number(req.params.id);
     await db.delete(schema.quizQuestionsTable).where(eq(schema.quizQuestionsTable.id, id));
+    return { ok: true };
+  });
+});
+
+router.delete("/v2/admin/quizzes/:quizId/questions", requireRole(["admin", "super_admin"]), (req, res) => {
+  void handle(res, async () => {
+    const quizId = Number(req.params.quizId);
+    await db.delete(schema.quizQuestionsTable).where(eq(schema.quizQuestionsTable.quizId, quizId));
     return { ok: true };
   });
 });

@@ -1,0 +1,10 @@
+{
+  "appId": "com.uniagri.universe",
+  "appName": "UniVerse",
+  "webDir": "dist/public",
+  "server": {
+    "androidScheme": "https",
+    "hostname": "localhost",
+    "cleartext": true
+  }
+}

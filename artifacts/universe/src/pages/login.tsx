@@ -9,6 +9,8 @@ import { Label } from "@/components/ui/label";
 import { useToast } from "@/hooks/use-toast";
 import FileUpload from "@/components/file-upload";
 import { useTranslation, globalI18n } from "@/lib/i18n";
+import { getApiBase } from "@/lib/api";
+const API = getApiBase();
 
 const SPECIALIZATIONS = [
   "شعبه عامه",
@@ -143,7 +145,7 @@ export default function Login() {
     }
     setUsernameStatus({ checking: true, available: false });
     try {
-      const res = await fetch(`/api/v2/auth/username-available?username=${encodeURIComponent(un)}`);
+      const res = await fetch(`${API}/v2/auth/username-available?username=${encodeURIComponent(un)}`);
       const data = await res.json();
       setUsernameStatus({ checking: false, available: data.available, reason: data.reason, suggestions: data.suggestions });
     } catch {
@@ -173,7 +175,7 @@ export default function Login() {
     if (verifyStep === "idle") {
       setVerifyStep("sending");
       try {
-        const checkRes = await fetch("/api/v2/auth/check-user", {
+        const checkRes = await fetch(API + "/v2/auth/check-user", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({ email, phone }),
@@ -186,7 +188,7 @@ export default function Login() {
           return;
         }
 
-        const res = await fetch("/api/v2/auth/send-verification", {
+        const res = await fetch(API + "/v2/auth/send-verification", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({ email, phone }),
@@ -209,7 +211,7 @@ export default function Login() {
         try {
           const code = emailCode || whatsappCode;
           if (!code) throw new Error(t("enterCode"));
-          const res = await fetch("/api/v2/auth/verify-code", {
+          const res = await fetch(API + "/v2/auth/verify-code", {
             method: "POST",
             headers: { "Content-Type": "application/json" },
             body: JSON.stringify({ email, phone, code }),
@@ -226,7 +228,7 @@ export default function Login() {
       }
 
       try {
-        const res = await fetch("/api/v2/auth/signup", {
+        const res = await fetch(API + "/v2/auth/signup", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({ name, username, email, phone, password, yearInCollege, specialization, groupName, avatarUrl }),
@@ -247,7 +249,7 @@ export default function Login() {
   const handleResend = async () => {
     setResendLoading(true);
     try {
-      const res = await fetch("/api/v2/auth/resend-code", {
+      const res = await fetch(API + "/v2/auth/resend-code", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ email, phone }),
@@ -273,7 +275,7 @@ export default function Login() {
       return;
     }
     try {
-      const res = await fetch("/api/v2/auth/login", {
+      const res = await fetch(API + "/v2/auth/login", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ identifier: email, password }),
@@ -499,7 +501,7 @@ export default function Login() {
                     try {
                       const isEmail = forgotIdentifier.includes("@");
                       const body = isEmail ? { email: forgotIdentifier } : { phone: forgotIdentifier };
-                      const res = await fetch("/api/v2/auth/forgot-password", {
+                      const res = await fetch(API + "/v2/auth/forgot-password", {
                         method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body),
                       });
                       const data = await res.json();
@@ -527,7 +529,7 @@ export default function Login() {
                     try {
                       const isEmail = forgotIdentifier.includes("@");
                       const body = isEmail ? { email: forgotIdentifier, code: forgotCode } : { phone: forgotIdentifier, code: forgotCode };
-                      const res = await fetch("/api/v2/auth/verify-reset-code", {
+                      const res = await fetch(API + "/v2/auth/verify-reset-code", {
                         method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body),
                       });
                       const data = await res.json();
@@ -559,7 +561,7 @@ export default function Login() {
                     try {
                       const isEmail = forgotIdentifier.includes("@");
                       const body = isEmail ? { email: forgotIdentifier, code: forgotCode, newPassword: forgotNewPassword } : { phone: forgotIdentifier, code: forgotCode, newPassword: forgotNewPassword };
-                      const res = await fetch("/api/v2/auth/reset-password", {
+                      const res = await fetch(API + "/v2/auth/reset-password", {
                         method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body),
                       });
                       const data = await res.json();
