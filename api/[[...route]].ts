@@ -1342,10 +1342,27 @@ async function handleAdminQuizzes(req: Request, parts: string[]): Promise<Respon
   }
 
   if (parts[1] === "quizzes" && parts[3] === "questions") {
-    if (req.method === "GET") {
+    if (req.method === "GET" && !parts[4]) {
       return handle(async () => sql`SELECT * FROM quiz_questions WHERE quiz_id = ${Number(parts[2])} ORDER BY ord`);
     }
-    if (req.method === "POST") {
+    if (req.method === "POST" && parts[4] === "bulk") {
+      return handle(async () => {
+        const quizId = Number(parts[2]);
+        const body = await req.json();
+        const questionsArr = body.questions;
+        if (!Array.isArray(questionsArr) || !questionsArr.length) throw Object.assign(new Error("لم يتم إرسال أي أسئلة"), { status: 400 });
+        let created = 0;
+        for (const q of questionsArr) {
+          const { text, type, options, correctIndex, points, explanation } = q;
+          if (!text || !options || typeof correctIndex !== "number") throw Object.assign(new Error(`بيانات السؤال ناقصة: "${(text || "").slice(0, 50)}"`), { status: 400 });
+          const [maxOrd] = await sql`SELECT MAX(ord) AS max FROM quiz_questions WHERE quiz_id = ${quizId}`;
+          await sql`INSERT INTO quiz_questions (quiz_id, text, type, options, correct_index, points, explanation, ord) VALUES (${quizId}, ${text}, ${type || "mc"}, ${JSON.stringify(options)}, ${correctIndex}, ${points ?? 10}, ${explanation || ""}, ${(maxOrd?.max ?? 0) + 1})`;
+          created++;
+        }
+        return { created };
+      });
+    }
+    if (req.method === "POST" && !parts[4]) {
       return handle(async () => {
         const body = await req.json();
         const { text, type, options, correctIndex, points, explanation } = body;
@@ -1353,6 +1370,13 @@ async function handleAdminQuizzes(req: Request, parts: string[]): Promise<Respon
         const [maxOrd] = await sql`SELECT MAX(ord) AS max FROM quiz_questions WHERE quiz_id = ${Number(parts[2])}`;
         const [qq] = await sql`INSERT INTO quiz_questions (quiz_id, text, type, options, correct_index, points, explanation, ord) VALUES (${Number(parts[2])}, ${text}, ${type || "mc"}, ${JSON.stringify(options)}, ${correctIndex}, ${points ?? 10}, ${explanation || ""}, ${(maxOrd?.max ?? 0) + 1}) RETURNING *`;
         return qq;
+      });
+    }
+    if (req.method === "DELETE") {
+      return handle(async () => {
+        const quizId = Number(parts[2]);
+        await sql`DELETE FROM quiz_questions WHERE quiz_id = ${quizId}`;
+        return { ok: true };
       });
     }
   }
@@ -3154,6 +3178,8 @@ async function handleRequest(request: Request): Promise<Response> {
     "DELETE /admin/quizzes/:id": () => handleAdminQuizzes(request, ["admin", "quizzes", parts[2]]),
     "GET /admin/quizzes/:id/questions": () => handleAdminQuizzes(request, ["admin", "quizzes", parts[2], "questions"]),
     "POST /admin/quizzes/:id/questions": () => handleAdminQuizzes(request, ["admin", "quizzes", parts[2], "questions"]),
+    "POST /admin/quizzes/:id/questions/bulk": () => handleAdminQuizzes(request, ["admin", "quizzes", parts[2], "questions", "bulk"]),
+    "DELETE /admin/quizzes/:quizId/questions": () => handleAdminQuizzes(request, ["admin", "quizzes", parts[2], "questions"]),
     "PUT /admin/quiz-questions/:id": () => handleAdminQuizzes(request, ["admin", "quiz-questions", parts[2]]),
     "DELETE /admin/quiz-questions/:id": () => handleAdminQuizzes(request, ["admin", "quiz-questions", parts[2]]),
     "GET /admin/quizzes/:id/attempts": () => handleAdminQuizzes(request, ["admin", "quizzes", parts[2], "attempts"]),
@@ -3214,6 +3240,8 @@ async function handleRequest(request: Request): Promise<Response> {
     "DELETE /v2/admin/quizzes/:id": () => handleAdminQuizzes(request, ["admin", "quizzes", parts[3]]),
     "GET /v2/admin/quizzes/:id/questions": () => handleAdminQuizzes(request, ["admin", "quizzes", parts[3], "questions"]),
     "POST /v2/admin/quizzes/:id/questions": () => handleAdminQuizzes(request, ["admin", "quizzes", parts[3], "questions"]),
+    "POST /v2/admin/quizzes/:id/questions/bulk": () => handleAdminQuizzes(request, ["admin", "quizzes", parts[3], "questions", "bulk"]),
+    "DELETE /v2/admin/quizzes/:quizId/questions": () => handleAdminQuizzes(request, ["admin", "quizzes", parts[3], "questions"]),
     "PUT /v2/admin/quiz-questions/:id": () => handleAdminQuizzes(request, ["admin", "quiz-questions", parts[3]]),
     "DELETE /v2/admin/quiz-questions/:id": () => handleAdminQuizzes(request, ["admin", "quiz-questions", parts[3]]),
     "GET /v2/admin/quizzes/:id/attempts": () => handleAdminQuizzes(request, ["admin", "quizzes", parts[3], "attempts"]),
