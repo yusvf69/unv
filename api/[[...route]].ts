@@ -1185,13 +1185,30 @@ async function handleQuizzes(req: Request, parts: string[]): Promise<Response> {
       if (!q) throw Object.assign(new Error("الاختبار غير موجود"), { status: 404 });
       if (!q.is_open) throw Object.assign(new Error("هذا الاختبار مغلق حالياً"), { status: 403 });
       const questions = await sql`SELECT * FROM quiz_questions WHERE quiz_id = ${id}`;
-      const shuffled = [...questions].sort(() => Math.random() - 0.5).slice(0, Math.min(10, questions.length));
+      const shuffled = [...questions].sort(() => Math.random() - 0.5);
       const out = shuffled.map((qq: any) => {
         const opts = qq.options.map((o: string, i: number) => ({ text: o, originalIndex: i }));
         const shuffledOpts = [...opts].sort(() => Math.random() - 0.5);
-        return { id: qq.id, text: qq.text, options: shuffledOpts.map((o: any) => o.text), optionMap: shuffledOpts.map((o: any) => o.originalIndex), points: qq.points };
+        return {
+          id: qq.id,
+          text: qq.text,
+          type: qq.type,
+          options: qq.type === "complete" ? qq.options : shuffledOpts.map((o: any) => o.text),
+          optionMap: qq.type === "complete" ? [0] : shuffledOpts.map((o: any) => o.originalIndex),
+          points: qq.points,
+        };
       });
-      return { quiz: { ...q, createdAt: q.created_at?.toISOString() }, questions: out };
+      return {
+        quiz: {
+          id: q.id, title: q.title, description: q.description, courseId: q.course_id,
+          courseTitle: q.course_title, durationMinutes: q.duration_minutes,
+          totalPoints: q.total_points, difficulty: q.difficulty,
+          groupOnly: q.group_only, yearOnly: q.year_only, isOpen: q.is_open,
+          randomize: q.randomize, passPercent: q.pass_percent,
+          createdAt: q.created_at?.toISOString(),
+        },
+        questions: out,
+      };
     });
   }
 
@@ -1211,9 +1228,21 @@ async function handleQuizzes(req: Request, parts: string[]): Promise<Response> {
         const qq = questions.find((x: any) => x.id === a.questionId);
         if (!qq) continue;
         total += qq.points;
-        const correct = qq.correct_index === a.chosenOriginalIndex;
+        let correct: boolean;
+        if (qq.type === "complete") {
+          const userText = (a as any).textAnswer || "";
+          const expectedAnswer = qq.options[qq.correct_index] || "";
+          correct = userText.trim().toLowerCase() === expectedAnswer.trim().toLowerCase();
+        } else {
+          correct = qq.correct_index === a.chosenOriginalIndex;
+        }
         if (correct) score += qq.points;
-        ans.push({ questionId: qq.id, chosen: a.chosenOriginalIndex, correct });
+        ans.push({
+          questionId: qq.id,
+          chosen: a.chosenOriginalIndex,
+          correct,
+          ...(qq.type === "complete" ? { textAnswer: (a as any).textAnswer || "" } : {}),
+        });
       }
       const pct = total > 0 ? Math.round((score / total) * 100) : 0;
       const passed = pct >= (q.pass_percent || 50);
@@ -1223,7 +1252,12 @@ async function handleQuizzes(req: Request, parts: string[]): Promise<Response> {
       try { await recalculateLevel(userId); } catch (e) { console.error("[recalculateLevel]", e); }
       const questionDetails = questions.map((qq: any) => {
         const userAns = ans.find((a: any) => a.questionId === qq.id);
-        return { questionId: qq.id, text: qq.text, options: qq.options, correctIndex: qq.correct_index, explanation: qq.explanation, points: qq.points, userChosen: userAns?.chosen ?? -1, correct: userAns?.correct ?? false };
+        return {
+          questionId: qq.id, text: qq.text, type: qq.type, options: qq.options,
+          correctIndex: qq.correct_index, explanation: qq.explanation, points: qq.points,
+          userChosen: userAns?.chosen ?? -1, correct: userAns?.correct ?? false,
+          ...(qq.type === "complete" ? { textAnswer: (userAns as any)?.textAnswer || "" } : {}),
+        };
       });
       return { ...attempt, completedAt: attempt.completed_at?.toISOString(), passed, pointsAwarded, questionDetails };
     });
