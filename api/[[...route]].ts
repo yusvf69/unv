@@ -1604,19 +1604,46 @@ async function handleNewsById(id: string): Promise<Response> {
 }
 
 async function handleSkills(req: Request, parts: string[]): Promise<Response> {
-  if (parts[2] === "tracks") {
+  // GET /skills/tracks or GET /v2/skills/tracks — list all tracks with lessons
+  if (parts[1] === "tracks") {
     return handle(async () => {
       const tracks = await sql`SELECT * FROM skill_tracks`;
       if (!tracks.length) return [];
-      const lessons = await sql`SELECT * FROM skill_lessons WHERE track_id = ANY(${tracks.map((t: any) => t.id)}) ORDER BY ord`;
-      return tracks.map((t: any) => ({ ...t, lessons: lessons.filter((l: any) => l.track_id === t.id) }));
+      const lessons = await sql`SELECT * FROM skill_lessons WHERE track_id = ANY(${tracks.map((t: any) => t.id)}) ORDER BY ord, id`;
+      return tracks.map((t: any) => ({
+        id: t.id, title: t.title, category: t.category, description: t.description,
+        difficulty: t.difficulty, coverUrl: t.cover_url, progress: t.progress,
+        lessons: lessons.filter((l: any) => l.track_id === t.id).map((l: any) => ({
+          id: l.id, trackId: l.track_id, title: l.title, durationMinutes: l.duration_minutes,
+          kind: l.kind, completed: l.completed, ord: l.ord,
+        })),
+      }));
     });
   }
 
-  if (parts[4] === "complete") {
+  // GET /skills/:id — single track detail
+  if (parts[1] && !isNaN(Number(parts[1])) && !parts[2]) {
+    return handle(async () => {
+      const id = Number(parts[1]);
+      const [track] = await sql`SELECT * FROM skill_tracks WHERE id = ${id}`;
+      if (!track) throw Object.assign(new Error("المسار غير موجود"), { status: 404 });
+      const lessons = await sql`SELECT * FROM skill_lessons WHERE track_id = ${id} ORDER BY ord, id`;
+      return {
+        id: track.id, title: track.title, category: track.category, description: track.description,
+        difficulty: track.difficulty, coverUrl: track.cover_url, progress: track.progress,
+        lessons: lessons.map((l: any) => ({
+          id: l.id, trackId: l.track_id, title: l.title, durationMinutes: l.duration_minutes,
+          kind: l.kind, completed: l.completed, ord: l.ord,
+        })),
+      };
+    });
+  }
+
+  // POST /skills/lessons/:id/complete
+  if (parts[3] === "complete") {
     return handle(async () => {
       const { userId } = requireAuth(req.headers);
-      const id = Number(parts[3]);
+      const id = Number(parts[2]);
       await sql`UPDATE skill_lessons SET completed = true WHERE id = ${id}`;
       const [lesson] = await sql`SELECT * FROM skill_lessons WHERE id = ${id}`;
       if (lesson) {
