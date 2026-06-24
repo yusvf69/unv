@@ -1603,38 +1603,122 @@ async function handleNewsById(id: string): Promise<Response> {
   });
 }
 
+async function ensureSkillTables() {
+  await sql`
+    CREATE TABLE IF NOT EXISTS user_skill_progress (
+      id SERIAL PRIMARY KEY,
+      user_id INT NOT NULL,
+      lesson_id INT NOT NULL REFERENCES skill_lessons(id) ON DELETE CASCADE,
+      track_id INT NOT NULL REFERENCES skill_tracks(id) ON DELETE CASCADE,
+      completed BOOLEAN NOT NULL DEFAULT true,
+      quick_check_score INT NOT NULL DEFAULT 0,
+      level TEXT NOT NULL DEFAULT 'beginner',
+      completed_at TIMESTAMP DEFAULT NOW(),
+      UNIQUE(user_id, lesson_id)
+    )
+  `;
+  await sql`
+    CREATE TABLE IF NOT EXISTS skill_quick_checks (
+      id SERIAL PRIMARY KEY,
+      lesson_id INT NOT NULL REFERENCES skill_lessons(id) ON DELETE CASCADE,
+      question TEXT NOT NULL,
+      options JSONB NOT NULL,
+      correct_index INT NOT NULL,
+      explanation TEXT NOT NULL DEFAULT '',
+      ord INT NOT NULL DEFAULT 0
+    )
+  `;
+  try { await sql`CREATE INDEX IF NOT EXISTS idx_usp_user ON user_skill_progress (user_id)`; } catch {}
+  try { await sql`CREATE INDEX IF NOT EXISTS idx_usp_track ON user_skill_progress (track_id)`; } catch {}
+  try { await sql`CREATE INDEX IF NOT EXISTS idx_sqc_lesson ON skill_quick_checks (lesson_id)`; } catch {}
+}
+
+function computeSkillLevel(totalLessons: number, completed: number, avgQuickCheckScore: number): string {
+  if (totalLessons === 0) return "beginner";
+  const pct = completed / totalLessons;
+  if (pct >= 1 && avgQuickCheckScore >= 90) return "mastered";
+  if (pct >= 1 && avgQuickCheckScore >= 70) return "practitioner";
+  if (pct >= 0.5) return "learner";
+  return "beginner";
+}
+
 async function handleSkills(req: Request, parts: string[]): Promise<Response> {
-  // GET /skills/tracks or GET /v2/skills/tracks — list all tracks with lessons
+  await ensureSkillTables();
+
+  // GET /skills/tracks or GET /v2/skills/tracks — list all tracks with lessons + per-user progress
   if (parts[1] === "tracks") {
     return handle(async () => {
+      const { userId } = requireAuth(req.headers);
       const tracks = await sql`SELECT * FROM skill_tracks`;
       if (!tracks.length) return [];
       const lessons = await sql`SELECT * FROM skill_lessons WHERE track_id = ANY(${tracks.map((t: any) => t.id)}) ORDER BY ord, id`;
-      return tracks.map((t: any) => ({
-        id: t.id, title: t.title, category: t.category, description: t.description,
-        difficulty: t.difficulty, coverUrl: t.cover_url, progress: t.progress,
-        lessons: lessons.filter((l: any) => l.track_id === t.id).map((l: any) => ({
-          id: l.id, trackId: l.track_id, title: l.title, durationMinutes: l.duration_minutes,
-          kind: l.kind, completed: l.completed, ord: l.ord,
-        })),
-      }));
+      const userProgress = await sql`SELECT * FROM user_skill_progress WHERE user_id = ${userId}`;
+      const quickChecks = await sql`SELECT * FROM skill_quick_checks ORDER BY ord`;
+
+      return tracks.map((t: any) => {
+        const trackLessons = lessons.filter((l: any) => l.track_id === t.id);
+        const enrichedLessons = trackLessons.map((l: any) => {
+          const prog = userProgress.find((p: any) => p.lesson_id === l.id);
+          const lessonQCs = quickChecks.filter((qc: any) => qc.lesson_id === l.id);
+          return {
+            id: l.id, trackId: l.track_id, title: l.title,
+            durationMinutes: l.duration_minutes, kind: l.kind,
+            completed: prog ? prog.completed : false,
+            quickCheckScore: prog ? prog.quick_check_score : 0,
+            ord: l.ord,
+            quickCheckCount: lessonQCs.length,
+          };
+        });
+        const doneCount = enrichedLessons.filter((l: any) => l.completed).length;
+        const totalCount = enrichedLessons.length;
+        const trackQs = userProgress.filter((p: any) => p.track_id === t.id);
+        const avgScore = trackQs.length ? trackQs.reduce((s: number, p: any) => s + p.quick_check_score, 0) / trackQs.length : 0;
+        const level = computeSkillLevel(totalCount, doneCount, avgScore);
+        const trackProgress = totalCount > 0 ? doneCount / totalCount : 0;
+        return {
+          id: t.id, title: t.title, category: t.category, description: t.description,
+          difficulty: t.difficulty, coverUrl: t.cover_url, progress: trackProgress,
+          level, lessons: enrichedLessons,
+        };
+      });
     });
   }
 
-  // GET /skills/:id — single track detail
+  // GET /skills/:id — single track detail with per-user data + quick checks
   if (parts[1] && !isNaN(Number(parts[1])) && !parts[2]) {
     return handle(async () => {
+      const { userId } = requireAuth(req.headers);
       const id = Number(parts[1]);
       const [track] = await sql`SELECT * FROM skill_tracks WHERE id = ${id}`;
       if (!track) throw Object.assign(new Error("المسار غير موجود"), { status: 404 });
       const lessons = await sql`SELECT * FROM skill_lessons WHERE track_id = ${id} ORDER BY ord, id`;
+      const userProgress = await sql`SELECT * FROM user_skill_progress WHERE user_id = ${userId} AND track_id = ${id}`;
+      const quickChecks = await sql`SELECT * FROM skill_quick_checks WHERE lesson_id = ANY(${lessons.map((l: any) => l.id)}) ORDER BY ord`;
+
+      const enrichedLessons = lessons.map((l: any) => {
+        const prog = userProgress.find((p: any) => p.lesson_id === l.id);
+        const lessonQCs = quickChecks.filter((qc: any) => qc.lesson_id === l.id);
+        return {
+          id: l.id, trackId: l.track_id, title: l.title,
+          durationMinutes: l.duration_minutes, kind: l.kind,
+          completed: prog ? prog.completed : false,
+          quickCheckScore: prog ? prog.quick_check_score : 0,
+          ord: l.ord,
+          quickChecks: lessonQCs.map((qc: any) => ({
+            id: qc.id, question: qc.question, options: qc.options,
+            correctIndex: qc.correct_index, explanation: qc.explanation,
+          })),
+        };
+      });
+      const doneCount = enrichedLessons.filter((l: any) => l.completed).length;
+      const totalCount = enrichedLessons.length;
+      const avgScore = userProgress.length ? userProgress.reduce((s: number, p: any) => s + p.quick_check_score, 0) / userProgress.length : 0;
+      const level = computeSkillLevel(totalCount, doneCount, avgScore);
+      const trackProgress = totalCount > 0 ? doneCount / totalCount : 0;
       return {
         id: track.id, title: track.title, category: track.category, description: track.description,
-        difficulty: track.difficulty, coverUrl: track.cover_url, progress: track.progress,
-        lessons: lessons.map((l: any) => ({
-          id: l.id, trackId: l.track_id, title: l.title, durationMinutes: l.duration_minutes,
-          kind: l.kind, completed: l.completed, ord: l.ord,
-        })),
+        difficulty: track.difficulty, coverUrl: track.cover_url, progress: trackProgress,
+        level, lessons: enrichedLessons,
       };
     });
   }
@@ -1644,17 +1728,61 @@ async function handleSkills(req: Request, parts: string[]): Promise<Response> {
     return handle(async () => {
       const { userId } = requireAuth(req.headers);
       const id = Number(parts[2]);
-      await sql`UPDATE skill_lessons SET completed = true WHERE id = ${id}`;
       const [lesson] = await sql`SELECT * FROM skill_lessons WHERE id = ${id}`;
-      if (lesson) {
-        const all = await sql`SELECT * FROM skill_lessons WHERE track_id = ${lesson.track_id}`;
-        const done = all.filter((l: any) => l.completed).length;
-        const progress = all.length ? done / all.length : 0;
-        await sql`UPDATE skill_tracks SET progress = ${progress} WHERE id = ${lesson.track_id}`;
-        await sql`UPDATE users SET points = points + 5 WHERE id = ${userId}`;
-        try { await recalculateLevel(userId); } catch (e) { console.error("[recalculateLevel]", e); }
+      if (!lesson) throw Object.assign(new Error("الدرس غير موجود"), { status: 404 });
+
+      // Upsert per-user progress
+      await sql`
+        INSERT INTO user_skill_progress (user_id, lesson_id, track_id, completed, completed_at)
+        VALUES (${userId}, ${id}, ${lesson.track_id}, true, NOW())
+        ON CONFLICT (user_id, lesson_id) DO UPDATE SET completed = true, completed_at = NOW()
+      `;
+
+      // Recompute track progress from per-user data
+      const all = await sql`SELECT * FROM skill_lessons WHERE track_id = ${lesson.track_id}`;
+      const userDone = await sql`SELECT * FROM user_skill_progress WHERE user_id = ${userId} AND track_id = ${lesson.track_id} AND completed = true`;
+      const progress = all.length ? userDone.length / all.length : 0;
+      await sql`UPDATE skill_tracks SET progress = ${progress} WHERE id = ${lesson.track_id}`;
+
+      // Compute level
+      const userProgress = await sql`SELECT * FROM user_skill_progress WHERE user_id = ${userId} AND track_id = ${lesson.track_id}`;
+      const avgScore = userProgress.length ? userProgress.reduce((s: number, p: any) => s + p.quick_check_score, 0) / userProgress.length : 0;
+      const level = computeSkillLevel(all.length, userDone.length, avgScore);
+      await sql`UPDATE user_skill_progress SET level = ${level} WHERE user_id = ${userId} AND track_id = ${lesson.track_id}`;
+
+      // Award points
+      await sql`UPDATE users SET points = points + 5 WHERE id = ${userId}`;
+      try { await recalculateLevel(userId); } catch (e) { console.error("[recalculateLevel]", e); }
+
+      return { ok: true, level, progress, xpEarned: 5 };
+    });
+  }
+
+  // POST /skills/quick-checks/:id/submit — submit a quick check answer
+  if (parts[1] === "quick-checks" && parts[3] === "submit") {
+    return handle(async () => {
+      const { userId } = requireAuth(req.headers);
+      const qcId = Number(parts[2]);
+      const body = await req.json();
+      const { answer, lessonId } = body;
+      const [qc] = await sql`SELECT * FROM skill_quick_checks WHERE id = ${qcId}`;
+      if (!qc) throw Object.assign(new Error("السؤال غير موجود"), { status: 404 });
+      const correct = answer === qc.correct_index;
+      const score = correct ? 100 : 0;
+
+      // Update user's quick check score for this lesson
+      const [existing] = await sql`SELECT * FROM user_skill_progress WHERE user_id = ${userId} AND lesson_id = ${lessonId}`;
+      if (existing) {
+        const newScore = Math.max(existing.quick_check_score, score);
+        await sql`UPDATE user_skill_progress SET quick_check_score = ${newScore} WHERE id = ${existing.id}`;
       }
-      return { ok: true };
+
+      if (correct) {
+        await sql`UPDATE users SET points = points + 3 WHERE id = ${userId}`;
+        try { await recalculateLevel(userId); } catch {}
+      }
+
+      return { correct, correctIndex: qc.correct_index, explanation: qc.explanation, xpEarned: correct ? 3 : 0 };
     });
   }
 
@@ -3427,8 +3555,10 @@ async function handleRequest(request: Request): Promise<Response> {
     "GET /skills/tracks": () => handleSkills(request, ["skills", "tracks"]),
     "GET /skills/:id": () => handleSkills(request, ["skills", parts[1]]),
     "POST /skills/lessons/:id/complete": () => handleSkills(request, ["skills", "lessons", parts[2], "complete"]),
+    "POST /skills/quick-checks/:id/submit": () => handleSkills(request, ["skills", "quick-checks", parts[2], "submit"]),
     "GET /v2/skills/tracks": () => handleSkills(request, ["skills", "tracks"]),
     "POST /v2/skills/lessons/:id/complete": () => handleSkills(request, ["skills", "lessons", parts[2], "complete"]),
+    "POST /v2/skills/quick-checks/:id/submit": () => handleSkills(request, ["skills", "quick-checks", parts[3], "submit"]),
 
     // Games
     "POST /games/score": () => handleGames(request, ["games", "score"]),

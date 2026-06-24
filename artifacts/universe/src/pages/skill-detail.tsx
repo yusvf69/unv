@@ -9,7 +9,7 @@ import {
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Progress } from "@/components/ui/progress";
-import { useSkillTracks, useCompleteLesson } from "@/lib/api";
+import { useSkillTracks, useCompleteLesson, useSubmitQuickCheck } from "@/lib/api";
 import { useToast } from "@/hooks/use-toast";
 import { useTranslation, globalI18n } from "@/lib/i18n";
 
@@ -22,6 +22,9 @@ export default function SkillDetail() {
   const { toast } = useToast();
   const t = useTranslation(globalI18n);
   const [busyId, setBusyId] = useState<number | null>(null);
+  const [qcAnswers, setQcAnswers] = useState<Record<number, number>>({});
+  const [qcResults, setQcResults] = useState<Record<number, { correct: boolean; correctIndex: number; explanation: string } | null>>({});
+  const submitQc = useSubmitQuickCheck();
 
   const onComplete = async (lessonId: number) => {
     setBusyId(lessonId);
@@ -55,11 +58,41 @@ export default function SkillDetail() {
 
   if (!track) return <div className="p-8 text-center text-muted-foreground">Loading...</div>;
 
+  const handleQuickCheck = async (qcId: number, answer: number, lessonId: number) => {
+    setQcAnswers((a) => ({ ...a, [qcId]: answer }));
+    try {
+      const res = await submitQc.mutateAsync({ qcId, answer, lessonId });
+      setQcResults((r) => ({ ...r, [qcId]: res }));
+    } catch {}
+  };
+
+  const levelLabels: Record<string, string> = {
+    beginner: "مبتدئ", learner: "متعلم", practitioner: "ممارس", mastered: "متقن",
+  };
+  const levelColors: Record<string, string> = {
+    beginner: "text-slate-600 bg-slate-100 border-slate-300",
+    learner: "text-blue-600 bg-blue-100 border-blue-300",
+    practitioner: "text-emerald-600 bg-emerald-100 border-emerald-300",
+    mastered: "text-amber-600 bg-amber-100 border-amber-300",
+  };
+  const levelIcons: Record<string, any> = {
+    beginner: Circle, learner: Zap, practitioner: Award, mastered: Trophy,
+  };
+  const currentLevel = (track as any).level || "beginner";
+  const LevelIcon = levelIcons[currentLevel] || Circle;
+
+  const nextLevel = currentLevel === "beginner" ? "learner" : currentLevel === "learner" ? "practitioner" : currentLevel === "practitioner" ? "mastered" : null;
+  const levelThresholds: Record<string, { need: string }> = {
+    beginner: { need: "أكمل 50% من الدروس" },
+    learner: { need: "أكمل كل الدروس + 70% في الاختبارات" },
+    practitioner: { need: "أكمل كل الدروس + 90% في الاختبارات" },
+  };
+
   const rewards = [
     { label: "إنهاء أول 3 دروس", xp: 10, icon: Star, unlocked: done >= 3 },
     { label: "إكمال Module 1", xp: 20, icon: Award, unlocked: done >= 3 },
     { label: "إكمال المسار", xp: 100, icon: Trophy, unlocked: done >= total && total > 0 },
-    { label: "90%+ في الاختبار", xp: 50, icon: Zap, unlocked: false },
+    { label: "90%+ في الاختبارات", xp: 50, icon: Zap, unlocked: false },
   ];
 
   return (
@@ -96,6 +129,16 @@ export default function SkillDetail() {
                     <Badge variant={track.difficulty === "advanced" ? "destructive" : track.difficulty === "intermediate" ? "secondary" : "default"} className="text-[10px]">
                       {track.difficulty === "beginner" ? "مبتدئ" : track.difficulty === "intermediate" ? "متوسط" : "متقدم"}
                     </Badge>
+                    {(track as any).level && (
+                      <Badge variant="outline" className={`text-[10px] gap-1 ${
+                        (track as any).level === "mastered" ? "text-amber-600 border-amber-300 bg-amber-50" :
+                        (track as any).level === "practitioner" ? "text-emerald-600 border-emerald-300 bg-emerald-50" :
+                        (track as any).level === "learner" ? "text-blue-600 border-blue-300 bg-blue-50" :
+                        "text-slate-600 border-slate-300 bg-slate-50"
+                      }`}>
+                        {(track as any).level === "mastered" ? "متقن" : (track as any).level === "practitioner" ? "ممارس" : (track as any).level === "learner" ? "متعلم" : "مبتدئ"}
+                      </Badge>
+                    )}
                     <Badge variant="outline" className="text-[10px] gap-1">
                       <BookOpen className="h-3 w-3" /> {total} دروس
                     </Badge>
@@ -171,54 +214,107 @@ export default function SkillDetail() {
                       {mod.lessons.map((lesson, li) => {
                         const isBusy = busyId === lesson.id;
                         return (
-                          <div
-                            key={lesson.id}
-                            className={`flex items-center gap-2 sm:gap-3 px-3 sm:px-4 py-2.5 sm:py-3 transition ${lesson.completed ? "bg-emerald-500/5" : "hover:bg-muted/20"}`}
-                          >
-                            <div className={`shrink-0 w-5 h-5 sm:w-6 sm:h-6 rounded-full flex items-center justify-center ${lesson.completed ? "bg-emerald-500/20" : "bg-muted"}`}>
-                              {lesson.completed ? (
-                                <CheckCircle2 className="h-3.5 w-3.5 sm:h-4 sm:w-4 text-emerald-600" />
-                              ) : (
-                                <Circle className="h-3 w-3 sm:h-3.5 sm:w-3.5 text-muted-foreground" />
-                              )}
-                            </div>
+                          <div key={lesson.id}>
+                            <div className={`flex items-center gap-2 sm:gap-3 px-3 sm:px-4 py-2.5 sm:py-3 transition ${lesson.completed ? "bg-emerald-500/5" : "hover:bg-muted/20"}`}>
+                              <div className={`shrink-0 w-5 h-5 sm:w-6 sm:h-6 rounded-full flex items-center justify-center ${lesson.completed ? "bg-emerald-500/20" : "bg-muted"}`}>
+                                {lesson.completed ? (
+                                  <CheckCircle2 className="h-3.5 w-3.5 sm:h-4 sm:w-4 text-emerald-600" />
+                                ) : (
+                                  <Circle className="h-3 w-3 sm:h-3.5 sm:w-3.5 text-muted-foreground" />
+                                )}
+                              </div>
 
-                            <div className="flex-1 min-w-0">
-                              <div className="flex items-center gap-1.5">
-                                <span className="text-[10px] text-muted-foreground">{mi * 3 + li + 1}.</span>
-                                <span className={`text-xs sm:text-sm font-medium truncate ${lesson.completed ? "line-through text-muted-foreground" : ""}`}>
-                                  {lesson.title}
+                              <div className="flex-1 min-w-0">
+                                <div className="flex items-center gap-1.5">
+                                  <span className="text-[10px] text-muted-foreground">{mi * 3 + li + 1}.</span>
+                                  <span className={`text-xs sm:text-sm font-medium truncate ${lesson.completed ? "line-through text-muted-foreground" : ""}`}>
+                                    {lesson.title}
+                                  </span>
+                                  <Badge variant="outline" className="text-[8px] sm:text-[10px] h-4 sm:h-5 px-1 gap-0.5 hidden sm:inline-flex">
+                                    {lesson.kind === "lesson" && <PlayCircle className="h-2.5 w-2.5" />}
+                                    {lesson.kind === "task" && <FileText className="h-2.5 w-2.5" />}
+                                    {lesson.kind === "quiz" && <Target className="h-2.5 w-2.5" />}
+                                    {lesson.kind === "challenge" && <Trophy className="h-2.5 w-2.5" />}
+                                    {lesson.kind === "lab" && <FlaskConical className="h-2.5 w-2.5" />}
+                                    {lesson.kind}
+                                  </Badge>
+                                  {(lesson as any).quickCheckScore > 0 && (
+                                    <span className={`text-[9px] font-bold ${(lesson as any).quickCheckScore >= 90 ? "text-emerald-600" : (lesson as any).quickCheckScore >= 70 ? "text-amber-600" : "text-red-600"}`}>
+                                      {(lesson as any).quickCheckScore}%
+                                    </span>
+                                  )}
+                                </div>
+                              </div>
+
+                              <div className="flex items-center gap-1.5 sm:gap-2 shrink-0">
+                                <span className="text-[10px] text-muted-foreground flex items-center gap-0.5">
+                                  <Clock className="h-2.5 w-2.5" />
+                                  {lesson.durationMinutes}
                                 </span>
-                                <Badge variant="outline" className="text-[8px] sm:text-[10px] h-4 sm:h-5 px-1 gap-0.5 hidden sm:inline-flex">
-                                  {lesson.kind === "lesson" && <PlayCircle className="h-2.5 w-2.5" />}
-                                  {lesson.kind === "task" && <FileText className="h-2.5 w-2.5" />}
-                                  {lesson.kind === "quiz" && <Target className="h-2.5 w-2.5" />}
-                                  {lesson.kind === "challenge" && <Trophy className="h-2.5 w-2.5" />}
-                                  {lesson.kind === "lab" && <FlaskConical className="h-2.5 w-2.5" />}
-                                  {lesson.kind}
-                                </Badge>
+                                {!lesson.completed ? (
+                                  <Button
+                                    size="sm"
+                                    variant="outline"
+                                    className="h-6 sm:h-7 text-[10px] px-1.5 sm:px-2"
+                                    onClick={() => onComplete(lesson.id)}
+                                    disabled={isBusy}
+                                  >
+                                    {isBusy ? <Loader2 className="h-3 w-3 animate-spin" /> : "أكمل"}
+                                  </Button>
+                                ) : (
+                                  (lesson as any).quickCheckScore > 0 ? (
+                                    <div className={`text-[9px] font-bold px-1.5 py-0.5 rounded ${(lesson as any).quickCheckScore >= 70 ? "bg-emerald-500/10 text-emerald-600" : "bg-amber-500/10 text-amber-600"}`}>
+                                      {(lesson as any).quickCheckScore}%
+                                    </div>
+                                  ) : (
+                                    <CheckCircle2 className="h-4 w-4 text-emerald-600" />
+                                  )
+                                )}
                               </div>
                             </div>
 
-                            <div className="flex items-center gap-1.5 sm:gap-2 shrink-0">
-                              <span className="text-[10px] text-muted-foreground flex items-center gap-0.5">
-                                <Clock className="h-2.5 w-2.5" />
-                                {lesson.durationMinutes}
-                              </span>
-                              {!lesson.completed ? (
-                                <Button
-                                  size="sm"
-                                  variant="outline"
-                                  className="h-6 sm:h-7 text-[10px] px-1.5 sm:px-2"
-                                  onClick={() => onComplete(lesson.id)}
-                                  disabled={isBusy}
-                                >
-                                  {isBusy ? <Loader2 className="h-3 w-3 animate-spin" /> : "أكمل"}
-                                </Button>
-                              ) : (
-                                <CheckCircle2 className="h-4 w-4 text-emerald-600" />
-                              )}
-                            </div>
+                            {/* Quick Checks — show inline when lesson completed + has questions */}
+                            {(lesson as any).quickChecks && (lesson as any).quickChecks.length > 0 && lesson.completed && (
+                              <div className="px-3 sm:px-6 pb-3 space-y-2">
+                                {(lesson as any).quickChecks.map((qc: any) => {
+                                  const result = qcResults[qc.id];
+                                  const selected = qcAnswers[qc.id];
+                                  return (
+                                    <div key={qc.id} className="bg-background border rounded-lg p-3">
+                                      <p className="text-xs sm:text-sm font-medium mb-2">{qc.question}</p>
+                                      <div className="space-y-1">
+                                        {qc.options.map((opt: string, oi: number) => {
+                                          let cls = "border-muted hover:bg-muted/30";
+                                          if (result) {
+                                            if (oi === result.correctIndex) cls = "border-emerald-500 bg-emerald-50";
+                                            else if (selected === oi && !result.correct) cls = "border-red-500 bg-red-50";
+                                          } else if (selected === oi) {
+                                            cls = "border-primary bg-primary/5";
+                                          }
+                                          return (
+                                            <button
+                                              key={oi}
+                                              onClick={() => !result && handleQuickCheck(qc.id, oi, lesson.id)}
+                                              disabled={!!result}
+                                              className={`w-full text-right flex items-center gap-2 p-2 rounded-lg border text-xs sm:text-sm transition ${cls}`}
+                                            >
+                                              <div className={`w-4 h-4 rounded-full border-2 shrink-0 flex items-center justify-center ${result && oi === result.correctIndex ? "border-emerald-500 bg-emerald-500" : selected === oi ? "border-primary" : "border-muted-foreground/30"}`}>
+                                                {result && oi === result.correctIndex && <CheckCircle2 className="h-3 w-3 text-white" />}
+                                              </div>
+                                              <span className="flex-1">{opt}</span>
+                                              {result && oi === result.correctIndex && <CheckCircle2 className="h-3.5 w-3.5 text-emerald-600" />}
+                                            </button>
+                                          );
+                                        })}
+                                      </div>
+                                      {result && result.explanation && (
+                                        <p className="text-[10px] sm:text-xs text-muted-foreground mt-2 pt-2 border-t">{result.explanation}</p>
+                                      )}
+                                    </div>
+                                  );
+                                })}
+                              </div>
+                            )}
                           </div>
                         );
                       })}
@@ -231,10 +327,43 @@ export default function SkillDetail() {
 
           {/* ===== SIDEBAR ===== */}
           <div className="space-y-3 sm:space-y-4">
+            {/* SKILL LEVEL */}
+            <motion.div
+              initial={{ opacity: 0, x: 10 }}
+              animate={{ opacity: 1, x: 0 }}
+              className="bg-card border rounded-xl p-3 sm:p-4"
+            >
+              <div className="flex items-center gap-2 mb-2">
+                <Trophy className="h-4 w-4 text-amber-500" />
+                <h3 className="font-bold text-sm">المستوى</h3>
+              </div>
+              <div className={`flex items-center gap-2 p-2.5 rounded-lg border ${levelColors[currentLevel]}`}>
+                <LevelIcon className="h-5 w-5" />
+                <div>
+                  <div className="font-bold text-sm">{levelLabels[currentLevel]}</div>
+                  {nextLevel && (
+                    <div className="text-[10px] opacity-70">التالي: {levelThresholds[currentLevel]?.need}</div>
+                  )}
+                </div>
+              </div>
+              <div className="mt-2 h-1.5 bg-muted rounded-full overflow-hidden">
+                <div className="h-full bg-gradient-to-r from-primary to-secondary rounded-full" style={{
+                  width: `${currentLevel === "beginner" ? Math.min((done / Math.max(total, 1)) * 100, 50) : currentLevel === "learner" ? 50 + Math.min((done / Math.max(total, 1)) * 25, 25) : currentLevel === "practitioner" ? 75 + Math.min((done / Math.max(total, 1)) * 25, 25) : 100}%`
+                }} />
+              </div>
+              <div className="flex justify-between mt-1 text-[8px] text-muted-foreground">
+                <span>مبتدئ</span>
+                <span>متعلم</span>
+                <span>ممارس</span>
+                <span>متقن</span>
+              </div>
+            </motion.div>
+
             {/* REWARDS & MILESTONES */}
             <motion.div
               initial={{ opacity: 0, x: 10 }}
               animate={{ opacity: 1, x: 0 }}
+              transition={{ delay: 0.05 }}
               className="bg-card border rounded-xl p-3 sm:p-4"
             >
               <div className="flex items-center gap-2 mb-3">

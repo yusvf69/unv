@@ -408,10 +408,16 @@ export function useUpvotePost() {
 }
 
 // ===== Skills =====
+export interface SkillLessonFull {
+  id: number; trackId: number; title: string; durationMinutes: number;
+  kind: string; completed: boolean; quickCheckScore: number; ord: number;
+  quickCheckCount?: number;
+  quickChecks?: { id: number; question: string; options: string[]; correctIndex: number; explanation: string }[];
+}
 export interface SkillTrackFull {
   id: number; title: string; category: string; description: string;
   difficulty: string; coverUrl: string | null; progress: number;
-  lessons: { id: number; trackId: number; title: string; durationMinutes: number; kind: string; completed: boolean; ord: number }[];
+  level: string; lessons: SkillLessonFull[];
 }
 export function useSkillTracks() {
   return useQuery<SkillTrackFull[]>({ queryKey: ["v2", "skills"], queryFn: () => api.get("/v2/skills/tracks") });
@@ -423,6 +429,16 @@ export function useCompleteLesson() {
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ["v2", "skills"] });
       qc.invalidateQueries({ queryKey: ["v2", "me"] });
+    },
+  });
+}
+export function useSubmitQuickCheck() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: ({ qcId, answer, lessonId }: { qcId: number; answer: number; lessonId: number }) =>
+      api.post(`/v2/skills/quick-checks/${qcId}/submit`, { answer, lessonId }),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["v2", "skills"] });
     },
   });
 }

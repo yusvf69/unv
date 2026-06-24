@@ -4,7 +4,7 @@ import { useLocation } from "wouter";
 import {
   Sparkles, CheckCircle2, Circle, Clock, Loader2, ArrowRight,
   GraduationCap, FlaskConical, Briefcase, UserCheck, Target,
-  Trophy, Zap, Flame, BookOpen, Star, ChevronDown, Filter,
+  Trophy, Zap, Flame, BookOpen, Star, ChevronDown, Filter, Award,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -333,6 +333,19 @@ export default function Skills() {
                 {catTracks.map((track, ti) => {
                   const done = track.lessons.filter((l) => l.completed).length;
                   const pct = track.lessons.length ? Math.round((done / track.lessons.length) * 100) : 0;
+                  const levelColors: Record<string, string> = {
+                    beginner: "bg-slate-100 text-slate-700 border-slate-300",
+                    learner: "bg-blue-100 text-blue-700 border-blue-300",
+                    practitioner: "bg-emerald-100 text-emerald-700 border-emerald-300",
+                    mastered: "bg-amber-100 text-amber-700 border-amber-300",
+                  };
+                  const levelLabels: Record<string, string> = {
+                    beginner: "مبتدئ", learner: "متعلم", practitioner: "ممارس", mastered: "متقن",
+                  };
+                  const levelIcons: Record<string, any> = {
+                    beginner: Circle, learner: Zap, practitioner: Award, mastered: Trophy,
+                  };
+                  const LevelIcon = levelIcons[track.level] || Circle;
                   return (
                     <motion.button
                       key={track.id}
@@ -344,7 +357,13 @@ export default function Skills() {
                     >
                       <div className="flex items-start justify-between gap-2 mb-2">
                         <div className="min-w-0 flex-1">
-                          <h3 className="font-bold text-sm sm:text-lg truncate">{track.title}</h3>
+                          <div className="flex items-center gap-1.5 flex-wrap">
+                            <h3 className="font-bold text-sm sm:text-lg truncate">{track.title}</h3>
+                            <span className={`inline-flex items-center gap-0.5 text-[9px] sm:text-[10px] font-bold px-1.5 py-0.5 rounded-full border ${levelColors[track.level] || levelColors.beginner}`}>
+                              <LevelIcon className="h-2.5 w-2.5" />
+                              {levelLabels[track.level] || "مبتدئ"}
+                            </span>
+                          </div>
                           <p className="text-xs sm:text-sm text-muted-foreground line-clamp-2 mt-0.5">{track.description}</p>
                         </div>
                         <Badge variant={track.difficulty === "advanced" ? "destructive" : track.difficulty === "intermediate" ? "secondary" : "default"} className="text-[10px] shrink-0">
