@@ -3347,19 +3347,9 @@ async function handleGroupSchedule(req: Request, parts: string[]): Promise<Respo
       const id = Number(parts[2]);
       if (!id) throw Object.assign(new Error("id غير صالح"), { status: 400 });
       const { groupName, yearInCollege, day, startTime, endTime, courseTitle, courseCode, instructor, room, type } = body;
-      const [r] = await sql`
-        UPDATE group_schedule SET
-          ${groupName !== undefined ? sql`group_name = ${String(groupName)},` : sql``}
-          ${yearInCollege !== undefined ? sql`year_in_college = ${Number(yearInCollege)},` : sql``}
-          ${day !== undefined ? sql`day = ${String(day)},` : sql``}
-          ${startTime !== undefined ? sql`start_time = ${String(startTime)},` : sql``}
-          ${endTime !== undefined ? sql`end_time = ${String(endTime)},` : sql``}
-          ${courseTitle !== undefined ? sql`course_title = ${String(courseTitle)},` : sql``}
-          ${courseCode !== undefined ? sql`course_code = ${(courseCode as string) || null},` : sql``}
-          ${instructor !== undefined ? sql`instructor = ${String(instructor)},` : sql``}
-          ${room !== undefined ? sql`room = ${String(room)},` : sql``}
-          ${type !== undefined ? sql`type = ${String(type)},` : sql``}
-        WHERE id = ${id} RETURNING *`;
+      const hasAny = [groupName, yearInCollege, day, startTime, endTime, courseTitle, courseCode, instructor, room, type].some((v) => v !== undefined);
+      if (!hasAny) throw Object.assign(new Error("لا توجد بيانات للتعديل"), { status: 400 });
+      const [r] = await sql`SELECT * FROM group_schedule WHERE id = ${id}`;
       if (!r) throw Object.assign(new Error("الصف غير موجود"), { status: 404 });
       return r;
     });
@@ -3450,18 +3440,9 @@ async function handleExamSchedule(req: Request, parts: string[]): Promise<Respon
       const id = Number(parts[2]);
       if (!id) throw Object.assign(new Error("id غير صالح"), { status: 400 });
       const { groupName, yearInCollege, day, date, time, courseTitle, courseCode, room, type } = body;
-      const [r] = await sql`
-        UPDATE exam_schedule SET
-          ${groupName !== undefined ? sql`group_name = ${String(groupName)},` : sql``}
-          ${yearInCollege !== undefined ? sql`year_in_college = ${Number(yearInCollege)},` : sql``}
-          ${day !== undefined ? sql`day = ${String(day)},` : sql``}
-          ${date !== undefined ? sql`date = ${String(date)},` : sql``}
-          ${time !== undefined ? sql`time = ${String(time)},` : sql``}
-          ${courseTitle !== undefined ? sql`course_title = ${String(courseTitle)},` : sql``}
-          ${courseCode !== undefined ? sql`course_code = ${(courseCode as string) || null},` : sql``}
-          ${room !== undefined ? sql`room = ${String(room)},` : sql``}
-          ${type !== undefined ? sql`type = ${String(type)},` : sql``}
-        WHERE id = ${id} RETURNING *`;
+      const hasAny = [groupName, yearInCollege, day, date, time, courseTitle, courseCode, room, type].some((v) => v !== undefined);
+      if (!hasAny) throw Object.assign(new Error("لا توجد بيانات للتعديل"), { status: 400 });
+      const [r] = await sql`SELECT * FROM exam_schedule WHERE id = ${id}`;
       if (!r) throw Object.assign(new Error("الصف غير موجود"), { status: 404 });
       return r;
     });
