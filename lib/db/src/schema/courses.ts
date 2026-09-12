@@ -16,6 +16,7 @@ export const coursesTable = pgTable("courses", {
   enrolled: integer("enrolled").notNull().default(0),
   syllabus: text("syllabus").array(),
   yearInCollege: integer("year_in_college"),
+  semester: integer("semester").notNull().default(1),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
 });
 
