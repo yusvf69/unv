@@ -62,6 +62,10 @@ artifacts/app/node_modules/
 .env
 .env.local
 .env.*.local
+.env.prod
+.env.prev
+.env.dev
 dist_public
 /public
 artifacts/app/
+.vercel

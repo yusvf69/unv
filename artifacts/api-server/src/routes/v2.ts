@@ -1071,26 +1071,7 @@ router.post("/v2/auth/signup", (req, res) => {
   });
 });
 
-// ---------- DEMO QUICK LOGIN (email/phone + password) ----------
-router.post("/v2/auth/demo-login", (req, res) => {
-  void handle(res, async () => {
-    const { email, password } = req.body as { email: string; password?: string };
-    const normalizedEmail = String(email || "").trim().toLowerCase();
-    const DEMO_ONLY_EMAIL = "youssef@test.com";
-    if (!password && normalizedEmail !== DEMO_ONLY_EMAIL) {
-      throw Object.assign(new Error("كلمة المرور مطلوبة"), { status: 401 });
-    }
-    const [u] = await db.select().from(schema.usersTable).where(eq(schema.usersTable.email, email)).limit(1);
-    if (!u) throw Object.assign(new Error("الحساب غير موجود"), { status: 404 });
-    if (password) {
-      const valid = await bcrypt.compare(password, u.password);
-      if (!valid) throw Object.assign(new Error("كلمة المرور غير صحيحة"), { status: 401 });
-    }
-    setDemoUser(res, u.id);
-    return { userId: u.id, role: u.role };
-  });
-});
-
+// ---------- AUTH ----------
 router.post("/v2/follow/:id", (req, res) => {
   void handle(res, async () => {
     const targetId = Number(req.params.id);

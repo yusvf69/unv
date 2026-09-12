@@ -458,9 +458,6 @@ export function useLogout() {
       try {
         document.cookie = "uv_demo_user=; Max-Age=0; path=/;";
       } catch {}
-      try {
-        localStorage.setItem("uv_demo_enabled", "0");
-      } catch {}
       qc.clear();
     },
   });

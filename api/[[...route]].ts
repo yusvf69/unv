@@ -899,26 +899,6 @@ async function handleAuth(req: Request, parts: string[]): Promise<Response> {
     });
   }
 
-  if (action === "demo-login") {
-    return handle(async () => {
-      const body = await req.json();
-      const { email, password } = body;
-      const normalizedEmail = String(email || "").trim().toLowerCase();
-      const DEMO_ONLY_EMAIL = "youssef@test.com";
-      if (!password && normalizedEmail !== DEMO_ONLY_EMAIL) {
-        throw Object.assign(new Error("كلمة المرور مطلوبة"), { status: 401 });
-      }
-      const [u] = await sql`SELECT * FROM users WHERE email = ${email} LIMIT 1`;
-      if (!u) throw Object.assign(new Error("الحساب غير موجود"), { status: 404 });
-      if (password) {
-        const valid = await bcrypt.compare(password, u.password);
-        if (!valid) throw Object.assign(new Error("كلمة المرور غير صحيحة"), { status: 401 });
-      }
-      const token = generateToken(u.id, u.role);
-      return { userId: u.id, role: u.role, token };
-    });
-  }
-
   return jsonError("Not Found", 404);
 }
 
@@ -4748,12 +4728,10 @@ async function handleRequest(request: Request): Promise<Response> {
     "POST /auth/login": () => handleAuth(request, parts),
     "POST /auth/signup": () => handleAuth(request, parts),
     "POST /auth/logout": () => handleAuth(request, parts),
-    "POST /auth/demo-login": () => handleAuth(request, parts),
     "GET /auth/username-available": () => handleAuth(request, parts),
     "POST /v2/auth/login": () => handleAuth(request, parts),
     "POST /v2/auth/signup": () => handleAuth(request, parts),
     "POST /v2/auth/logout": () => handleAuth(request, parts),
-    "POST /v2/auth/demo-login": () => handleAuth(request, parts),
     "GET /v2/auth/username-available": () => handleAuth(request, parts),
     "POST /auth/send-verification": () => handleAuth(request, parts),
     "POST /v2/auth/send-verification": () => handleAuth(request, parts),
