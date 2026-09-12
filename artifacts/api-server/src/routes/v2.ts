@@ -1823,6 +1823,28 @@ router.post("/v2/admin/group-schedule/import", requireRole(["admin", "super_admi
   });
 });
 
+router.put("/v2/admin/group-schedule/:id", requireRole(["admin", "super_admin"]), (req, res) => {
+  void handle(res, async () => {
+    const id = Number(req.params.id);
+    const b = (req.body ?? {}) as any;
+    const patch: any = {};
+    if (b.groupName !== undefined) patch.groupName = String(b.groupName);
+    if (b.yearInCollege !== undefined) patch.yearInCollege = Number(b.yearInCollege);
+    if (b.day !== undefined) patch.day = String(b.day);
+    if (b.startTime !== undefined) patch.startTime = String(b.startTime);
+    if (b.endTime !== undefined) patch.endTime = String(b.endTime);
+    if (b.courseTitle !== undefined) patch.courseTitle = String(b.courseTitle);
+    if (b.courseCode !== undefined) patch.courseCode = (b.courseCode as string) || null;
+    if (b.instructor !== undefined) patch.instructor = String(b.instructor);
+    if (b.room !== undefined) patch.room = String(b.room);
+    if (b.type !== undefined) patch.type = String(b.type);
+    if (!Object.keys(patch).length) throw Object.assign(new Error("لا توجد بيانات للتعديل"), { status: 400 });
+    const [r] = await db.update(schema.groupScheduleTable).set(patch).where(eq(schema.groupScheduleTable.id, id)).returning();
+    if (!r) throw Object.assign(new Error("الصف غير موجود"), { status: 404 });
+    return r;
+  });
+});
+
 router.delete("/v2/admin/group-schedule/:id", requireRole(["admin", "super_admin"]), (req, res) => {
   void handle(res, async () => {
     const id = Number(req.params.id);
@@ -1936,6 +1958,27 @@ router.post("/v2/admin/exam-schedule/import", requireRole(["admin", "super_admin
       inserted++;
     }
     return { ok: true, inserted };
+  });
+});
+
+router.put("/v2/admin/exam-schedule/:id", requireRole(["admin", "super_admin"]), (req, res) => {
+  void handle(res, async () => {
+    const id = Number(req.params.id);
+    const b = (req.body ?? {}) as any;
+    const patch: any = {};
+    if (b.groupName !== undefined) patch.groupName = String(b.groupName);
+    if (b.yearInCollege !== undefined) patch.yearInCollege = Number(b.yearInCollege);
+    if (b.day !== undefined) patch.day = String(b.day);
+    if (b.date !== undefined) patch.date = String(b.date);
+    if (b.time !== undefined) patch.time = String(b.time);
+    if (b.courseTitle !== undefined) patch.courseTitle = String(b.courseTitle);
+    if (b.courseCode !== undefined) patch.courseCode = (b.courseCode as string) || null;
+    if (b.room !== undefined) patch.room = String(b.room);
+    if (b.type !== undefined) patch.type = String(b.type);
+    if (!Object.keys(patch).length) throw Object.assign(new Error("لا توجد بيانات للتعديل"), { status: 400 });
+    const [r] = await db.update(schema.examScheduleTable).set(patch).where(eq(schema.examScheduleTable.id, id)).returning();
+    if (!r) throw Object.assign(new Error("الصف غير موجود"), { status: 404 });
+    return r;
   });
 });
 

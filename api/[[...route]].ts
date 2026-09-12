@@ -3341,6 +3341,29 @@ async function handleGroupSchedule(req: Request, parts: string[]): Promise<Respo
       return groups.length * years.length > 1 ? { ok: true, created: created.length } : created[0];
     });
   }
+  if (req.method === "PUT") {
+    return handle(async () => {
+      const body = await req.json();
+      const id = Number(parts[2]);
+      if (!id) throw Object.assign(new Error("id غير صالح"), { status: 400 });
+      const { groupName, yearInCollege, day, startTime, endTime, courseTitle, courseCode, instructor, room, type } = body;
+      const [r] = await sql`
+        UPDATE group_schedule SET
+          ${groupName !== undefined ? sql`group_name = ${String(groupName)},` : sql``}
+          ${yearInCollege !== undefined ? sql`year_in_college = ${Number(yearInCollege)},` : sql``}
+          ${day !== undefined ? sql`day = ${String(day)},` : sql``}
+          ${startTime !== undefined ? sql`start_time = ${String(startTime)},` : sql``}
+          ${endTime !== undefined ? sql`end_time = ${String(endTime)},` : sql``}
+          ${courseTitle !== undefined ? sql`course_title = ${String(courseTitle)},` : sql``}
+          ${courseCode !== undefined ? sql`course_code = ${(courseCode as string) || null},` : sql``}
+          ${instructor !== undefined ? sql`instructor = ${String(instructor)},` : sql``}
+          ${room !== undefined ? sql`room = ${String(room)},` : sql``}
+          ${type !== undefined ? sql`type = ${String(type)},` : sql``}
+        WHERE id = ${id} RETURNING *`;
+      if (!r) throw Object.assign(new Error("الصف غير موجود"), { status: 404 });
+      return r;
+    });
+  }
   if (req.method === "DELETE") {
     return handle(async () => { await sql`DELETE FROM group_schedule WHERE id = ${Number(parts[2])}`; return { ok: true }; });
   }
@@ -3419,6 +3442,28 @@ async function handleExamSchedule(req: Request, parts: string[]): Promise<Respon
         }
       }
       return groups.length * years.length > 1 ? { ok: true, created: created.length } : created[0];
+    });
+  }
+  if (req.method === "PUT") {
+    return handle(async () => {
+      const body = await req.json();
+      const id = Number(parts[2]);
+      if (!id) throw Object.assign(new Error("id غير صالح"), { status: 400 });
+      const { groupName, yearInCollege, day, date, time, courseTitle, courseCode, room, type } = body;
+      const [r] = await sql`
+        UPDATE exam_schedule SET
+          ${groupName !== undefined ? sql`group_name = ${String(groupName)},` : sql``}
+          ${yearInCollege !== undefined ? sql`year_in_college = ${Number(yearInCollege)},` : sql``}
+          ${day !== undefined ? sql`day = ${String(day)},` : sql``}
+          ${date !== undefined ? sql`date = ${String(date)},` : sql``}
+          ${time !== undefined ? sql`time = ${String(time)},` : sql``}
+          ${courseTitle !== undefined ? sql`course_title = ${String(courseTitle)},` : sql``}
+          ${courseCode !== undefined ? sql`course_code = ${(courseCode as string) || null},` : sql``}
+          ${room !== undefined ? sql`room = ${String(room)},` : sql``}
+          ${type !== undefined ? sql`type = ${String(type)},` : sql``}
+        WHERE id = ${id} RETURNING *`;
+      if (!r) throw Object.assign(new Error("الصف غير موجود"), { status: 404 });
+      return r;
     });
   }
   if (req.method === "DELETE") return handle(async () => { await sql`DELETE FROM exam_schedule WHERE id = ${Number(parts[2])}`; return { ok: true }; });
@@ -4877,7 +4922,9 @@ async function handleRequest(request: Request): Promise<Response> {
     "PATCH /admin/users/:id/grant": () => handleAdminCrud(request, ["", "admin", "users", parts[2], "grant"]),
     "GET /admin/student/:id/full": () => handleAdminCrud(request, ["", "admin", "student", parts[2], "full"]),
     "DELETE /admin/group-schedule/:id": () => handleGroupSchedule(request, ["group-schedule", parts[2]]),
+    "PUT /admin/group-schedule/:id": () => handleGroupSchedule(request, ["group-schedule", parts[2]]),
     "DELETE /admin/exam-schedule/:id": () => handleExamSchedule(request, ["exam-schedule", parts[2]]),
+    "PUT /admin/exam-schedule/:id": () => handleExamSchedule(request, ["exam-schedule", parts[2]]),
     "POST /admin/news/:id/approve": () => handleAdminNews(request, ["admin", "news", parts[2], "approve"]),
     "POST /admin/news/:id/reject": () => handleAdminNews(request, ["admin", "news", parts[2], "reject"]),
     "DELETE /admin/news/:id": () => handleAdminNews(request, ["admin", "news", parts[2]]),
@@ -4944,7 +4991,9 @@ async function handleRequest(request: Request): Promise<Response> {
     "PATCH /v2/admin/users/:id/grant": () => handleAdminCrud(request, ["", "admin", "users", parts[3], "grant"]),
     "GET /v2/admin/student/:id/full": () => handleAdminCrud(request, ["", "admin", "student", parts[3], "full"]),
     "DELETE /v2/admin/group-schedule/:id": () => handleGroupSchedule(request, ["admin", ...parts.slice(2)]),
+    "PUT /v2/admin/group-schedule/:id": () => handleGroupSchedule(request, ["admin", ...parts.slice(2)]),
     "DELETE /v2/admin/exam-schedule/:id": () => handleExamSchedule(request, ["admin", ...parts.slice(2)]),
+    "PUT /v2/admin/exam-schedule/:id": () => handleExamSchedule(request, ["admin", ...parts.slice(2)]),
     "POST /v2/admin/news/:id/approve": () => handleAdminNews(request, ["admin", "news", parts[3], "approve"]),
     "POST /v2/admin/news/:id/reject": () => handleAdminNews(request, ["admin", "news", parts[3], "reject"]),
     "DELETE /v2/admin/news/:id": () => handleAdminNews(request, ["admin", "news", parts[3]]),

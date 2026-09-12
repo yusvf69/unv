@@ -1,15 +1,15 @@
 import { useMemo, useState } from "react";
 import { motion } from "framer-motion";
-import { Plus, Trash2, Calendar, FileText, Clock, Award, Upload } from "lucide-react";
+import { Plus, Trash2, Calendar, FileText, Clock, Award, Upload, Pencil } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import {
-  useAdminGroupSchedule, useAddGroupScheduleRow, useDeleteGroupScheduleRow,
-  useImportGroupSchedule, useAdminExamSchedule, useAddExamScheduleRow, useDeleteExamScheduleRow,
-  useImportExamSchedule, useMeV2,
+  useMeV2, useAdminGroupSchedule, useAddGroupScheduleRow, useDeleteGroupScheduleRow, useUpdateGroupScheduleRow,
+  useImportGroupSchedule, useAdminExamSchedule, useAddExamScheduleRow, useDeleteExamScheduleRow, useUpdateExamScheduleRow,
+  useImportExamSchedule, type GroupScheduleRow, type ExamScheduleRow,
 } from "@/lib/api";
 import { parseScheduleText, type ScheduleKind } from "@/lib/schedule-parse";
 import { useToast } from "@/hooks/use-toast";
@@ -136,9 +136,11 @@ function ClassScheduleTab() {
   const { data: rows = [] } = useAdminGroupSchedule();
   const add = useAddGroupScheduleRow();
   const del = useDeleteGroupScheduleRow();
+  const update = useUpdateGroupScheduleRow();
   const { toast } = useToast();
   const [open, setOpen] = useState(false);
   const [importOpen, setImportOpen] = useState(false);
+  const [editTargets, setEditTargets] = useState<GroupScheduleRow[] | null>(null);
   const [filterGroup, setFilterGroup] = useState<string | null>(null);
   const [filterYear, setFilterYear] = useState<number | null>(null);
   const [form, setForm] = useState({
@@ -149,15 +151,62 @@ function ClassScheduleTab() {
 
   const filtered = rows.filter((r) => (!filterGroup || r.groupName === filterGroup) && (!filterYear || r.yearInCollege === filterYear));
 
+  const grouped = useMemo(() => {
+    const m = new Map<string, { rows: GroupScheduleRow[]; groups: Set<string> }>();
+    for (const r of filtered) {
+      const key = `${r.day}|${r.startTime}|${r.endTime}|${r.courseTitle}|${r.room}|${r.yearInCollege}`;
+      let g = m.get(key);
+      if (!g) { g = { rows: [], groups: new Set() }; m.set(key, g); }
+      g.rows.push(r);
+      g.groups.add(r.groupName);
+    }
+    return [...m.values()].map((g) => ({ ...g, key: g.rows[0], groupsSorted: [...g.groups].sort() }));
+  }, [filtered]);
+
+  const openAdd = () => {
+    setEditTargets(null);
+    setForm({
+      groupName: "A", yearInCollege: 1, day: "السبت", startTime: "08:00", endTime: "10:00",
+      courseTitle: "", courseCode: "", instructor: "", room: "", type: "lecture",
+      allGroups: !!filterGroup ? false : true, allYears: false,
+    });
+    setOpen(true);
+  };
+
+  const rowKey = (r: GroupScheduleRow) => `${r.day}|${r.startTime}|${r.endTime}|${r.courseTitle}|${r.room}|${r.yearInCollege}`;
+
+  const openEdit = (r: GroupScheduleRow) => {
+    setForm({
+      groupName: r.groupName, yearInCollege: r.yearInCollege, day: r.day,
+      startTime: r.startTime.slice(0, 5), endTime: r.endTime.slice(0, 5),
+      courseTitle: r.courseTitle, courseCode: r.courseCode ?? "", instructor: r.instructor === "—" ? "" : r.instructor,
+      room: r.room === "—" ? "" : r.room, type: r.type, allGroups: true, allYears: false,
+    });
+    setEditTargets(filtered.filter((x) => rowKey(x) === rowKey(r)));
+    setOpen(true);
+  };
+
   const submit = async () => {
     if (!form.courseTitle || !form.instructor || !form.room) {
       toast({ title: "املأ الحقول الأساسية", variant: "destructive" });
       return;
     }
+    const body: any = {
+      groupName: form.groupName, yearInCollege: form.yearInCollege, day: form.day,
+      startTime: form.startTime, endTime: form.endTime, courseTitle: form.courseTitle,
+      courseCode: form.courseCode, instructor: form.instructor, room: form.room, type: form.type,
+    };
+    const targets = editTargets ? (form.allGroups ? editTargets : editTargets.slice(0, 1)) : null;
     try {
-      await add.mutateAsync(form as any);
-      toast({ title: form.allGroups || form.allYears ? "أُضيف لكل الشعب/السنوات المختارة" : "أُضيف للجدول" });
+      if (targets?.length) {
+        await Promise.all(targets.map((t) => update.mutateAsync({ id: t.id, ...body })));
+        toast({ title: targets.length > 1 ? "تم تعديل كل الشعب" : "تم تعديل المحاضرة" });
+      } else {
+        await add.mutateAsync(form.allGroups || form.allYears ? { ...body, allGroups: form.allGroups, allYears: form.allYears } : body);
+        toast({ title: form.allGroups || form.allYears ? "أُضيف لكل الشعب/السنوات المختارة" : "أُضيف للجدول" });
+      }
       setOpen(false);
+      setEditTargets(null);
       setForm({ ...form, courseTitle: "", courseCode: "", instructor: "", room: "" });
     } catch (e) {
       toast({ title: "خطأ", description: (e as Error).message, variant: "destructive" });
@@ -175,36 +224,44 @@ function ClassScheduleTab() {
           <Button size="sm" variant={!filterYear ? "default" : "outline"} onClick={() => setFilterYear(null)} className="h-7 sm:h-8 text-[10px] sm:text-xs">الكل</Button>
           {YEARS.map((y) => <Button key={y} size="sm" variant={filterYear === y ? "default" : "outline"} onClick={() => setFilterYear(y)} className="h-7 sm:h-8 text-[10px] sm:text-xs">{y}</Button>)}
         </div>
-        <Button className="ms-3 h-8 sm:h-9 text-xs sm:text-sm" onClick={() => setOpen(true)}><Plus className="me-2 h-3 w-3 sm:h-4 sm:w-4" /> محاضرة جديدة</Button>
+        <Button className="ms-3 h-8 sm:h-9 text-xs sm:text-sm" onClick={openAdd}><Plus className="me-2 h-3 w-3 sm:h-4 sm:w-4" /> محاضرة جديدة</Button>
         <Button variant="outline" className="h-8 sm:h-9 text-xs sm:text-sm" onClick={() => { setImportOpen(true); setOpen(false); }}><FileText className="me-2 h-3 w-3 sm:h-4 sm:w-4" /> استيراد من نص</Button>
       </div>
 
-      {!filtered.length && <p className="text-center text-muted-foreground py-8 sm:py-12 text-sm">لا توجد محاضرات في الجدول.</p>}
+      {!grouped.length && <p className="text-center text-muted-foreground py-8 sm:py-12 text-sm">لا توجد محاضرات في الجدول.</p>}
 
       <div className="space-y-2">
-        {filtered.map((r, i) => (
-          <motion.div key={r.id} initial={{ opacity: 0, x: -10 }} animate={{ opacity: 1, x: 0 }} transition={{ delay: i * 0.02 }} className="bg-card border rounded-xl p-2 sm:p-3 flex flex-col sm:flex-row items-start gap-2 sm:gap-3 flex-wrap">
-            <div className="bg-primary/10 text-primary font-bold px-2 sm:px-3 py-1 sm:py-1.5 rounded-lg text-xs sm:text-sm">{r.day}</div>
-            <div className="text-xs sm:text-sm font-mono">{r.startTime} - {r.endTime}</div>
-            <div className="flex-1 min-w-0">
-              <div className="font-bold text-xs sm:text-sm">{r.courseTitle} {r.courseCode && <span className="text-xs text-muted-foreground">({r.courseCode})</span>}</div>
-              <div className="text-[10px] sm:text-xs text-muted-foreground">د. {r.instructor} · {r.room}</div>
-            </div>
-            <div className="flex gap-1 sm:gap-1.5">
-              <span className="text-[10px] sm:text-xs bg-secondary/10 text-secondary px-2 py-0.5 rounded-full font-bold">G{r.groupName}</span>
-              <span className="text-[10px] sm:text-xs bg-accent/30 text-accent-foreground px-2 py-0.5 rounded-full">سنة {r.yearInCollege}</span>
-              <span className="text-[10px] sm:text-xs bg-muted px-2 py-0.5 rounded-full">{r.type === "lab" ? "معمل" : r.type === "lecture" ? "محاضرة" : "تدريب"}</span>
-            </div>
-            <Button size="icon" variant="ghost" onClick={() => del.mutateAsync(r.id).then(() => toast({ title: "تم الحذف" }))} className="h-7 w-7 sm:h-8 sm:w-8">
-              <Trash2 className="h-3.5 w-3.5 sm:h-4 sm:w-4 text-destructive" />
-            </Button>
-          </motion.div>
-        ))}
+        {grouped.map((g, i) => {
+          const r = g.rows[0];
+          return (
+            <motion.div key={g.key.id} initial={{ opacity: 0, x: -10 }} animate={{ opacity: 1, x: 0 }} transition={{ delay: i * 0.02 }} className="bg-card border rounded-xl p-2 sm:p-3 flex flex-col sm:flex-row items-start gap-2 sm:gap-3 flex-wrap">
+              <div className="bg-primary/10 text-primary font-bold px-2 sm:px-3 py-1 sm:py-1.5 rounded-lg text-xs sm:text-sm">{r.day}</div>
+              <div className="text-xs sm:text-sm font-mono">{g.rows.length > 1 ? `${r.startTime} - ${r.endTime}` : `${r.startTime} - ${r.endTime}`}</div>
+              <div className="flex-1 min-w-0">
+                <div className="font-bold text-xs sm:text-sm">{r.courseTitle} {r.courseCode && <span className="text-xs text-muted-foreground">({r.courseCode})</span>}</div>
+                <div className="text-[10px] sm:text-xs text-muted-foreground">د. {r.instructor} · {r.room}</div>
+              </div>
+              <div className="flex gap-1 sm:gap-1.5 items-center">
+                <span className="text-[10px] sm:text-xs bg-secondary/10 text-secondary px-2 py-0.5 rounded-full font-bold">{g.groupsSorted.length === 1 ? `G${g.groupsSorted[0]}` : `G ${g.groupsSorted.join("،")}`}</span>
+                <span className="text-[10px] sm:text-xs bg-accent/30 text-accent-foreground px-2 py-0.5 rounded-full">سنة {r.yearInCollege}</span>
+                <span className="text-[10px] sm:text-xs bg-muted px-2 py-0.5 rounded-full">{r.type === "lab" ? "معمل" : r.type === "lecture" ? "محاضرة" : "تدريب"}</span>
+              </div>
+              <div className="flex gap-1">
+                <Button size="icon" variant="ghost" onClick={() => openEdit(r)} className="h-7 w-7 sm:h-8 sm:w-8" title="تعديل">
+                  <Pencil className="h-3.5 w-3.5 sm:h-4 sm:w-4 text-primary" />
+                </Button>
+                <Button size="icon" variant="ghost" onClick={() => Promise.all(g.rows.map((x) => del.mutateAsync(x.id))).then(() => toast({ title: "تم الحذف" }))} className="h-7 w-7 sm:h-8 sm:w-8" title="حذف">
+                  <Trash2 className="h-3.5 w-3.5 sm:h-4 sm:w-4 text-destructive" />
+                </Button>
+              </div>
+            </motion.div>
+          );
+        })}
       </div>
 
-      <Dialog open={open} onOpenChange={setOpen}>
+      <Dialog open={open} onOpenChange={(v) => { setOpen(v); if (!v) setEditTargets(null); }}>
         <DialogContent className="max-w-xl max-h-[90vh]">
-          <DialogHeader><DialogTitle className="text-base sm:text-lg">إضافة محاضرة للجدول</DialogTitle></DialogHeader>
+          <DialogHeader><DialogTitle className="text-base sm:text-lg">{editTargets ? "تعديل محاضرة" : "إضافة محاضرة للجدول"}</DialogTitle></DialogHeader>
           <div className="space-y-3 max-h-[60vh] overflow-y-auto pe-2">
             <div className="grid grid-cols-2 gap-2">
               <div>
@@ -220,17 +277,28 @@ function ClassScheduleTab() {
                 </select>
               </div>
             </div>
-            <div className="flex flex-wrap gap-2">
-              <label className="flex items-center gap-2 text-xs font-bold cursor-pointer bg-primary/5 border rounded-lg px-3 py-2">
-                <input type="checkbox" checked={form.allGroups} onChange={(e) => setForm({ ...form, allGroups: e.target.checked })} className="h-4 w-4 accent-primary" />
-                لكل الشعب (A–E)
-              </label>
-              <label className="flex items-center gap-2 text-xs font-bold cursor-pointer bg-primary/5 border rounded-lg px-3 py-2">
-                <input type="checkbox" checked={form.allYears} onChange={(e) => setForm({ ...form, allYears: e.target.checked })} className="h-4 w-4 accent-primary" />
-                لكل السنوات (1–4)
-              </label>
-              {form.allGroups && <span className="text-[10px] text-muted-foreground self-center">المحاضرة هتتضاف لكل الشعب مع نفس الوقت</span>}
-            </div>
+            {!editTargets && (
+              <div className="flex flex-wrap gap-2">
+                <label className="flex items-center gap-2 text-xs font-bold cursor-pointer bg-primary/5 border rounded-lg px-3 py-2">
+                  <input type="checkbox" checked={form.allGroups} onChange={(e) => setForm({ ...form, allGroups: e.target.checked })} className="h-4 w-4 accent-primary" />
+                  لكل الشعب (A–E)
+                </label>
+                <label className="flex items-center gap-2 text-xs font-bold cursor-pointer bg-primary/5 border rounded-lg px-3 py-2">
+                  <input type="checkbox" checked={form.allYears} onChange={(e) => setForm({ ...form, allYears: e.target.checked })} className="h-4 w-4 accent-primary" />
+                  لكل السنوات (1–4)
+                </label>
+                {form.allGroups && <span className="text-[10px] text-muted-foreground self-center">المحاضرة هتتضاف لكل الشعب مع نفس الوقت</span>}
+              </div>
+            )}
+            {editTargets && (
+              <div className="flex flex-wrap gap-2">
+                <label className="flex items-center gap-2 text-xs font-bold cursor-pointer bg-primary/5 border rounded-lg px-3 py-2">
+                  <input type="checkbox" checked={form.allGroups} onChange={(e) => setForm({ ...form, allGroups: e.target.checked })} className="h-4 w-4 accent-primary" />
+                  تطبيق التعديل على كل الشعب المرتبطين
+                </label>
+                {form.allGroups ? <span className="text-[10px] text-muted-foreground self-center">كل الشعب ليها نفس الموعد ده</span> : <span className="text-[10px] text-muted-foreground self-center">هيتعدل بس على المجموعة {form.groupName}</span>}
+              </div>
+            )}
             <div className="grid grid-cols-3 gap-2">
               <div>
                 <Label className="text-xs">اليوم</Label>
@@ -260,7 +328,7 @@ function ClassScheduleTab() {
           </div>
           <DialogFooter>
             <Button variant="ghost" onClick={() => setOpen(false)} className="text-xs sm:text-sm">إلغاء</Button>
-            <Button onClick={submit} disabled={add.isPending} className="text-xs sm:text-sm">{add.isPending ? "جاري..." : <><Plus className="me-2 h-3.5 w-3.5 sm:h-4 sm:w-4" /> إضافة</>}</Button>
+            <Button onClick={submit} disabled={add.isPending || update.isPending} className="text-xs sm:text-sm">{add.isPending || update.isPending ? "جاري..." : editTargets ? <><Pencil className="me-2 h-3.5 w-3.5 sm:h-4 sm:w-4" /> حفظ التعديل</> : <><Plus className="me-2 h-3.5 w-3.5 sm:h-4 sm:w-4" /> إضافة</>}</Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
@@ -273,9 +341,11 @@ function ExamScheduleTab() {
   const { data: rows = [] } = useAdminExamSchedule();
   const add = useAddExamScheduleRow();
   const del = useDeleteExamScheduleRow();
+  const update = useUpdateExamScheduleRow();
   const { toast } = useToast();
   const [open, setOpen] = useState(false);
   const [importOpen, setImportOpen] = useState(false);
+  const [editTargets, setEditTargets] = useState<ExamScheduleRow[] | null>(null);
   const [filterGroup, setFilterGroup] = useState<string | null>(null);
   const [filterYear, setFilterYear] = useState<number | null>(null);
   const [form, setForm] = useState({
@@ -286,15 +356,50 @@ function ExamScheduleTab() {
 
   const filtered = rows.filter((r) => (!filterGroup || r.groupName === filterGroup) && (!filterYear || r.yearInCollege === filterYear));
 
+  const grouped = useMemo(() => {
+    const m = new Map<string, { rows: ExamScheduleRow[]; groups: Set<string> }>();
+    for (const r of filtered) {
+      const key = `${r.day}|${r.time}|${r.courseTitle}|${r.room}|${r.yearInCollege}|${r.date}`;
+      let g = m.get(key);
+      if (!g) { g = { rows: [], groups: new Set() }; m.set(key, g); }
+      g.rows.push(r);
+      g.groups.add(r.groupName);
+    }
+    return [...m.values()].map((g) => ({ ...g, key: g.rows[0], groupsSorted: [...g.groups].sort() }));
+  }, [filtered]);
+
+  const rowKey = (r: ExamScheduleRow) => `${r.day}|${r.time}|${r.courseTitle}|${r.room}|${r.yearInCollege}|${r.date}`;
+
+  const openEdit = (r: ExamScheduleRow) => {
+    setForm({
+      groupName: r.groupName, yearInCollege: r.yearInCollege, day: r.day, date: r.date,
+      time: r.time.slice(0, 5), courseTitle: r.courseTitle, courseCode: r.courseCode ?? "",
+      room: r.room ?? "", type: r.type, allGroups: true, allYears: false,
+    });
+    setEditTargets(filtered.filter((x) => rowKey(x) === rowKey(r)));
+    setOpen(true);
+  };
+
   const submit = async () => {
     if (!form.courseTitle || !form.room || !form.date) {
       toast({ title: "املأ الحقول الأساسية", variant: "destructive" });
       return;
     }
+    const body: any = {
+      groupName: form.groupName, yearInCollege: form.yearInCollege, day: form.day, date: form.date,
+      time: form.time, courseTitle: form.courseTitle, courseCode: form.courseCode, room: form.room, type: form.type,
+    };
     try {
-      await add.mutateAsync(form as any);
-      toast({ title: form.allGroups || form.allYears ? "أُضيف لكل الشعب/السنوات المختارة" : "أُضيف للجدول" });
+      const targets = editTargets ? (form.allGroups ? editTargets : editTargets.slice(0, 1)) : null;
+      if (targets?.length) {
+        await Promise.all(targets.map((t) => update.mutateAsync({ id: t.id, ...body })));
+        toast({ title: targets.length > 1 ? "تم تعديل كل الشعب" : "تم تعديل الامتحان" });
+      } else {
+        await add.mutateAsync(form.allGroups || form.allYears ? { ...body, allGroups: form.allGroups, allYears: form.allYears } : body);
+        toast({ title: form.allGroups || form.allYears ? "أُضيف لكل الشعب/السنوات المختارة" : "أُضيف للجدول" });
+      }
       setOpen(false);
+      setEditTargets(null);
       setForm({ ...form, courseTitle: "", courseCode: "", room: "", date: "" });
     } catch (e) {
       toast({ title: "خطأ", description: (e as Error).message, variant: "destructive" });
@@ -312,37 +417,45 @@ function ExamScheduleTab() {
           <Button size="sm" variant={!filterYear ? "default" : "outline"} onClick={() => setFilterYear(null)} className="h-7 sm:h-8 text-[10px] sm:text-xs">الكل</Button>
           {YEARS.map((y) => <Button key={y} size="sm" variant={filterYear === y ? "default" : "outline"} onClick={() => setFilterYear(y)} className="h-7 sm:h-8 text-[10px] sm:text-xs">{y}</Button>)}
         </div>
-        <Button className="ms-3 h-8 sm:h-9 text-xs sm:text-sm" onClick={() => setOpen(true)}><Plus className="me-2 h-3 w-3 sm:h-4 sm:w-4" /> امتحان جديد</Button>
+        <Button className="ms-3 h-8 sm:h-9 text-xs sm:text-sm" onClick={() => { setEditTargets(null); setForm({ groupName: "A", yearInCollege: 1, day: "السبت", date: "", time: "09:00", courseTitle: "", courseCode: "", room: "", type: "midterm", allGroups: false, allYears: false }); setOpen(true); }}><Plus className="me-2 h-3 w-3 sm:h-4 sm:w-4" /> امتحان جديد</Button>
         <Button variant="outline" className="h-8 sm:h-9 text-xs sm:text-sm" onClick={() => { setImportOpen(true); setOpen(false); }}><FileText className="me-2 h-3 w-3 sm:h-4 sm:w-4" /> استيراد من نص</Button>
       </div>
 
       {!filtered.length && <p className="text-center text-muted-foreground py-8 sm:py-12 text-sm">لا توجد امتحانات في الجدول.</p>}
 
       <div className="space-y-2">
-        {filtered.map((r, i) => (
-          <motion.div key={r.id} initial={{ opacity: 0, x: -10 }} animate={{ opacity: 1, x: 0 }} transition={{ delay: i * 0.02 }} className="bg-card border rounded-xl p-2 sm:p-3 flex flex-col sm:flex-row items-start gap-2 sm:gap-3 flex-wrap">
-            <div className="bg-amber-500/10 text-amber-600 font-bold px-2 sm:px-3 py-1 sm:py-1.5 rounded-lg text-xs sm:text-sm">{r.day}</div>
-            <div className="text-xs sm:text-sm font-mono">{r.time}</div>
-            <div className="text-[10px] sm:text-xs text-muted-foreground">{r.date}</div>
-            <div className="flex-1 min-w-0">
-              <div className="font-bold text-xs sm:text-sm">{r.courseTitle} {r.courseCode && <span className="text-xs text-muted-foreground">({r.courseCode})</span>}</div>
-              <div className="text-[10px] sm:text-xs text-muted-foreground">{r.room}</div>
-            </div>
-            <div className="flex gap-1 sm:gap-1.5">
-              <span className="text-[10px] sm:text-xs bg-secondary/10 text-secondary px-2 py-0.5 rounded-full font-bold">G{r.groupName}</span>
-              <span className="text-[10px] sm:text-xs bg-accent/30 text-accent-foreground px-2 py-0.5 rounded-full">سنة {r.yearInCollege}</span>
-              <span className="text-[10px] sm:text-xs bg-muted px-2 py-0.5 rounded-full">{r.type === "final" ? "نهائي" : r.type === "midterm" ? "نصفي" : r.type === "quiz" ? "اختبار" : "عملي"}</span>
-            </div>
-            <Button size="icon" variant="ghost" onClick={() => del.mutateAsync(r.id).then(() => toast({ title: "تم الحذف" }))} className="h-7 w-7 sm:h-8 sm:w-8">
-              <Trash2 className="h-3.5 w-3.5 sm:h-4 sm:w-4 text-destructive" />
-            </Button>
-          </motion.div>
-        ))}
+        {grouped.map((g, i) => {
+          const r = g.rows[0];
+          return (
+            <motion.div key={g.key.id} initial={{ opacity: 0, x: -10 }} animate={{ opacity: 1, x: 0 }} transition={{ delay: i * 0.02 }} className="bg-card border rounded-xl p-2 sm:p-3 flex flex-col sm:flex-row items-start gap-2 sm:gap-3 flex-wrap">
+              <div className="bg-amber-500/10 text-amber-600 font-bold px-2 sm:px-3 py-1 sm:py-1.5 rounded-lg text-xs sm:text-sm">{r.day}</div>
+              <div className="text-xs sm:text-sm font-mono">{r.time}</div>
+              <div className="text-[10px] sm:text-xs text-muted-foreground">{r.date}</div>
+              <div className="flex-1 min-w-0">
+                <div className="font-bold text-xs sm:text-sm">{r.courseTitle} {r.courseCode && <span className="text-xs text-muted-foreground">({r.courseCode})</span>}</div>
+                <div className="text-[10px] sm:text-xs text-muted-foreground">{r.room}</div>
+              </div>
+              <div className="flex gap-1 sm:gap-1.5 items-center">
+                <span className="text-[10px] sm:text-xs bg-secondary/10 text-secondary px-2 py-0.5 rounded-full font-bold">{g.groupsSorted.length === 1 ? `G${g.groupsSorted[0]}` : `G ${g.groupsSorted.join("،")}`}</span>
+                <span className="text-[10px] sm:text-xs bg-accent/30 text-accent-foreground px-2 py-0.5 rounded-full">سنة {r.yearInCollege}</span>
+                <span className="text-[10px] sm:text-xs bg-muted px-2 py-0.5 rounded-full">{r.type === "final" ? "نهائي" : r.type === "midterm" ? "نصفي" : r.type === "quiz" ? "اختبار" : "عملي"}</span>
+              </div>
+              <div className="flex gap-1">
+                <Button size="icon" variant="ghost" onClick={() => openEdit(r)} className="h-7 w-7 sm:h-8 sm:w-8" title="تعديل">
+                  <Pencil className="h-3.5 w-3.5 sm:h-4 sm:w-4 text-primary" />
+                </Button>
+                <Button size="icon" variant="ghost" onClick={() => Promise.all(g.rows.map((x) => del.mutateAsync(x.id))).then(() => toast({ title: "تم الحذف" }))} className="h-7 w-7 sm:h-8 sm:w-8" title="حذف">
+                  <Trash2 className="h-3.5 w-3.5 sm:h-4 sm:w-4 text-destructive" />
+                </Button>
+              </div>
+            </motion.div>
+          );
+        })}
       </div>
 
-      <Dialog open={open} onOpenChange={setOpen}>
+      <Dialog open={open} onOpenChange={(v) => { setOpen(v); if (!v) setEditTargets(null); }}>
         <DialogContent className="max-w-xl max-h-[90vh]">
-          <DialogHeader><DialogTitle className="text-base sm:text-lg">إضافة امتحان للجدول</DialogTitle></DialogHeader>
+          <DialogHeader><DialogTitle className="text-base sm:text-lg">{editTargets ? "تعديل امتحان" : "إضافة امتحان للجدول"}</DialogTitle></DialogHeader>
           <div className="space-y-3 max-h-[60vh] overflow-y-auto pe-2">
             <div className="grid grid-cols-2 gap-2">
               <div>
@@ -369,6 +482,14 @@ function ExamScheduleTab() {
               </label>
               {form.allGroups && <span className="text-[10px] text-muted-foreground self-center">الامتحان هيتضاف لكل الشعب</span>}
             </div>
+            {editTargets && (
+              <div className="flex flex-wrap gap-2">
+                <label className="flex items-center gap-2 text-xs font-bold cursor-pointer bg-primary/5 border rounded-lg px-3 py-2">
+                  <input type="checkbox" checked={form.allGroups} onChange={(e) => setForm({ ...form, allGroups: e.target.checked })} className="h-4 w-4 accent-primary" />
+                  تطبيق على كل الشعب (A–E)
+                </label>
+              </div>
+            )}
             <div className="grid grid-cols-3 gap-2">
               <div>
                 <Label className="text-xs">اليوم</Label>
@@ -407,7 +528,7 @@ function ExamScheduleTab() {
           </div>
           <DialogFooter>
             <Button variant="ghost" onClick={() => setOpen(false)} className="text-xs sm:text-sm">إلغاء</Button>
-            <Button onClick={submit} disabled={add.isPending} className="text-xs sm:text-sm">{add.isPending ? "جاري..." : <><Plus className="me-2 h-3.5 w-3.5 sm:h-4 sm:w-4" /> إضافة</>}</Button>
+            <Button onClick={submit} disabled={add.isPending || update.isPending} className="text-xs sm:text-sm">{add.isPending || update.isPending ? "جاري..." : editTargets ? <><Pencil className="me-2 h-3.5 w-3.5 sm:h-4 sm:w-4" /> حفظ التعديل</> : <><Plus className="me-2 h-3.5 w-3.5 sm:h-4 sm:w-4" /> إضافة</>}</Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>

@@ -894,6 +894,16 @@ export function useDeleteGroupScheduleRow() {
     },
   });
 }
+export function useUpdateGroupScheduleRow() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: ({ id, ...body }: { id: number } & Partial<Omit<GroupScheduleRow, "id">>) => api.put(`/v2/admin/group-schedule/${id}`, body),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["v2", "admin", "group-schedule"] });
+      qc.invalidateQueries({ queryKey: ["v2", "group-schedule"] });
+    },
+  });
+}
 export function useImportGroupSchedule() {
   const qc = useQueryClient();
   return useMutation({
@@ -945,6 +955,16 @@ export function useDeleteExamScheduleRow() {
   const qc = useQueryClient();
   return useMutation({
     mutationFn: (id: number) => api.del(`/v2/admin/exam-schedule/${id}`),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["v2", "admin", "exam-schedule"] });
+      qc.invalidateQueries({ queryKey: ["v2", "exam-schedule"] });
+    },
+  });
+}
+export function useUpdateExamScheduleRow() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: ({ id, ...body }: { id: number } & Partial<Omit<ExamScheduleRow, "id">>) => api.put(`/v2/admin/exam-schedule/${id}`, body),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ["v2", "admin", "exam-schedule"] });
       qc.invalidateQueries({ queryKey: ["v2", "exam-schedule"] });
