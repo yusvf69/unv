@@ -1787,14 +1787,39 @@ router.get("/v2/admin/group-schedule", requireRole(["admin", "super_admin"]), (_
 
 router.post("/v2/admin/group-schedule", requireRole(["admin", "super_admin"]), (req, res) => {
   void handle(res, async () => {
-    const { groupName, yearInCollege, day, startTime, endTime, courseTitle, courseCode, instructor, room, type } = req.body as any;
-    if (!groupName || !yearInCollege || !day || !startTime || !endTime || !courseTitle || !instructor || !room) {
+    const { groupName, yearInCollege, day, startTime, endTime, courseTitle, courseCode, instructor, room, type, allGroups, allYears } = req.body as any;
+    const groups = allGroups ? ["A", "B", "C", "D", "E"] : [groupName];
+    const years = allYears ? [1, 2, 3, 4] : [Number(yearInCollege)];
+    if (groups.some((g) => !g) || years.some((y) => !y) || !day || !startTime || !endTime || !courseTitle || !instructor || !room) {
       throw Object.assign(new Error("بيانات ناقصة"), { status: 400 });
     }
-    const [r] = await db.insert(schema.groupScheduleTable).values({
-      groupName, yearInCollege, day, startTime, endTime, courseTitle, courseCode, instructor, room, type: type || "lecture",
-    }).returning();
-    return r;
+    const created: unknown[] = [];
+    for (const g of groups) {
+      for (const y of years) {
+        const [r] = await db.insert(schema.groupScheduleTable).values({
+          groupName: g, yearInCollege: y, day, startTime, endTime, courseTitle, courseCode, instructor, room, type: type || "lecture",
+        }).returning();
+        created.push(r);
+      }
+    }
+    return groups.length * years.length > 1 ? { ok: true, created: created.length } : created[0];
+  });
+});
+
+router.post("/v2/admin/group-schedule/import", requireRole(["admin", "super_admin"]), (req, res) => {
+  void handle(res, async () => {
+    const { rows } = req.body as any;
+    if (!Array.isArray(rows) || !rows.length) throw Object.assign(new Error("لا توجد صفوف لاستيرادها"), { status: 400 });
+    let inserted = 0;
+    for (const r of rows) {
+      const { groupName, yearInCollege, day, startTime, endTime, courseTitle, courseCode, instructor, room, type } = r;
+      if (!groupName || !yearInCollege || !day || !startTime || !endTime || !courseTitle || !instructor || !room) {
+        throw Object.assign(new Error("بيانات غير مكتملة في أحد الصفوف"), { status: 400 });
+      }
+      await db.insert(schema.groupScheduleTable).values({ groupName, yearInCollege, day, startTime, endTime, courseTitle, courseCode, instructor, room, type: type || "lecture" });
+      inserted++;
+    }
+    return { ok: true, inserted };
   });
 });
 
@@ -1878,14 +1903,39 @@ router.get("/v2/admin/exam-schedule", requireRole(["admin", "super_admin"]), (_r
 
 router.post("/v2/admin/exam-schedule", requireRole(["admin", "super_admin"]), (req, res) => {
   void handle(res, async () => {
-    const { groupName, yearInCollege, day, date, time, courseTitle, courseCode, room, type } = req.body as any;
-    if (!groupName || !yearInCollege || !day || !date || !time || !courseTitle || !room) {
+    const { groupName, yearInCollege, day, date, time, courseTitle, courseCode, room, type, allGroups, allYears } = req.body as any;
+    const groups = allGroups ? ["A", "B", "C", "D", "E"] : [groupName];
+    const years = allYears ? [1, 2, 3, 4] : [Number(yearInCollege)];
+    if (groups.some((g) => !g) || years.some((y) => !y) || !day || !date || !time || !courseTitle || !room) {
       throw Object.assign(new Error("بيانات ناقصة"), { status: 400 });
     }
-    const [r] = await db.insert(schema.examScheduleTable).values({
-      groupName, yearInCollege, day, date, time, courseTitle, courseCode, room, type: type || "midterm",
-    }).returning();
-    return r;
+    const created: unknown[] = [];
+    for (const g of groups) {
+      for (const y of years) {
+        const [r] = await db.insert(schema.examScheduleTable).values({
+          groupName: g, yearInCollege: y, day, date, time, courseTitle, courseCode, room, type: type || "midterm",
+        }).returning();
+        created.push(r);
+      }
+    }
+    return groups.length * years.length > 1 ? { ok: true, created: created.length } : created[0];
+  });
+});
+
+router.post("/v2/admin/exam-schedule/import", requireRole(["admin", "super_admin"]), (req, res) => {
+  void handle(res, async () => {
+    const { rows } = req.body as any;
+    if (!Array.isArray(rows) || !rows.length) throw Object.assign(new Error("لا توجد صفوف لاستيرادها"), { status: 400 });
+    let inserted = 0;
+    for (const r of rows) {
+      const { groupName, yearInCollege, day, date, time, courseTitle, courseCode, room, type } = r;
+      if (!groupName || !yearInCollege || !day || !date || !time || !courseTitle || !room) {
+        throw Object.assign(new Error("بيانات غير مكتملة في أحد الصفوف"), { status: 400 });
+      }
+      await db.insert(schema.examScheduleTable).values({ groupName, yearInCollege, day, date, time, courseTitle, courseCode, room, type: type || "midterm" });
+      inserted++;
+    }
+    return { ok: true, inserted };
   });
 });
 

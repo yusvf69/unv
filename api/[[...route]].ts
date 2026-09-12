@@ -3308,13 +3308,37 @@ async function handleGroupSchedule(req: Request, parts: string[]): Promise<Respo
       }
     });
   }
+  if (req.method === "POST" && parts[2] === "import") {
+    return handle(async () => {
+      const { rows } = await req.json();
+      if (!Array.isArray(rows) || !rows.length) throw Object.assign(new Error("لا توجد صفوف لاستيرادها"), { status: 400 });
+      let inserted = 0;
+      for (const r of rows) {
+        const { groupName, yearInCollege, day, startTime, endTime, courseTitle, courseCode, instructor, room, type } = r;
+        if (!groupName || !yearInCollege || !day || !startTime || !endTime || !courseTitle || !instructor || !room) {
+          throw Object.assign(new Error("بيانات غير مكتملة في أحد الصفوف"), { status: 400 });
+        }
+        await sql`INSERT INTO group_schedule (group_name, year_in_college, day, start_time, end_time, course_title, course_code, instructor, room, type) VALUES (${groupName}, ${yearInCollege}, ${day}, ${startTime}, ${endTime}, ${courseTitle}, ${courseCode || null}, ${instructor}, ${room}, ${type || "lecture"})`;
+        inserted++;
+      }
+      return { ok: true, inserted };
+    });
+  }
   if (req.method === "POST") {
     return handle(async () => {
       const body = await req.json();
-      const { groupName, yearInCollege, day, startTime, endTime, courseTitle, courseCode, instructor, room, type } = body;
-      if (!groupName || !yearInCollege || !day || !startTime || !endTime || !courseTitle || !instructor || !room) throw Object.assign(new Error("بيانات ناقصة"), { status: 400 });
-      const [r] = await sql`INSERT INTO group_schedule (group_name, year_in_college, day, start_time, end_time, course_title, course_code, instructor, room, type) VALUES (${groupName}, ${yearInCollege}, ${day}, ${startTime}, ${endTime}, ${courseTitle}, ${courseCode || null}, ${instructor}, ${room}, ${type || "lecture"}) RETURNING *`;
-      return r;
+      const { groupName, yearInCollege, day, startTime, endTime, courseTitle, courseCode, instructor, room, type, allGroups, allYears } = body;
+      const groups = allGroups ? ["A", "B", "C", "D", "E"] : [groupName];
+      const years = allYears ? [1, 2, 3, 4] : [Number(yearInCollege)];
+      if (groups.some((g) => !g) || years.some((y) => !y) || !day || !startTime || !endTime || !courseTitle || !instructor || !room) throw Object.assign(new Error("بيانات ناقصة"), { status: 400 });
+      const created: unknown[] = [];
+      for (const g of groups) {
+        for (const y of years) {
+          const [r] = await sql`INSERT INTO group_schedule (group_name, year_in_college, day, start_time, end_time, course_title, course_code, instructor, room, type) VALUES (${g}, ${y}, ${day}, ${startTime}, ${endTime}, ${courseTitle}, ${courseCode || null}, ${instructor}, ${room}, ${type || "lecture"}) RETURNING *`;
+          created.push(r);
+        }
+      }
+      return groups.length * years.length > 1 ? { ok: true, created: created.length } : created[0];
     });
   }
   if (req.method === "DELETE") {
@@ -3364,13 +3388,37 @@ async function handleExamSchedule(req: Request, parts: string[]): Promise<Respon
       }
     });
   }
+  if (req.method === "POST" && parts[2] === "import") {
+    return handle(async () => {
+      const { rows } = await req.json();
+      if (!Array.isArray(rows) || !rows.length) throw Object.assign(new Error("لا توجد صفوف لاستيرادها"), { status: 400 });
+      let inserted = 0;
+      for (const r of rows) {
+        const { groupName, yearInCollege, day, date, time, courseTitle, courseCode, room, type } = r;
+        if (!groupName || !yearInCollege || !day || !date || !time || !courseTitle || !room) {
+          throw Object.assign(new Error("بيانات غير مكتملة في أحد الصفوف"), { status: 400 });
+        }
+        await sql`INSERT INTO exam_schedule (group_name, year_in_college, day, date, time, course_title, course_code, room, type) VALUES (${groupName}, ${yearInCollege}, ${day}, ${date}, ${time}, ${courseTitle}, ${courseCode || null}, ${room}, ${type || "midterm"})`;
+        inserted++;
+      }
+      return { ok: true, inserted };
+    });
+  }
   if (req.method === "POST") {
     return handle(async () => {
       const body = await req.json();
-      const { groupName, yearInCollege, day, date, time, courseTitle, courseCode, room, type } = body;
-      if (!groupName || !yearInCollege || !day || !date || !time || !courseTitle || !room) throw Object.assign(new Error("بيانات ناقصة"), { status: 400 });
-      const [r] = await sql`INSERT INTO exam_schedule (group_name, year_in_college, day, date, time, course_title, course_code, room, type) VALUES (${groupName}, ${yearInCollege}, ${day}, ${date}, ${time}, ${courseTitle}, ${courseCode || null}, ${room}, ${type || "midterm"}) RETURNING *`;
-      return r;
+      const { groupName, yearInCollege, day, date, time, courseTitle, courseCode, room, type, allGroups, allYears } = body;
+      const groups = allGroups ? ["A", "B", "C", "D", "E"] : [groupName];
+      const years = allYears ? [1, 2, 3, 4] : [Number(yearInCollege)];
+      if (groups.some((g) => !g) || years.some((y) => !y) || !day || !date || !time || !courseTitle || !room) throw Object.assign(new Error("بيانات ناقصة"), { status: 400 });
+      const created: unknown[] = [];
+      for (const g of groups) {
+        for (const y of years) {
+          const [r] = await sql`INSERT INTO exam_schedule (group_name, year_in_college, day, date, time, course_title, course_code, room, type) VALUES (${g}, ${y}, ${day}, ${date}, ${time}, ${courseTitle}, ${courseCode || null}, ${room}, ${type || "midterm"}) RETURNING *`;
+          created.push(r);
+        }
+      }
+      return groups.length * years.length > 1 ? { ok: true, created: created.length } : created[0];
     });
   }
   if (req.method === "DELETE") return handle(async () => { await sql`DELETE FROM exam_schedule WHERE id = ${Number(parts[2])}`; return { ok: true }; });
@@ -4781,8 +4829,10 @@ async function handleRequest(request: Request): Promise<Response> {
     "GET /admin/staff": () => handleAdminCrud(request, ["", "admin", "staff"]),
     "GET /admin/group-schedule": () => handleGroupSchedule(request, ["group-schedule"]),
     "POST /admin/group-schedule": () => handleGroupSchedule(request, ["group-schedule"]),
+    "POST /admin/group-schedule/import": () => handleGroupSchedule(request, ["admin", "group-schedule", "import"]),
     "GET /admin/exam-schedule": () => handleExamSchedule(request, ["exam-schedule"]),
     "POST /admin/exam-schedule": () => handleExamSchedule(request, ["exam-schedule"]),
+    "POST /admin/exam-schedule/import": () => handleExamSchedule(request, ["admin", "exam-schedule", "import"]),
     "GET /admin/dm/threads": () => handleAdminCrud(request, ["", "admin", "dm", "threads"]),
     "GET /admin/talents": () => handleAdminCrud(request, ["", "admin", "talents"]),
     "GET /admin/news": () => handleAdminNews(request, ["admin", "news"]),
@@ -4843,8 +4893,10 @@ async function handleRequest(request: Request): Promise<Response> {
     "GET /v2/admin/staff": () => handleAdminCrud(request, ["", "admin", "staff"]),
     "GET /v2/admin/group-schedule": () => handleGroupSchedule(request, ["admin", ...parts.slice(2)]),
     "POST /v2/admin/group-schedule": () => handleGroupSchedule(request, ["admin", ...parts.slice(2)]),
+    "POST /v2/admin/group-schedule/import": () => handleGroupSchedule(request, ["admin", "group-schedule", "import"]),
     "GET /v2/admin/exam-schedule": () => handleExamSchedule(request, ["admin", ...parts.slice(2)]),
     "POST /v2/admin/exam-schedule": () => handleExamSchedule(request, ["admin", ...parts.slice(2)]),
+    "POST /v2/admin/exam-schedule/import": () => handleExamSchedule(request, ["admin", "exam-schedule", "import"]),
     "GET /v2/admin/dm/threads": () => handleAdminCrud(request, ["", "admin", "dm", "threads"]),
     "GET /v2/admin/talents": () => handleAdminCrud(request, ["", "admin", "talents"]),
     "GET /v2/admin/news": () => handleAdminNews(request, ["admin", ...parts.slice(2)]),

@@ -894,6 +894,16 @@ export function useDeleteGroupScheduleRow() {
     },
   });
 }
+export function useImportGroupSchedule() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (rows: unknown[]) => api.post("/v2/admin/group-schedule/import", { rows }),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["v2", "admin", "group-schedule"] });
+      qc.invalidateQueries({ queryKey: ["v2", "group-schedule"] });
+    },
+  });
+}
 
 // Study activity logging
 export function useLogStudyActivity() {
@@ -935,6 +945,16 @@ export function useDeleteExamScheduleRow() {
   const qc = useQueryClient();
   return useMutation({
     mutationFn: (id: number) => api.del(`/v2/admin/exam-schedule/${id}`),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["v2", "admin", "exam-schedule"] });
+      qc.invalidateQueries({ queryKey: ["v2", "exam-schedule"] });
+    },
+  });
+}
+export function useImportExamSchedule() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (rows: unknown[]) => api.post("/v2/admin/exam-schedule/import", { rows }),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ["v2", "admin", "exam-schedule"] });
       qc.invalidateQueries({ queryKey: ["v2", "exam-schedule"] });
