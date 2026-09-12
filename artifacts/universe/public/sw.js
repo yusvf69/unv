@@ -1,4 +1,4 @@
-const CACHE = "unv-v3";
+const CACHE = "unv-v4";
 const SHELL = ["/", "/skills", "/games", "/missions", "/achievements", "/skills/me"];
 self.addEventListener("install", (e) => {
   e.waitUntil(

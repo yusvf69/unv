@@ -1,6 +1,6 @@
 import type { QueryClient } from "@tanstack/react-query";
 
-const CACHE_PREFIX = "unv-qcache:";
+const CACHE_PREFIX = "unv-qcache:v2:";
 const MAX_ENTRIES = 80;
 const MAX_ENTRY_BYTES = 2 * 1024 * 1024;
 const MAX_TOTAL_BYTES = 3.5 * 1024 * 1024;
@@ -25,6 +25,8 @@ function isSkippable(key: readonly unknown[]): boolean {
   if (!key || key.length === 0) return true;
   if (key[0] === "v2" && key[1] === "dm") return false;
   if (key[0] === "v2" && key[1] === "quiz" && key[2] === "start") return true;
+  if (key[0] === "v2" && key[1] === "admin" && (key[2] === "group-schedule" || key[2] === "exam-schedule")) return true;
+  if (key[0] === "v2" && (key[1] === "group-schedule" || key[1] === "exam-schedule")) return true;
   return false;
 }
 
