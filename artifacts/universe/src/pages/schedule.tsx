@@ -28,8 +28,8 @@ const getWeekRange = (date: Date) => {
 
 export default function Schedule() {
   const { data: me, isLoading: meLoading } = useMeV2();
-  const { data: rows = [], isLoading: scheduleLoading } = useMyGroupSchedule();
-  const { data: exams = [], isLoading: examLoading } = useMyExamSchedule();
+  const { data: rows = [], isLoading: scheduleLoading } = useMyGroupSchedule(me?.groupName, me?.yearInCollege);
+  const { data: exams = [], isLoading: examLoading } = useMyExamSchedule(me?.groupName, me?.yearInCollege);
   const [scheduleView, setScheduleView] = useState<ViewMode>("week");
   const [examView, setExamView] = useState<ViewMode>("week");
   const [tab, setTab] = useState<TabMode>("schedule");
