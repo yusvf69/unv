@@ -1,4 +1,4 @@
-import { Router, type IRouter } from "express";
+import { Router, type IRouter, type Request } from "express";
 import { eq, sql, inArray, desc, sum, count } from "drizzle-orm";
 import { GetAdminOverviewResponse, ListAdminUsersResponse } from "@workspace/api-zod";
 import { db, schema } from "../lib/db";
@@ -6,8 +6,24 @@ import { handle } from "../lib/util";
 
 const router: IRouter = Router();
 
-router.get("/admin/overview", (_req, res) => {
-  void handle(res, async () => {
+async function requireAdmin(req: Request): Promise<void> {
+  const id = (req as any).demo?.currentUserId as number | undefined;
+  if (!id) throw Object.assign(new Error("سجل دخول"), { status: 401 });
+  const [u] = await db.select().from(schema.usersTable).where(eq(schema.usersTable.id, id)).limit(1);
+  if (!u || (u.role !== "admin" && u.role !== "super_admin")) {
+    throw Object.assign(new Error("غير مصرح"), { status: 403 });
+  }
+}
+
+router.get("/admin/overview", (req, res) => {
+  void (async () => {
+    try {
+      await requireAdmin(req);
+    } catch (e: any) {
+      res.status(e?.status || 500).json({ error: e?.message || "خطأ" });
+      return;
+    }
+    void handle(res, async () => {
     const [{ totalStudents }] = await db
       .select({ totalStudents: sql<number>`count(*)::int` })
       .from(schema.usersTable)
@@ -182,11 +198,19 @@ router.get("/admin/overview", (_req, res) => {
       pointsDistribution,
       alerts,
     });
-  });
+    });
+  })();
 });
 
 router.get("/admin/users", (req, res) => {
-  void handle(res, async () => {
+  void (async () => {
+    try {
+      await requireAdmin(req);
+    } catch (e: any) {
+      res.status(e?.status || 500).json({ error: e?.message || "خطأ" });
+      return;
+    }
+    void handle(res, async () => {
     const role = typeof req.query.role === "string" ? req.query.role : undefined;
     const where = role ? eq(schema.usersTable.role, role) : undefined;
     const rows = where
@@ -211,7 +235,8 @@ router.get("/admin/users", (req, res) => {
         lastSeen: u.lastSeen.toISOString(),
       })),
     );
-  });
+    });
+  })();
 });
 
 export default router;

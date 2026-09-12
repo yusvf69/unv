@@ -14,6 +14,10 @@ import {
   MessageCircle,
   Sun,
   Moon,
+  Users,
+  Trophy,
+  ClipboardList,
+  GraduationCap,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
@@ -53,16 +57,12 @@ export default function Layout({ children }: { children: ReactNode }) {
     { href: "/courses", label: t("courses") },
     { href: "/materials", label: t("materials") },
     { href: "/summaries", label: t("summaries") },
-    { href: "/staff", label: t("staff") },
     { href: "/events", label: t("events") },
     { href: "/quizzes", label: t("quizzes") },
     { href: "/skills", label: t("skills") },
     { href: "/forum", label: t("forum") },
     { href: "/games", label: t("games") },
-    { href: "/students", label: t("students") },
-    { href: "/leaderboard", label: t("leaderboard") },
     { href: "/talents", label: t("talents") },
-    { href: "/complaints", label: t("complaints") },
   ];
 
   if (isAdmin) appLinks.push({ href: "/admin", label: t("admin") });
@@ -80,7 +80,7 @@ export default function Layout({ children }: { children: ReactNode }) {
         <Link
           key={link.href}
           href={link.href}
-          className={`relative px-3 py-2 rounded-lg text-sm font-medium transition-all ${
+          className={`relative px-2.5 py-1.5 rounded-lg text-sm font-medium transition-all ${
             location === link.href ? "text-primary" : "text-foreground/70 hover:text-primary"
           }`}
         >
@@ -97,10 +97,10 @@ export default function Layout({ children }: { children: ReactNode }) {
     <div className="min-h-screen flex flex-col bg-background font-sans">
       <header className="sticky top-0 z-40 w-full border-b bg-background/80 backdrop-blur-xl supports-[backdrop-filter]:bg-background/60">
         <div className="container mx-auto px-3 sm:px-4 h-16 flex items-center justify-between">
-          <div className="flex items-center gap-3 sm:gap-6">
+          <div className="flex items-center gap-3 sm:gap-5">
             <Sheet>
               <SheetTrigger asChild>
-                <Button variant="ghost" size="icon" className="lg:hidden"><Menu className="h-5 w-5" /></Button>
+                <Button variant="ghost" size="icon" className="lg:hidden h-9 w-9 sm:h-10 sm:w-10"><Menu className="h-5 w-5" /></Button>
               </SheetTrigger>
               <SheetContent side={lang === "ar" ? "right" : "left"} className="w-72">
                 <div className="flex flex-col gap-1 mt-8"><NavLinks /></div>
@@ -114,20 +114,20 @@ export default function Layout({ children }: { children: ReactNode }) {
               <span className="font-serif font-bold text-lg sm:text-xl tracking-tight bg-gradient-to-r from-primary to-secondary bg-clip-text text-transparent">UniVerse</span>
             </Link>
 
-            <nav className="hidden lg:flex items-center gap-1"><NavLinks /></nav>
+            <nav className="hidden lg:flex items-center gap-0.5 overflow-x-auto scrollbar-hide"><NavLinks /></nav>
           </div>
 
-          <div className="flex items-center gap-0.5 sm:gap-1">
-            <Button variant="ghost" size="icon" onClick={toggleTheme} title={theme === "dark" ? t("lightMode") : t("darkMode")} className="h-8 w-8 sm:h-10 sm:w-10">
+          <div className="flex items-center gap-1 sm:gap-1.5">
+            <Button variant="ghost" size="icon" onClick={toggleTheme} title={theme === "dark" ? t("lightMode") : t("darkMode")} className="h-9 w-9 sm:h-10 sm:w-10">
               {theme === "dark" ? <Sun className="h-4 w-4 sm:h-5 sm:w-5" /> : <Moon className="h-4 w-4 sm:h-5 sm:w-5" />}
             </Button>
-            <Button variant="ghost" onClick={toggleLang} className="font-medium text-xs sm:text-sm w-10 sm:w-12 h-8 sm:h-10">
+            <Button variant="ghost" onClick={toggleLang} className="font-medium text-xs sm:text-sm w-10 sm:w-12 h-9 sm:h-10">
               {t("langToggle")}
             </Button>
 
             {user && (
               <Link href="/messages">
-                  <Button variant="ghost" size="icon" className="relative h-8 w-8 sm:h-10 sm:w-10" title={t("messages")}>
+                  <Button variant="ghost" size="icon" className="relative h-9 w-9 sm:h-10 sm:w-10" title={t("messages")}>
                   <MessageCircle className="h-4 w-4 sm:h-5 sm:w-5" />
                   {meV2 && meV2.unreadDmCount > 0 && (
                     <span className="absolute -top-1 -end-1 bg-destructive text-destructive-foreground text-[10px] font-bold w-4 h-4 rounded-full flex items-center justify-center">
@@ -143,7 +143,7 @@ export default function Layout({ children }: { children: ReactNode }) {
             {user ? (
               <DropdownMenu>
                 <DropdownMenuTrigger asChild>
-                  <Button variant="ghost" className="relative h-8 w-8 sm:h-10 sm:w-10 rounded-full p-0">
+                  <Button variant="ghost" className="relative h-9 w-9 sm:h-10 sm:w-10 rounded-full p-0">
                     {user.avatarUrl ? (
                       <img src={user.avatarUrl} alt={user.name} className="h-8 w-8 sm:h-10 sm:w-10 rounded-full object-cover border-2 border-primary/30 shadow-sm" />
                     ) : (
@@ -165,6 +165,10 @@ export default function Layout({ children }: { children: ReactNode }) {
                   </DropdownMenuLabel>
                   <DropdownMenuSeparator />
                   <DropdownMenuItem asChild><Link href="/profile" className="cursor-pointer w-full flex items-center"><UserIcon className="me-2 h-4 w-4" /><span>{t("profile")}</span></Link></DropdownMenuItem>
+                  <DropdownMenuItem asChild><Link href="/staff" className="cursor-pointer w-full flex items-center"><Users className="me-2 h-4 w-4" /><span>{t("staff")}</span></Link></DropdownMenuItem>
+                  <DropdownMenuItem asChild><Link href="/leaderboard" className="cursor-pointer w-full flex items-center"><Trophy className="me-2 h-4 w-4" /><span>{t("leaderboard")}</span></Link></DropdownMenuItem>
+                  <DropdownMenuItem asChild><Link href="/complaints" className="cursor-pointer w-full flex items-center"><ClipboardList className="me-2 h-4 w-4" /><span>{t("complaints")}</span></Link></DropdownMenuItem>
+                  <DropdownMenuItem asChild><Link href="/students" className="cursor-pointer w-full flex items-center"><GraduationCap className="me-2 h-4 w-4" /><span>{t("students")}</span></Link></DropdownMenuItem>
                   <DropdownMenuSeparator />
                   <DropdownMenuItem onClick={handleLogout} className="text-destructive focus:text-destructive cursor-pointer">
                     <LogOut className="me-2 h-4 w-4" /><span>{t("logout")}</span>

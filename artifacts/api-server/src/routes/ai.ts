@@ -1,5 +1,5 @@
 import { Router, type IRouter } from "express";
-import { eq, desc, and } from "drizzle-orm";
+import { eq, desc, and, sql } from "drizzle-orm";
 import { AiChatBody, AiChatResponse } from "@workspace/api-zod";
 import { getAiClient } from "../lib/ai";
 import { handle } from "../lib/util";
@@ -90,9 +90,10 @@ async function buildContext(userId: number): Promise<string> {
     }
     lines.push("");
 
-    const [{ count: studentCount }] = (await db.execute(
-      `SELECT COUNT(*)::int AS count FROM users WHERE role='student'` as any,
-    )) as any;
+    const [{ count: studentCount }] = await db
+      .select({ count: sql<number>`count(*)::int` })
+      .from(schema.usersTable)
+      .where(eq(schema.usersTable.role, "student"));
     lines.push(`### إحصائيات سريعة`);
     lines.push(`- عدد الطلاب المسجلين: ${studentCount}`);
     lines.push("");
@@ -150,7 +151,7 @@ ${context}
 
     try {
       const result = await client.models.generateContent({
-        model: "gemini-2.5-flash",
+        model: "gemini-3.6-flash",
         contents,
         config: {
           systemInstruction: systemPrompt,
@@ -163,7 +164,7 @@ ${context}
       let suggestions: string[] = FALLBACK_SUGGESTIONS;
       try {
         const sugResult = await client.models.generateContent({
-          model: "gemini-2.5-flash",
+          model: "gemini-3.6-flash",
           contents: [{ role: "user", parts: [{ text: `بناءً على هذا الرد:\n${reply}\n\nاقترح ٣ أسئلة قصيرة (أقل من 10 كلمات) قد يطرحها المستخدم بعدها. سطر لكل سؤال بدون ترقيم.` }] }],
           config: { maxOutputTokens: 256, temperature: 0.8 },
         });

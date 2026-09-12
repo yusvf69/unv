@@ -1,13 +1,13 @@
 import { Link } from "wouter";
-import { BookOpen, ArrowRight } from "lucide-react";
+import { BookOpen, ArrowRight, Loader2 } from "lucide-react";
 import { useCourses } from "@/lib/api";
 import { useTranslation, globalI18n } from "@/lib/i18n";
 
 export default function Courses() {
-  const { data: courses = [], isLoading } = useCourses();
+  const { data: courses = [], isPending, isError } = useCourses();
   const t = useTranslation(globalI18n);
 
-  if (isLoading) return <div className="p-8 text-center">{t("loading")}</div>;
+  if (isPending || isError) return <div className="p-8 text-center flex items-center justify-center gap-2"><Loader2 className="h-5 w-5 animate-spin" /> {t("loading")}</div>;
 
   const firstSemester = courses.filter(c => c.semester === 1);
   const secondSemester = courses.filter(c => c.semester === 2);

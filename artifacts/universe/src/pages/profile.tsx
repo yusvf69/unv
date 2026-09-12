@@ -1,12 +1,12 @@
 import { useState, useEffect } from "react";
 import { motion } from "framer-motion";
-import { Save, User, Award, Key, Copy, Lock, Calendar, Clock, Target, BookOpen, Trophy, FileText } from "lucide-react";
+import { Save, User, Award, Key, Copy, Lock, Calendar, Clock, Target, BookOpen, Trophy, FileText, Medal } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Progress } from "@/components/ui/progress";
 import { Label } from "@/components/ui/label";
 import { useToast } from "@/hooks/use-toast";
-import { useMeV2, useUpdateProfile, useAchievements, useMyGroupSchedule, useMyExamSchedule } from "@/lib/api";
+import { useMeV2, useUpdateProfile, useAchievements, useMyGroupSchedule, useMyExamSchedule, useUnlockables, useEquipUnlockable, useFollows } from "@/lib/api";
 import { useGetDashboard } from "@workspace/api-client-react";
 import FileUpload from "@/components/file-upload";
 import { Link } from "wouter";
@@ -43,6 +43,9 @@ export default function Profile() {
   const { data: me } = useMeV2();
   const update = useUpdateProfile();
   const { data: achievements } = useAchievements();
+  const { data: follows } = useFollows();
+  const { data: unlockablesData } = useUnlockables();
+  const equip = useEquipUnlockable();
   const { data: schedule = [] } = useMyGroupSchedule();
   const { data: exams = [] } = useMyExamSchedule();
   const { data: dashboard } = useGetDashboard();
@@ -125,6 +128,10 @@ export default function Profile() {
               <span className="text-xs bg-secondary/10 text-secondary px-3 py-1 rounded-full font-bold">{t("level")} {me.level}</span>
               <span className="text-xs bg-amber-500/10 text-amber-700 px-3 py-1 rounded-full font-bold">🔥 {me.streak} {t("day")}</span>
               {me.groupName && <span className="text-xs bg-blue-500/10 text-blue-700 px-3 py-1 rounded-full font-bold">G{me.groupName}</span>}
+            </div>
+            <div className="flex flex-wrap gap-2 mt-2 justify-center sm:justify-start">
+              <span className="text-xs bg-sky-500/10 text-sky-700 px-3 py-1 rounded-full font-bold">{t("followers")} {follows?.followers?.length ?? 0}</span>
+              <span className="text-xs bg-violet-500/10 text-violet-700 px-3 py-1 rounded-full font-bold">{t("followingCount")} {follows?.following?.length ?? 0}</span>
             </div>
           </div>
           <FileUpload value={null} onChange={(d) => { if (d) setAvatarUrl(d); }} label={t("changePhoto")} maxSizeKb={400} />
@@ -278,25 +285,114 @@ export default function Profile() {
       )}
 
       {tab === "progress" && (
-        <div className="bg-card border rounded-2xl p-4 sm:p-6">
-          <h2 className="font-bold text-lg sm:text-xl mb-4 flex items-center gap-2"><Trophy className="h-5 w-5 text-primary" /> {t("achievements")}</h2>
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3 sm:gap-4">
-            {(achievements ?? []).map((a: any) => (
-              <div key={a.id} className={`p-4 rounded-2xl border-2 ${a.completed ? "bg-emerald-500/10 border-emerald-500/40" : "bg-card border"}`}>
-                <div className="flex items-start gap-3">
-                  <div className="text-3xl">{a.icon}</div>
-                  <div className="flex-1">
-                    <div className="font-bold">{a.title}</div>
-                    <div className="text-xs text-muted-foreground">{a.desc}</div>
-                    <div className="mt-2 h-2 bg-muted rounded-full overflow-hidden">
-                      <div className="h-full bg-primary rounded-full transition-all" style={{ width: `${a.percent}%` }} />
+        <div className="space-y-4">
+          <div className="bg-card border rounded-2xl p-4 sm:p-6">
+            <h2 className="font-bold text-lg sm:text-xl mb-4 flex items-center gap-2"><Trophy className="h-5 w-5 text-primary" /> {t("achievements")}</h2>
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3 sm:gap-4">
+              {(achievements ?? []).slice(0, 6).map((a: any) => (
+                <div key={a.id} className={`p-4 rounded-2xl border-2 ${a.completed ? "bg-emerald-500/10 border-emerald-500/40" : "bg-card border"}`}>
+                  <div className="flex items-start gap-3">
+                    <div className="text-3xl">{a.icon}</div>
+                    <div className="flex-1">
+                      <div className="font-bold">{a.title}</div>
+                      <div className="text-xs text-muted-foreground">{a.desc}</div>
+                      <div className="mt-2 h-2 bg-muted rounded-full overflow-hidden">
+                        <div className="h-full bg-primary rounded-full transition-all" style={{ width: `${a.percent}%` }} />
+                      </div>
+                      <div className="text-xs mt-1">{a.value} / {a.target}</div>
                     </div>
-                    <div className="text-xs mt-1">{a.value} / {a.target}</div>
+                  </div>
+                </div>
+              ))}
+              {(achievements?.length ?? 0) > 6 && (
+                <div className="col-span-full text-center">
+                  <a href="/achievements" className="text-xs text-primary hover:underline">
+                    عرض كل الإنجازات ({achievements?.length ?? 0})
+                  </a>
+                </div>
+              )}
+            </div>
+          </div>
+
+          {/* Unlockables */}
+          {unlockablesData && (
+            <div className="bg-card border rounded-2xl p-4 sm:p-6">
+              <div className="flex items-center justify-between mb-3">
+                <h2 className="font-bold text-lg sm:text-xl flex items-center gap-2"><Medal className="h-5 w-5 text-amber-500" /> زينة وتخصيص</h2>
+                <span className="text-xs text-muted-foreground">
+                  {unlockablesData.items.filter((i) => i.unlocked).length}/{unlockablesData.items.length}
+                </span>
+              </div>
+              <div className="space-y-3">
+                <div>
+                  <h3 className="text-[10px] font-bold text-muted-foreground mb-1.5">الألقاب</h3>
+                  <div className="flex flex-wrap gap-1.5">
+                    {unlockablesData.items.filter((i) => i.type === "title").map((item) => (
+                      <button
+                        key={item.id}
+                        disabled={!item.unlocked}
+                        onClick={() => equip.mutate(item.id)}
+                        className={`flex items-center gap-1 px-2 py-1 rounded-full border text-[10px] transition ${
+                          unlockablesData.equipped.title === item.label
+                            ? "bg-primary text-primary-foreground border-primary"
+                            : item.unlocked
+                            ? "bg-background hover:border-primary"
+                            : "bg-muted/30 text-muted-foreground/50 opacity-50"
+                        }`}
+                      >
+                        <span>{item.icon}</span>
+                        <span>{item.label}</span>
+                      </button>
+                    ))}
+                  </div>
+                </div>
+                <div>
+                  <h3 className="text-[10px] font-bold text-muted-foreground mb-1.5">إطارات الصورة</h3>
+                  <div className="flex flex-wrap gap-1.5">
+                    {unlockablesData.items.filter((i) => i.type === "frame").map((item) => (
+                      <button
+                        key={item.id}
+                        disabled={!item.unlocked}
+                        onClick={() => equip.mutate(item.id)}
+                        className={`flex items-center gap-1 px-2 py-1 rounded-full border text-[10px] transition ${
+                          unlockablesData.equipped.frame === item.id
+                            ? "bg-primary text-primary-foreground border-primary"
+                            : item.unlocked
+                            ? "bg-background hover:border-primary"
+                            : "bg-muted/30 text-muted-foreground/50 opacity-50"
+                        }`}
+                      >
+                        <span>{item.icon}</span>
+                        <span>{item.label}</span>
+                      </button>
+                    ))}
+                  </div>
+                </div>
+                <div>
+                  <h3 className="text-[10px] font-bold text-muted-foreground mb-1.5">السمات</h3>
+                  <div className="flex flex-wrap gap-1.5">
+                    {unlockablesData.items.filter((i) => i.type === "theme").map((item) => (
+                      <button
+                        key={item.id}
+                        disabled={!item.unlocked}
+                        onClick={() => equip.mutate(item.id)}
+                        className={`flex items-center gap-1 px-2 py-1 rounded-full border text-[10px] transition ${
+                          unlockablesData.equipped.theme === item.id.replace("theme-", "")
+                            ? "bg-primary text-primary-foreground border-primary"
+                            : item.unlocked
+                            ? "bg-background hover:border-primary"
+                            : "bg-muted/30 text-muted-foreground/50 opacity-50"
+                        }`}
+                      >
+                        <span>{item.icon}</span>
+                        <span>{item.label}</span>
+                      </button>
+                    ))}
                   </div>
                 </div>
               </div>
-            ))}
-          </div>
+            </div>
+          )}
         </div>
       )}
 

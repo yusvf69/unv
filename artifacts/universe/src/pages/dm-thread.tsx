@@ -1,18 +1,20 @@
 import { useState, useEffect, useRef } from "react";
 import { useParams, Link } from "wouter";
 import { motion } from "framer-motion";
-import { ArrowLeft, Send, Loader2, MessageCircle, UserX } from "lucide-react";
+import { ArrowLeft, Send, Loader2, MessageCircle, UserX, RefreshCw } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { useDmWith, useSendDm } from "@/lib/api";
 import { formatISOTime } from "@/lib/dates";
 import { useTranslation, globalI18n } from "@/lib/i18n";
+import { useToast } from "@/hooks/use-toast";
 
 export default function DmThread() {
   const { id } = useParams();
   const userId = Number(id || 0);
-  const { data, isLoading, isError, error } = useDmWith(userId);
+  const { data, isLoading, isError, error, refetch, isFetching } = useDmWith(userId);
   const send = useSendDm(userId);
+  const { toast } = useToast();
   const scrollRef = useRef<HTMLDivElement>(null);
   const [text, setText] = useState("");
   const t = useTranslation(globalI18n);
@@ -23,10 +25,15 @@ export default function DmThread() {
 
   const submit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!text.trim()) return;
+    if (!text.trim() || send.isPending) return;
     const body = text.trim();
     setText("");
-    try { await send.mutateAsync(body); } catch {}
+    try {
+      await send.mutateAsync(body);
+    } catch (err) {
+      setText(body);
+      toast({ title: "خطأ في الإرسال", description: (err as Error)?.message || "حاول مرة أخرى", variant: "destructive" });
+    }
   };
 
   if (isLoading) return <div className="p-12 text-center text-muted-foreground">{t("loading")}</div>;
@@ -35,7 +42,13 @@ export default function DmThread() {
       <UserX className="h-16 w-16 text-muted-foreground mb-4" />
       <h2 className="text-xl font-bold mb-2">{t("errorOccurred")}</h2>
       <p className="text-muted-foreground mb-4 text-sm">{(error as any)?.message || t("userNotFoundOrCannotOpen")}</p>
-      <Link href="/messages"><Button variant="outline">{t("backToMessages")}</Button></Link>
+      <div className="flex gap-2">
+        <Button variant="outline" onClick={() => refetch()} disabled={isFetching}>
+          <RefreshCw className={`h-4 w-4 me-1 ${isFetching ? "animate-spin" : ""}`} />
+          {t("retry")}
+        </Button>
+        <Link href="/messages"><Button variant="ghost">{t("backToMessages")}</Button></Link>
+      </div>
     </div>
   );
 

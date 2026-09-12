@@ -30,16 +30,33 @@ function clearToken() {
   localStorage.removeItem("uv_token");
 }
 
+const REQUEST_TIMEOUT_MS = 30_000;
+
 async function request<T>(method: string, path: string, body?: unknown): Promise<T> {
   const headers: Record<string, string> = { "Content-Type": "application/json" };
   const token = getToken();
   if (token) headers["Authorization"] = `Bearer ${token}`;
 
-  const res = await fetch(`${API_BASE}${path}`, {
-    method,
-    headers,
-    body: body !== undefined ? JSON.stringify(body) : undefined,
-  });
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), REQUEST_TIMEOUT_MS);
+  let res: Response;
+  try {
+    res = await fetch(`${API_BASE}${path}`, {
+      method,
+      headers,
+      body: body !== undefined ? JSON.stringify(body) : undefined,
+      signal: controller.signal,
+    });
+  } catch (e: any) {
+    if (e?.name === "AbortError") {
+      const err = new Error("انتهت مهلة الطلب، تحقق من الاتصال") as Error & { status?: number };
+      err.status = 408;
+      throw err;
+    }
+    throw e;
+  } finally {
+    clearTimeout(timer);
+  }
   if (!res.ok) {
     let msg = `${res.status} ${res.statusText}`;
     try {
@@ -83,6 +100,7 @@ export interface MeV2 {
   yearInCollege: number | null;
   specialization: string | null;
   points: number;
+  coins: number;
   level: number;
   streak: number;
   title: string | null;
@@ -99,7 +117,6 @@ export function useMeV2(opts?: Partial<UseQueryOptions<MeV2>>) {
   return useQuery<MeV2>({
     queryKey: ["v2", "me"],
     queryFn: () => api.get<MeV2>("/v2/me"),
-    staleTime: 30_000,
     ...opts,
   });
 }
@@ -222,6 +239,187 @@ export function useGameLeaderboard(gameKey?: string) {
   });
 }
 
+export interface GameScoreEntry {
+  id: number;
+  gameKey: string;
+  score: number;
+  durationMs: number;
+  createdAt: string;
+}
+
+export interface GameStatsPerGame {
+  count: number;
+  best: number;
+  total: number;
+  stars3: number;
+  stars2: number;
+  stars1: number;
+}
+
+export interface GameStats {
+  byGame: Record<string, GameStatsPerGame>;
+  totals: { gamesPlayed: number; totalScore: number; totalXP: number };
+}
+
+export function useMyGameScores(limit = 50) {
+  return useQuery<GameScoreEntry[]>({
+    queryKey: ["v2", "games", "my-scores", limit],
+    queryFn: () => api.get<GameScoreEntry[]>(`/v2/games/my-scores?limit=${limit}`),
+  });
+}
+
+export function useGameStats() {
+  return useQuery<GameStats>({
+    queryKey: ["v2", "games", "stats"],
+    queryFn: () => api.get<GameStats>("/v2/games/stats"),
+  });
+}
+
+// ===== Skills =====
+export interface SkillTrackSummary {
+  id: number;
+  title: string;
+  category: string;
+  difficulty: string;
+  totalLessons: number;
+  completedLessons: number;
+  progress: number;
+  level: string;
+}
+
+export interface MySkillsData {
+  totalTracks: number;
+  totalLessons: number;
+  completedLessons: number;
+  progress: number;
+  level: string;
+  points: number;
+  xpFromSkills: number;
+  tracks: SkillTrackSummary[];
+}
+
+export function useMySkills() {
+  return useQuery<MySkillsData>({
+    queryKey: ["v2", "skills", "me"],
+    queryFn: () => api.get<MySkillsData>("/v2/skills/me"),
+  });
+}
+
+// ===== Recommendations =====
+export interface SkillRecommendation {
+  trackId: number;
+  reason: string;
+  priority: number;
+  xpEstimate: number;
+  durationMinutes: number;
+}
+
+export type SkillRecommendations = SkillRecommendation[] | {
+  summary: string | null;
+  weakAreas: string[];
+  tracks: SkillRecommendation[];
+};
+
+export function useSkillRecommendations() {
+  return useQuery<SkillRecommendations>({
+    queryKey: ["v2", "skills", "recommendations"],
+    queryFn: () => api.get<SkillRecommendations>("/v2/skills/recommendations"),
+  });
+}
+
+// ===== Capstone & Flashcards =====
+export interface CapstoneChallenge {
+  trackTitle: string;
+  totalLessons: number;
+  completedLessons: number;
+  ready: boolean;
+  challenge: { id: number; question: string; options: string[]; correctIndex: number; explanation: string }[];
+  timeEstimate: string;
+  xpReward: number;
+}
+
+export function useCapstone(trackId: number | null) {
+  return useQuery<CapstoneChallenge>({
+    queryKey: ["v2", "skills", "capstone", trackId],
+    queryFn: () => api.get<CapstoneChallenge>(`/v2/skills/capstone/${trackId}`),
+    enabled: !!trackId,
+  });
+}
+
+export interface FlashCard {
+  id: number;
+  front: string;
+  back: string;
+  topic: string;
+}
+
+export interface FlashCardSet {
+  trackTitle: string;
+  cards: FlashCard[];
+}
+
+export function useFlashcards(trackId: number | null) {
+  return useQuery<FlashCardSet>({
+    queryKey: ["v2", "skills", "flashcards", trackId],
+    queryFn: () => api.get<FlashCardSet>(`/v2/skills/flashcards/${trackId}`),
+    enabled: !!trackId,
+  });
+}
+
+// ===== Lesson Notes =====
+export function useLessonNote(lessonId: number | null) {
+  return useQuery<{ lessonId: number; content: string }>({
+    queryKey: ["v2", "skills", "notes", lessonId],
+    queryFn: () => api.get(`/v2/skills/notes/${lessonId}`),
+    enabled: !!lessonId,
+  });
+}
+
+export function useSaveLessonNote() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: ({ lessonId, content }: { lessonId: number; content: string }) =>
+      api.post(`/v2/skills/notes/${lessonId}`, { content }),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ["v2", "skills", "notes"] }),
+  });
+}
+
+// ===== Labs =====
+export interface LabStep {
+  id: number;
+  title: string;
+  description: string;
+  kind: string;
+  config: Record<string, any>;
+  ord: number;
+}
+
+export interface LabData {
+  lesson: { id: number; title: string; kind: string };
+  steps: LabStep[];
+}
+
+export function useLab(lessonId: number | null) {
+  return useQuery<LabData>({
+    queryKey: ["v2", "skills", "labs", lessonId],
+    queryFn: () => api.get<LabData>(`/v2/skills/labs/${lessonId}`),
+    enabled: !!lessonId,
+  });
+}
+
+// Visual Cards
+export interface VisualCardData {
+  lesson: { id: number; title: string; kind: string };
+  cards: { id: number; title: string; description: string; imageUrl: string; ord: number }[];
+}
+export function useVisualCard(lessonId: number | null) {
+  return useQuery<VisualCardData>({
+    queryKey: ["v2", "skills", "visual", lessonId],
+    queryFn: () => api.get<VisualCardData>(`/v2/skills/visual/${lessonId}`),
+    enabled: !!lessonId,
+  });
+}
+
 // ===== Profile =====
 export function useUpdateProfile() {
   const qc = useQueryClient();
@@ -248,13 +446,22 @@ export function useDemoLogin() {
     onSuccess: () => qc.invalidateQueries(),
   });
 }
+import { clearPersistedCache } from "@/lib/cache-persist";
+
 export function useLogout() {
   const qc = useQueryClient();
   return useMutation({
     mutationFn: () => api.post("/v2/auth/logout"),
     onSuccess: () => {
       clearToken();
-      qc.invalidateQueries();
+      clearPersistedCache();
+      try {
+        document.cookie = "uv_demo_user=; Max-Age=0; path=/;";
+      } catch {}
+      try {
+        localStorage.setItem("uv_demo_enabled", "0");
+      } catch {}
+      qc.clear();
     },
   });
 }
@@ -285,6 +492,8 @@ export function useToggleFollow() {
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ["v2", "follows", "me"] });
       qc.invalidateQueries({ queryKey: ["v2", "students"] });
+      qc.invalidateQueries({ queryKey: ["v2", "users"] });
+      qc.invalidateQueries({ queryKey: ["v2", "follow-status"] });
     },
   });
 }
@@ -316,6 +525,7 @@ export function useDmWith(userId: number) {
     queryFn: () => api.get(`/v2/dm/with/${userId}`),
     enabled: userId > 0,
     refetchInterval: 4000,
+    refetchIntervalInBackground: true,
     retry: (failureCount, error: any) => {
       if (error?.status === 404) return false;
       return failureCount < 2;
@@ -324,11 +534,38 @@ export function useDmWith(userId: number) {
 }
 export function useSendDm(userId: number) {
   const qc = useQueryClient();
+  const queryKey = ["v2", "dm", "with", userId] as const;
   return useMutation({
     mutationFn: (body: string) => api.post(`/v2/dm/with/${userId}`, { body }),
-    onSuccess: () => {
-      qc.invalidateQueries({ queryKey: ["v2", "dm", "with", userId] });
+    onMutate: async (body) => {
+      await qc.cancelQueries({ queryKey });
+      const prev = qc.getQueryData<{ threadId: number; other: any; messages: DmMessage[] }>(queryKey);
+      if (prev) {
+        qc.setQueryData(queryKey, {
+          ...prev,
+          messages: [
+            ...prev.messages,
+            {
+              id: Date.now(),
+              threadId: prev.threadId,
+              fromId: 0,
+              body,
+              read: true,
+              createdAt: new Date().toISOString(),
+              fromMe: true,
+            } as DmMessage,
+          ],
+        });
+      }
+      return { prev };
+    },
+    onError: (_err, _body, ctx) => {
+      if (ctx?.prev) qc.setQueryData(queryKey, ctx.prev);
+    },
+    onSettled: () => {
+      qc.invalidateQueries({ queryKey: ["v2", "dm", "with", userId], refetchType: "all" });
       qc.invalidateQueries({ queryKey: ["v2", "dm", "threads"] });
+      qc.invalidateQueries({ queryKey: ["v2", "me"] });
     },
   });
 }
@@ -418,6 +655,8 @@ export interface SkillTrackFull {
   id: number; title: string; category: string; description: string;
   difficulty: string; coverUrl: string | null; progress: number;
   level: string; lessons: SkillLessonFull[];
+  yearInCollege?: number;
+  prerequisites?: number[];
 }
 export function useSkillTracks() {
   return useQuery<SkillTrackFull[]>({ queryKey: ["v2", "skills"], queryFn: () => api.get("/v2/skills/tracks") });
@@ -432,11 +671,17 @@ export function useCompleteLesson() {
     },
   });
 }
+export interface QuickCheckSubmitResult {
+  correct: boolean;
+  correctIndex: number;
+  explanation: string;
+}
+
 export function useSubmitQuickCheck() {
   const qc = useQueryClient();
   return useMutation({
     mutationFn: ({ qcId, answer, lessonId }: { qcId: number; answer: number; lessonId: number }) =>
-      api.post(`/v2/skills/quick-checks/${qcId}/submit`, { answer, lessonId }),
+      api.post<QuickCheckSubmitResult>(`/v2/skills/quick-checks/${qcId}/submit`, { answer, lessonId }),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ["v2", "skills"] });
     },
@@ -445,10 +690,10 @@ export function useSubmitQuickCheck() {
 
 // ===== Quizzes (open + attempts) =====
 export interface QuizOpenItem {
-  id: number; title: string; description: string; courseTitle: string;
+  id: number; title: string; description: string; courseId: number; courseTitle: string;
   durationMinutes: number; totalPoints: number; difficulty: string; isOpen: boolean;
-  groupOnly: string | null; yearOnly: number | null; createdAt: string;
-  myAttemptsCount: number; myBestScore: number;
+  groupOnly: string | null; yearOnly: number | null; randomize: boolean; passPercent: number;
+  createdAt: string; myAttemptsCount: number; myBestScore: number;
 }
 export function useOpenQuizzes() {
   return useQuery<QuizOpenItem[]>({ queryKey: ["v2", "quizzes", "open"], queryFn: () => api.get("/v2/quizzes/open") });
@@ -706,6 +951,182 @@ export interface Achievement {
 }
 export function useAchievements() {
   return useQuery<Achievement[]>({ queryKey: ["v2", "achievements"], queryFn: () => api.get("/v2/achievements") });
+}
+
+// Certificate
+export interface CertificateData {
+  id: string; userName: string; trackTitle: string; trackCategory: string;
+  difficulty: string; lessonsCompleted: number; totalLessons: number;
+  averageScore: number; mastery: string; totalXP: number; issuedAt: string;
+}
+export function useCertificate(trackId: number | null) {
+  return useQuery<CertificateData>({
+    queryKey: ["v2", "certificates", trackId],
+    queryFn: () => api.get(`/v2/certificates/${trackId}`),
+    enabled: !!trackId,
+  });
+}
+
+// Challenges
+export interface ChallengeData {
+  id: number; type: string; gameKey: string;
+  targetScore: number; xpReward: number;
+  progress: number; completed: boolean;
+}
+export function useChallenges() {
+  return useQuery<ChallengeData[]>({ queryKey: ["v2", "challenges"], queryFn: () => api.get("/v2/challenges") });
+}
+export function useClaimDailyReward() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: () => api.post("/v2/challenges/claim", {}),
+    onSuccess: () => { qc.invalidateQueries({ queryKey: ["v2", "challenges"] }); qc.invalidateQueries({ queryKey: ["v2", "me"] }); },
+  });
+}
+
+// Tournament
+export interface TournamentEntry {
+  rank: number; userId: number; userName: string; userAvatar: string | null;
+  bestScore: number; totalScore: number; plays: number;
+}
+export function useTournament(gameKey?: string) {
+  return useQuery<TournamentEntry[]>({
+    queryKey: ["v2", "tournament", gameKey],
+    queryFn: () => api.get(`/v2/tournament${gameKey ? `?gameKey=${gameKey}` : ""}`),
+  });
+}
+
+// Study Rooms
+export interface StudyRoom {
+  id: number; trackId: number | null; trackTitle: string | null;
+  title: string; description: string;
+  createdBy: number; createdByName: string;
+  memberCount: number; isMember: boolean;
+}
+export function useStudyRooms() {
+  return useQuery<StudyRoom[]>({ queryKey: ["v2", "study-rooms"], queryFn: () => api.get("/v2/study-rooms") });
+}
+export function useCreateStudyRoom() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (data: { title: string; description?: string; trackId?: number }) => api.post("/v2/study-rooms", data),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ["v2", "study-rooms"] }),
+  });
+}
+export function useJoinStudyRoom() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (roomId: number) => api.post(`/v2/study-rooms/${roomId}/join`, {}),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ["v2", "study-rooms"] }),
+  });
+}
+export function useLeaveStudyRoom() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (roomId: number) => api.post(`/v2/study-rooms/${roomId}/leave`, {}),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ["v2", "study-rooms"] }),
+  });
+}
+
+// Co-op Challenges
+export interface CoopChallenge {
+  id: number; title: string; gameKey: string;
+  targetScore: number; xpReward: number;
+  startDate: string; endDate: string;
+  myScore: number; myTeamName: string; joined: boolean;
+}
+export function useCoopChallenges() {
+  return useQuery<CoopChallenge[]>({ queryKey: ["v2", "coop-challenges"], queryFn: () => api.get("/v2/coop-challenges") });
+}
+export function useJoinCoopChallenge() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: ({ id, teamName }: { id: number; teamName?: string }) => api.post(`/v2/coop-challenges/${id}/join`, { teamName }),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ["v2", "coop-challenges"] }),
+  });
+}
+export function useCoopChallengeScore() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: ({ id, score }: { id: number; score: number }) => api.post(`/v2/coop-challenges/${id}/score`, { score }),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ["v2", "coop-challenges"] }),
+  });
+}
+
+// Game Replay
+export interface GameReplay {
+  id: number; gameKey: string; score: number; durationMs: number;
+  user: { name: string; avatar_url: string | null };
+  createdAt: string;
+}
+export function useGameReplay(scoreId: number | null) {
+  return useQuery<GameReplay>({
+    queryKey: ["v2", "games", "replay", scoreId],
+    queryFn: () => api.get(`/v2/games/replay/${scoreId}`),
+    enabled: !!scoreId,
+  });
+}
+
+// Game Analytics (admin)
+export interface GameAnalytics {
+  totalGamesPlayed: number;
+  totalUniquePlayers: number;
+  byGame: { gameKey: string; plays: number; avgScore: number; bestScore: number; totalScore: number; uniquePlayers: number }[];
+}
+export function useGameAnalytics() {
+  return useQuery<GameAnalytics>({ queryKey: ["v2", "admin", "game-analytics"], queryFn: () => api.get("/v2/admin/game-analytics") });
+}
+
+// Seasonal Events
+export interface SeasonalEvent {
+  id: number; title: string; description: string; gameKey: string;
+  xpReward: number; badgeTitle: string | null;
+  startDate: string; endDate: string;
+}
+export function useSeasonalEvents() {
+  return useQuery<SeasonalEvent[]>({ queryKey: ["v2", "events", "seasonal"], queryFn: () => api.get("/v2/events/seasonal") });
+}
+
+// Streak
+export interface StreakData {
+  currentStreak: number; longestStreak: number; lastActiveDate: string | null; activeToday: boolean;
+}
+export function useStreak() {
+  return useQuery<StreakData>({ queryKey: ["v2", "user", "streak"], queryFn: () => api.get("/v2/user/streak") });
+}
+
+// Badges
+export interface Badge {
+  id: string; title: string; desc: string; unlocked: boolean; completed: boolean; percent: number; icon: string; category: string;
+}
+export function useBadges() {
+  return useQuery<Badge[]>({ queryKey: ["v2", "badges"], queryFn: () => api.get("/v2/badges") });
+}
+
+// Unlockables
+export function useUnlockables() {
+  return useQuery<{ items: { id: string; type: string; label: string; icon: string; requirement: string; unlocked: boolean }[]; equipped: { title: string; frame: string; theme: string } }>({
+    queryKey: ["v2", "unlockables"],
+    queryFn: () => api.get("/v2/unlockables"),
+  });
+}
+export function useEquipUnlockable() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (itemId: string) => api.post("/v2/unlockables/equip", { itemId }),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ["v2", "unlockables"] }),
+  });
+}
+
+// Activity Heatmap
+export interface ActivityHeatmapDay {
+  date: string; minutes: number; points: number; level: number;
+}
+export function useActivityHeatmap() {
+  return useQuery<{ data: ActivityHeatmapDay[]; totalMinutes: number; activeDays: number; longestStreak: number; totalDays: number }>({
+    queryKey: ["v2", "user", "activity-heatmap"],
+    queryFn: () => api.get("/v2/user/activity-heatmap"),
+  });
 }
 
 // Staff delete (super admin)
@@ -1243,6 +1664,98 @@ export function useDemoteAdmin() {
       qc.invalidateQueries({ queryKey: ["v2", "admin", "admins"] });
       qc.invalidateQueries({ queryKey: ["v2", "users", "students"] });
     },
+  });
+}
+
+// ===== Missions =====
+export interface Mission {
+  id: number;
+  title: string;
+  description: string;
+  points: number;
+  kind: string;
+  completed: boolean;
+}
+
+export function useDailyMissions() {
+  return useQuery<Mission[]>({
+    queryKey: ["v2", "missions"],
+    queryFn: () => api.get<Mission[]>("/v2/missions"),
+  });
+}
+
+export function useCompleteMission() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (missionId: number) => api.post(`/v2/missions/${missionId}/complete`, {}),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["v2", "missions"] });
+      qc.invalidateQueries({ queryKey: ["v2", "me"] });
+    },
+  });
+}
+
+// ---------- ADMIN SKILLS ----------
+export interface AdminSkillTrack {
+  id: number; title: string; category: string; description: string;
+  difficulty: string; coverUrl: string | null;
+  yearInCollege: number; prerequisites: number[];
+  lessons: AdminSkillLesson[];
+}
+export interface AdminSkillLesson {
+  id: number; trackId: number; title: string;
+  durationMinutes: number; kind: string; ord: number;
+}
+
+export function useAdminSkillTracks() {
+  return useQuery<AdminSkillTrack[]>({ queryKey: ["v2", "admin", "skills", "tracks"], queryFn: () => api.get("/v2/admin/skills/tracks") });
+}
+
+export function useCreateAdminSkillTrack() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (body: { title: string; category: string; description?: string; difficulty?: string; coverUrl?: string; yearInCollege?: number; prerequisites?: number[] }) => api.post("/v2/admin/skills/tracks", body),
+    onSuccess: () => { qc.invalidateQueries({ queryKey: ["v2", "admin", "skills", "tracks"] }); },
+  });
+}
+
+export function useUpdateAdminSkillTrack() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: ({ id, ...body }: { id: number; title?: string; category?: string; description?: string; difficulty?: string; coverUrl?: string; yearInCollege?: number; prerequisites?: number[] }) => api.put(`/v2/admin/skills/tracks/${id}`, body),
+    onSuccess: () => { qc.invalidateQueries({ queryKey: ["v2", "admin", "skills", "tracks"] }); },
+  });
+}
+
+export function useDeleteAdminSkillTrack() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (id: number) => api.del(`/v2/admin/skills/tracks/${id}`),
+    onSuccess: () => { qc.invalidateQueries({ queryKey: ["v2", "admin", "skills", "tracks"] }); },
+  });
+}
+
+export function useCreateAdminSkillLesson() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (body: { trackId: number; title: string; durationMinutes?: number; kind?: string; ord?: number }) => api.post("/v2/admin/skills/lessons", body),
+    onSuccess: () => { qc.invalidateQueries({ queryKey: ["v2", "admin", "skills", "tracks"] }); },
+  });
+}
+
+export function useUpdateAdminSkillLesson() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: ({ id, ...body }: { id: number; title?: string; durationMinutes?: number; kind?: string; ord?: number }) => api.put(`/v2/admin/skills/lessons/${id}`, body),
+    onSuccess: () => { qc.invalidateQueries({ queryKey: ["v2", "admin", "skills", "tracks"] }); },
+  });
+}
+
+export function useDeleteAdminSkillLesson() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (id: number) => api.del(`/v2/admin/skills/lessons/${id}`),
+    onSuccess: () => { qc.invalidateQueries({ queryKey: ["v2", "admin", "skills", "tracks"] }); },
   });
 }
 

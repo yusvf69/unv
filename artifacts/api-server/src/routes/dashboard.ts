@@ -94,36 +94,80 @@ router.get("/dashboard", (req, res) => {
     const nextLevelPoints = (user.level + 1) * 500;
     const weeklyMinutes = activity.reduce((sum, a) => sum + a.minutesStudied, 0);
 
-    const lowestGrade = grades.reduce<typeof grades[number] | null>(
-      (min, g) => (!min || g.score / g.outOf < min.score / min.outOf ? g : min),
-      null,
-    );
-    const examPrediction = lowestGrade
-      ? {
-          courseId: lowestGrade.courseId,
-          courseTitle: lowestGrade.courseTitle,
-          predictedScore: Math.round((lowestGrade.score / lowestGrade.outOf) * 100 * 0.95),
-          confidence: 0.78,
-          risk:
-            lowestGrade.score / lowestGrade.outOf < 0.6
-              ? "high"
-              : lowestGrade.score / lowestGrade.outOf < 0.75
-              ? "medium"
-              : "low",
-          recommendations: [
-            "راجع الفصول 4 و 5 من المقرر",
-            "حل اختبار تجريبي قبل الامتحان",
-            "احضر ساعتي مذاكرة جماعية في القاعة 12",
-          ],
+    const attempts = await db
+      .select()
+      .from(schema.quizAttemptsTable)
+      .where(eq(schema.quizAttemptsTable.userId, userId))
+      .orderBy(desc(schema.quizAttemptsTable.completedAt))
+      .limit(10);
+
+    const trim = (n: number) => Math.max(0, Math.min(100, Math.round(n)));
+    const gradePct = grades.length
+      ? grades.reduce((s, g) => s + (g.outOf > 0 ? (g.score / g.outOf) * 100 : 0), 0) / grades.length
+      : null;
+    const quizPct = attempts.length
+      ? attempts.reduce((s, a) => s + (a.total > 0 ? (a.score / a.total) * 100 : 0), 0) / attempts.length
+      : null;
+    const attTot = attendance.reduce((s, a) => s + a.total, 0);
+    const attDone = attendance.reduce((s, a) => s + a.attended, 0);
+    const attendPct = attTot > 0 ? (attDone / attTot) * 100 : null;
+    const minutes7 = activity.reduce((s, a) => s + a.minutesStudied, 0);
+    const studyPct = minutes7 > 0 ? (minutes7 / 600) * 100 : null;
+
+    const weakest = (() => {
+      let best: { title: string; pct: number } | null = null;
+      if (gradePct != null && grades.length) {
+        for (const g of grades) {
+          const p = g.outOf > 0 ? (g.score / g.outOf) * 100 : 0;
+          if (!best || p < best.pct) best = { title: g.courseTitle, pct: p };
         }
-      : {
-          courseId: 0,
-          courseTitle: "—",
-          predictedScore: 0,
-          confidence: 0.5,
-          risk: "low" as const,
-          recommendations: ["لم يتم رصد درجات بعد. تابع مع الإدارة عند توفرها."],
-        };
+      }
+      return best;
+    })();
+
+    const worstAttempt = attempts.length
+      ? attempts.reduce((w, a) => {
+          const wp = w.total > 0 ? w.score / w.total : 1;
+          const ap = a.total > 0 ? a.score / a.total : 1;
+          return ap < wp ? a : w;
+        }, attempts[0])
+      : null;
+    let weakestQuizTitle: string | null = null;
+    if (!weakest && worstAttempt) {
+      const [qz] = await db
+        .select({ courseTitle: schema.quizzesTable.courseTitle, title: schema.quizzesTable.title })
+        .from(schema.quizzesTable)
+        .where(eq(schema.quizzesTable.id, worstAttempt.quizId))
+        .limit(1);
+      weakestQuizTitle = qz?.courseTitle || qz?.title || null;
+    }
+
+    const have = [gradePct, quizPct, attendPct, studyPct].filter((v): v is number => v != null).length;
+    const predicted =
+      gradePct != null
+        ? gradePct * 0.5 + (quizPct ?? 50) * 0.25 + (attendPct ?? 50) * 0.15 + (studyPct ?? 30) * 0.1
+        : have > 0
+        ? (quizPct ?? 50) * 0.4 + (attendPct ?? 50) * 0.35 + (studyPct ?? 30) * 0.25
+        : null;
+
+    const examPrediction =
+      predicted == null
+        ? {
+            courseId: 0,
+            courseTitle: "—",
+            predictedScore: 0,
+            confidence: 0.5,
+            risk: "low" as const,
+            recommendations: ["لم يتم رصد درجات بعد. تابع مع الإدارة عند توفرها."],
+          }
+        : {
+            courseId: weakest ? (grades.find((g) => g.courseTitle === weakest!.title)?.courseId ?? 0) : 0,
+            courseTitle: weakest?.title ?? weakestQuizTitle ?? "—",
+            predictedScore: trim(predicted),
+            confidence: Math.round((0.5 + have * 0.1) * 100),
+            risk: (predicted < 60 ? "high" : predicted < 75 ? "medium" : "low") as "high" | "medium" | "low",
+            recommendations: buildExamRecommendations(gradePct, quizPct, attendPct, studyPct, minutes7, weakest),
+          };
 
 const AR_TO_EN_DAY: Record<string, string> = {
   "الأحد": "sun", "الاثنين": "mon", "الثلاثاء": "tue", "الأربعاء": "wed", "الخميس": "thu", "السبت": "sat",
@@ -193,5 +237,32 @@ const normalizeType = (t: string) => t === "practical" ? "tutorial" : t;
     });
   });
 });
+
+function buildExamRecommendations(
+  gradePct: number | null,
+  quizPct: number | null,
+  attendPct: number | null,
+  studyPct: number | null,
+  minutes7: number,
+  weakest: { title: string; pct: number } | null,
+): string[] {
+  const recs: string[] = [];
+  if (gradePct != null && gradePct < 75 && weakest) {
+    recs.push(`مستواك في "${weakest.title}" (${Math.round(weakest.pct)}%) يحتاج مراجعة مكثفة قبل الامتحان`);
+  }
+  if (quizPct != null && quizPct < 60) {
+    recs.push(`متوسط اختباراتك (${Math.round(quizPct)}%) منخفض — أعد حل الاختبارات التجريبية وراجع أخطاءك`);
+  }
+  if (attendPct != null && attendPct < 75) {
+    recs.push(`نسبة حضورك ${Math.round(attendPct)}% — الحضور المنتظم يرفع توقعاتك`);
+  }
+  if (studyPct != null && studyPct < 55) {
+    recs.push(`مذاكرتك الأسبوعية ${Math.round(minutes7 / 60)} ساعات فقط — استهدف 6 ساعات على الأقل`);
+  }
+  if (!recs.length) {
+    recs.push("استمر على المذاكرة المنتظمة", "حل اختباراً وهمياً قبل كل امتحان", "راجع المحاضرات الأخيرة للأسبوع القادم");
+  }
+  return recs;
+}
 
 export default router;

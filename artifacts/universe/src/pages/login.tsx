@@ -2,7 +2,7 @@ import { useState, useCallback } from "react";
 import { useLocation } from "wouter";
 import { useQueryClient } from "@tanstack/react-query";
 import { motion, AnimatePresence } from "framer-motion";
-import { Leaf, Mail, Phone, User, Loader2, CheckCircle2, Shield, GraduationCap, Sprout, Eye, EyeOff, AlertCircle, KeyRound } from "lucide-react";
+import { Leaf, Mail, Phone, User, Loader2, CheckCircle2, Shield, GraduationCap, Sprout, Eye, EyeOff, AlertCircle, KeyRound, Sparkles } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -11,6 +11,7 @@ import FileUpload from "@/components/file-upload";
 import { useTranslation, globalI18n } from "@/lib/i18n";
 import { getApiBase } from "@/lib/api";
 const API = getApiBase();
+const DEMO_EMAIL = "youssef@test.com";
 
 const SPECIALIZATIONS = [
   "شعبه عامه",
@@ -31,7 +32,7 @@ const SPECIALIZATION_KEYS = [
 ];
 
 const YEARS = [1, 2, 3, 4];
-const GROUPS = ["عام", "A", "B", "C", "D", "E"];
+const GROUPS = ["A", "B", "C", "D", "E"];
 
 const translations = {
   ...globalI18n,
@@ -110,6 +111,7 @@ export default function Login() {
   const queryClient = useQueryClient();
 
   const [mode, setMode] = useState<"signup" | "login">("signup");
+  const [demoLoading, setDemoLoading] = useState(false);
   const [name, setName] = useState("");
   const [username, setUsername] = useState("");
   const [email, setEmail] = useState("");
@@ -291,6 +293,30 @@ export default function Login() {
     }
   };
 
+  const submitDemo = async () => {
+    setDemoLoading(true);
+    try {
+      const res = await fetch(API + "/v2/auth/demo-login", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ email: DEMO_EMAIL }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || data.message);
+      if (data.token) localStorage.setItem("uv_token", data.token);
+      try {
+        localStorage.setItem("uv_demo_enabled", "1");
+      } catch {}
+      queryClient.invalidateQueries();
+      toast({ title: t("loginSuccess") });
+      setTimeout(() => setLocation("/"), 400);
+    } catch (err) {
+      toast({ title: t("error"), description: (err as Error).message, variant: "destructive" });
+    } finally {
+      setDemoLoading(false);
+    }
+  };
+
   return (
     <div className="min-h-[calc(100vh-4rem)] flex items-center justify-center p-3 sm:p-4 bg-gradient-to-br from-primary/10 via-background to-accent/20 relative overflow-hidden">
       {Array.from({ length: 8 }).map((_, i) => (
@@ -427,7 +453,7 @@ export default function Login() {
                 <div className="flex gap-2">
                   {GROUPS.map((g) => (
                     <button type="button" key={g} onClick={() => setGroupName(g)} className={`flex-1 h-10 rounded-md border-2 text-sm font-bold transition ${groupName === g ? "bg-primary text-primary-foreground border-primary" : "bg-background"}`}>
-                      {g === "عام" ? t("catGeneral") : g}
+                      {g}
                     </button>
                   ))}
                 </div>
@@ -605,6 +631,14 @@ export default function Login() {
               </div>
               <Button type="submit" className="w-full h-10 sm:h-11 bg-gradient-to-r from-primary to-secondary text-sm">
                 {t("loginTab")}
+              </Button>
+              <div className="relative text-center">
+                <div className="absolute inset-0 flex items-center"><span className="w-full border-t" /></div>
+                <span className="relative bg-background px-2 text-[10px] uppercase tracking-wider text-muted-foreground">أو</span>
+              </div>
+              <Button type="button" variant="outline" onClick={submitDemo} disabled={demoLoading} className="w-full h-10 sm:h-11 text-sm">
+                {demoLoading ? <Loader2 className="h-4 w-4 animate-spin" /> : <Sparkles className="h-4 w-4" />}
+                <span className="ms-1.5">دخول تجريبي سريع</span>
               </Button>
               <p className="text-xs text-muted-foreground text-center">{t("noAccount")} <button type="button" onClick={() => setMode("signup")} className="text-primary underline">{t("createNewAccountLink")}</button></p>
             </motion.form>

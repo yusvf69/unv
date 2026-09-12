@@ -1,5 +1,5 @@
 import { Router, type IRouter, type Request } from "express";
-import { eq, desc, and, sql, inArray, ilike, or } from "drizzle-orm";
+import { eq, desc, and, sql, inArray, ilike, or, max } from "drizzle-orm";
 import { db, schema } from "../lib/db";
 import { handle } from "../lib/util";
 import { setDemoUser } from "../lib/session";
@@ -7,6 +7,60 @@ import bcrypt from "bcryptjs";
 import { isMailConfigured, sendMail } from "../lib/mail";
 
 const router: IRouter = Router();
+
+// ---------- LOGIN LOCKOUT (wrong-password protection) ----------
+const LOGIN_ATTEMPTS = new Map<string, { fails: number; lockUntil: number; lockCount: number }>();
+const LOCK_AFTER_ATTEMPTS = 5;
+
+function lockDurationMinutes(lockCount: number): number {
+  if (lockCount <= 1) return 1;
+  if (lockCount === 2) return 5;
+  if (lockCount === 3) return 15;
+  return 30;
+}
+
+function normalizeLoginKey(id: string): string {
+  const key = id.trim().toLowerCase();
+  if (key.includes("@")) return key;
+  return key.replace(/[^0-9]/g, "").replace(/^0/, "+2");
+}
+
+function checkLoginLock(key: string): number {
+  const entry = LOGIN_ATTEMPTS.get(key);
+  if (!entry) return 0;
+  const now = Date.now();
+  if (entry.lockUntil === 0) return 0;
+  if (entry.lockUntil <= now) {
+    entry.lockUntil = 0;
+    entry.fails = 0;
+    return 0;
+  }
+  return entry.lockUntil - now;
+}
+
+function recordFailedLogin(key: string): { lockedMins: number; remaining: number } | { lockedMins: 0; remaining: number } {
+  const now = Date.now();
+  let entry = LOGIN_ATTEMPTS.get(key);
+  if (!entry) {
+    entry = { fails: 0, lockUntil: 0, lockCount: 0 };
+    LOGIN_ATTEMPTS.set(key, entry);
+  }
+  entry.fails += 1;
+  if (entry.fails >= LOCK_AFTER_ATTEMPTS) {
+    entry.lockCount += 1;
+    const mins = lockDurationMinutes(entry.lockCount);
+    entry.lockUntil = now + mins * 60_000;
+    entry.fails = 0;
+    LOGIN_ATTEMPTS.set(key, entry);
+    return { lockedMins: mins, remaining: 0 };
+  }
+  LOGIN_ATTEMPTS.set(key, entry);
+  return { lockedMins: 0, remaining: LOCK_AFTER_ATTEMPTS - entry.fails };
+}
+
+function clearLoginLock(key: string): void {
+  LOGIN_ATTEMPTS.delete(key);
+}
 
 function generateUniqueCode(): string {
   const chars = "ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789";
@@ -99,11 +153,16 @@ router.post("/v2/admin/notifications/system", requireRole(["admin", "super_admin
   });
 });
 
-// ---------- AUTH (password-based) ----------
 router.post("/v2/auth/login", (req, res) => {
   void handle(res, async () => {
     const { identifier, password } = req.body as { identifier?: string; password?: string };
     if (!identifier || !password) throw Object.assign(new Error("البريد/الهاتف وكلمة المرور مطلوبة"), { status: 400 });
+    const lockKey = normalizeLoginKey(identifier);
+    const lockedMs = checkLoginLock(lockKey);
+    if (lockedMs > 0) {
+      const mins = Math.max(1, Math.ceil(lockedMs / 60_000));
+      throw Object.assign(new Error(`محاولات كثيرة جداً. انتظر ${mins} دقيقة قبل المحاولة التالية`), { status: 429 });
+    }
     const [user] = await db
       .select()
       .from(schema.usersTable)
@@ -111,7 +170,14 @@ router.post("/v2/auth/login", (req, res) => {
       .limit(1);
     if (!user) throw Object.assign(new Error("الحساب غير موجود"), { status: 404 });
     const valid = await bcrypt.compare(password, user.password);
-    if (!valid) throw Object.assign(new Error("كلمة المرور غير صحيحة"), { status: 401 });
+    if (!valid) {
+      const out = recordFailedLogin(lockKey);
+      if (out.lockedMins > 0) {
+        throw Object.assign(new Error(`كلمة المرور غير صحيحة. تم إيقاف المحاولات لمدة ${out.lockedMins} دقيقة`), { status: 401 });
+      }
+      throw Object.assign(new Error(`كلمة المرور غير صحيحة. متبقي ${out.remaining} محاولات`), { status: 401 });
+    }
+    clearLoginLock(lockKey);
     setDemoUser(res, user.id);
     return { userId: user.id, role: user.role };
   });
@@ -543,19 +609,32 @@ router.delete("/v2/admin/talent-comments/:id", requireRole(["admin", "super_admi
 });
 
 // ---------- GAMES ----------
+const GAME_MAX_SCORES: Record<string, number> = {
+  soil_match: 850, plant_quiz: 1000, harvest_run: 1500, plant_id: 960, soil_ph: 1500,
+  crop_match: 1200, disease_detect: 1400, case_battle: 2000,
+};
+
 router.post("/v2/games/score", (req, res) => {
   void handle(res, async () => {
     const { gameKey, score, durationMs } = req.body as { gameKey: string; score: number; durationMs?: number };
     if (!gameKey || typeof score !== "number") throw Object.assign(new Error("بيانات ناقصة"), { status: 400 });
+    const maxScore = GAME_MAX_SCORES[gameKey] ?? 1000;
+    const clampedScore = Math.min(Math.max(0, Math.floor(score)), maxScore);
+    const [bestRow] = await db
+      .select({ best: max(schema.gameScoresTable.score) })
+      .from(schema.gameScoresTable)
+      .where(and(eq(schema.gameScoresTable.userId, req.demo.currentUserId!), eq(schema.gameScoresTable.gameKey, gameKey)));
+    const isNewBest = clampedScore > (bestRow?.best ?? -1);
     const [row] = await db
       .insert(schema.gameScoresTable)
-      .values({ userId: req.demo.currentUserId!, gameKey, score, durationMs: durationMs ?? 0 })
+      .values({ userId: req.demo.currentUserId!, gameKey, score: clampedScore, durationMs: durationMs ?? 0 })
       .returning();
-    // award points
-    await db
-      .update(schema.usersTable)
-      .set({ points: sql`${schema.usersTable.points} + ${Math.floor(score / 10)}` })
-      .where(eq(schema.usersTable.id, req.demo.currentUserId!));
+    if (isNewBest) {
+      await db
+        .update(schema.usersTable)
+        .set({ points: sql`${schema.usersTable.points} + ${Math.floor(clampedScore / 10)}` })
+        .where(eq(schema.usersTable.id, req.demo.currentUserId!));
+    }
     return row;
   });
 });
@@ -705,6 +784,19 @@ router.get("/v2/courses/:id/materials", (req, res) => {
   });
 });
 
+// All courses (student-facing list)
+router.get("/v2/courses", (_req, res) => {
+  void handle(res, async () => {
+    const rows = await db.select().from(schema.coursesTable).orderBy(schema.coursesTable.code);
+    return rows.map((c) => ({
+      id: c.id, title: c.title, code: c.code, description: c.description,
+      credits: c.credits, department: c.department, instructor: c.instructor,
+      coverUrl: c.coverUrl, progress: c.progress, enrolled: c.enrolled,
+      semester: (c as any).semester ?? c.yearInCollege ?? 1,
+    }));
+  });
+});
+
 // User group info
 router.post("/v2/me/group", (req, res) => {
   void handle(res, async () => {
@@ -733,11 +825,31 @@ router.post("/v2/forum/posts", (req, res) => {
 router.post("/v2/forum/posts/:id/upvote", (req, res) => {
   void handle(res, async () => {
     const id = Number(req.params.id);
-    await db
-      .update(schema.forumPostsTable)
-      .set({ upvotes: sql`${schema.forumPostsTable.upvotes} + 1` })
-      .where(eq(schema.forumPostsTable.id, id));
-    return { ok: true };
+    const userId = req.demo.currentUserId;
+    if (!userId) throw Object.assign(new Error("غير مسجل"), { status: 401 });
+
+    const [existing] = await db
+      .select()
+      .from(schema.forumPostLikesTable)
+      .where(and(eq(schema.forumPostLikesTable.postId, id), eq(schema.forumPostLikesTable.userId, userId)));
+
+    if (existing) {
+      await db
+        .delete(schema.forumPostLikesTable)
+        .where(and(eq(schema.forumPostLikesTable.postId, id), eq(schema.forumPostLikesTable.userId, userId)));
+      await db
+        .update(schema.forumPostsTable)
+        .set({ upvotes: sql`GREATEST(${schema.forumPostsTable.upvotes} - 1, 0)` })
+        .where(eq(schema.forumPostsTable.id, id));
+    } else {
+      await db.insert(schema.forumPostLikesTable).values({ postId: id, userId });
+      await db
+        .update(schema.forumPostsTable)
+        .set({ upvotes: sql`${schema.forumPostsTable.upvotes} + 1` })
+        .where(eq(schema.forumPostsTable.id, id));
+    }
+    const [post] = await db.select({ upvotes: schema.forumPostsTable.upvotes }).from(schema.forumPostsTable).where(eq(schema.forumPostsTable.id, id));
+    return { upvotes: post?.upvotes ?? 0 };
   });
 });
 
@@ -877,18 +989,32 @@ router.get("/v2/users/:id", (req, res) => {
       following = !!f;
     }
 
-    return {
-      ...user,
-      lastSeen: user.lastSeen?.toISOString(),
-      createdAt: user.createdAt?.toISOString(),
-      followerCount,
-      followingCount,
-      totalLikesReceived: totalTalentLikes + totalForumLikes,
+    let callerRole: string | null = null;
+    if (currentUserId) {
+      const [caller] = await db.select({ role: schema.usersTable.role }).from(schema.usersTable).where(eq(schema.usersTable.id, currentUserId)).limit(1);
+      callerRole = caller?.role ?? null;
+    }
+    const canSeePII = currentUserId === id || callerRole === "admin" || callerRole === "super_admin";
+    const safe: any = {
+      id: user.id, name: user.name, username: user.username, role: user.role,
+      title: user.title ?? null, bio: user.bio ?? null, department: user.department ?? "غير محدد",
+      specialization: user.specialization ?? null, groupName: user.groupName ?? null,
+      avatarUrl: user.avatarUrl ?? null, points: user.points ?? 0, level: user.level ?? 1,
+      streak: user.streak ?? 0, coins: (user as any).coins ?? 0,
+      year: user.yearInCollege ?? null, yearInCollege: user.yearInCollege ?? null,
+      lastSeen: user.lastSeen?.toISOString?.() ?? null, createdAt: user.createdAt?.toISOString?.() ?? null,
+      followerCount, followingCount, totalLikesReceived: totalTalentLikes + totalForumLikes,
       forumPosts: forumPosts.map((p) => ({ ...p, createdAt: p.createdAt.toISOString() })),
       talents: talents.map((t) => ({ ...t, createdAt: t.createdAt.toISOString() })),
       summaries: summaries.map((s) => ({ ...s, createdAt: s.createdAt.toISOString() })),
       following,
     };
+    if (canSeePII) {
+      safe.email = user.email;
+      safe.phone = user.phone;
+      safe.uniqueCode = user.uniqueCode;
+    }
+    return safe;
   });
 });
 
@@ -949,6 +1075,11 @@ router.post("/v2/auth/signup", (req, res) => {
 router.post("/v2/auth/demo-login", (req, res) => {
   void handle(res, async () => {
     const { email, password } = req.body as { email: string; password?: string };
+    const normalizedEmail = String(email || "").trim().toLowerCase();
+    const DEMO_ONLY_EMAIL = "youssef@test.com";
+    if (!password && normalizedEmail !== DEMO_ONLY_EMAIL) {
+      throw Object.assign(new Error("كلمة المرور مطلوبة"), { status: 401 });
+    }
     const [u] = await db.select().from(schema.usersTable).where(eq(schema.usersTable.email, email)).limit(1);
     if (!u) throw Object.assign(new Error("الحساب غير موجود"), { status: 404 });
     if (password) {
@@ -1206,17 +1337,18 @@ router.get("/v2/skills/tracks", (_req, res) => {
 router.post("/v2/skills/lessons/:id/complete", (req, res) => {
   void handle(res, async () => {
     const id = Number(req.params.id);
-    await db.update(schema.skillLessonsTable).set({ completed: true }).where(eq(schema.skillLessonsTable.id, id));
-    // recompute track progress
     const [lesson] = await db.select().from(schema.skillLessonsTable).where(eq(schema.skillLessonsTable.id, id));
-    if (lesson) {
-      const all = await db.select().from(schema.skillLessonsTable).where(eq(schema.skillLessonsTable.trackId, lesson.trackId));
-      const done = all.filter((l) => l.completed).length;
-      const progress = all.length ? done / all.length : 0;
-      await db.update(schema.skillTracksTable).set({ progress }).where(eq(schema.skillTracksTable.id, lesson.trackId));
-      // award points (stricter: only 5 pts per lesson)
+    if (!lesson) throw Object.assign(new Error("الدرس غير موجود"), { status: 404 });
+    if (!lesson.completed) {
+      await db.update(schema.skillLessonsTable).set({ completed: true }).where(eq(schema.skillLessonsTable.id, id));
+      // award points once per lesson
       await db.update(schema.usersTable).set({ points: sql`${schema.usersTable.points} + 5` }).where(eq(schema.usersTable.id, req.demo.currentUserId!));
     }
+    // recompute track progress
+    const all = await db.select().from(schema.skillLessonsTable).where(eq(schema.skillLessonsTable.trackId, lesson.trackId));
+    const done = all.filter((l) => l.completed).length;
+    const progress = all.length ? done / all.length : 0;
+    await db.update(schema.skillTracksTable).set({ progress }).where(eq(schema.skillTracksTable.id, lesson.trackId));
     return { ok: true };
   });
 });
@@ -1258,7 +1390,7 @@ router.get("/v2/quizzes/:id/start", (req, res) => {
         id: qq.id,
         text: qq.text,
         type: qq.type,
-        options: qq.type === "complete" ? qq.options : shuffledOpts.map((o) => o.text),
+        options: qq.type === "complete" ? [] : shuffledOpts.map((o) => o.text),
         optionMap: qq.type === "complete" ? [0] : shuffledOpts.map((o) => o.originalIndex), // server uses to verify
         points: qq.points,
       };
@@ -1277,11 +1409,11 @@ router.post("/v2/quizzes/:id/submit", (req, res) => {
     const questions = await db.select().from(schema.quizQuestionsTable).where(eq(schema.quizQuestionsTable.quizId, id));
     let score = 0;
     let total = 0;
+    for (const qq of questions) total += qq.points;
     const ans: { questionId: number; chosen: number; correct: boolean }[] = [];
     for (const a of answers) {
       const qq = questions.find((x) => x.id === a.questionId);
       if (!qq) continue;
-      total += qq.points;
       let correct: boolean;
       if (qq.type === "complete") {
         const userText = (a as any).textAnswer || "";
@@ -1307,20 +1439,22 @@ router.post("/v2/quizzes/:id/submit", (req, res) => {
     // award points: 1 pt per correct mark, bonus if passed
     const pointsAwarded = Math.floor(score / 5) + (passed ? 10 : 0);
     await db.update(schema.usersTable).set({ points: sql`${schema.usersTable.points} + ${pointsAwarded}` }).where(eq(schema.usersTable.id, req.demo.currentUserId!));
-    // return full question details for result review
+    // return review details — only reveal the answer key for questions the user actually answered
+    const answeredIds = new Set(ans.map((a) => a.questionId));
     const questionDetails = questions.map((qq) => {
       const userAns = ans.find((a) => a.questionId === qq.id);
+      const wasAnswered = answeredIds.has(qq.id);
       return {
         questionId: qq.id,
         text: qq.text,
         type: qq.type,
-        options: qq.options,
-        correctIndex: qq.correctIndex,
-        explanation: qq.explanation,
+        options: wasAnswered ? qq.options : [],
+        correctIndex: wasAnswered ? qq.correctIndex : -1,
+        explanation: wasAnswered ? qq.explanation : "",
         points: qq.points,
         userChosen: userAns?.chosen ?? -1,
-        textAnswer: (userAns as any)?.textAnswer,
-        correct: userAns?.correct ?? false,
+        textAnswer: userAns ? (userAns as any).textAnswer ?? undefined : undefined,
+        correct: wasAnswered ? (userAns?.correct ?? false) : false,
       };
     });
     return { ...attempt, completedAt: attempt.completedAt.toISOString(), passed, pointsAwarded, questionDetails };
@@ -1617,6 +1751,9 @@ router.post("/v2/admin/materials/:id/files", requireRole(["admin", "super_admin"
     const user = (req as any).currentUser as typeof schema.usersTable.$inferSelect;
     const { name, kind, url, sizeBytes } = req.body as any;
     if (!name || !url) throw Object.assign(new Error("name و url مطلوبان"), { status: 400 });
+    const parsed = new URL(url);
+    if (!["http:", "https:"].includes(parsed.protocol)) throw Object.assign(new Error("رابط غير صالح"), { status: 400 });
+    const safeSize = Math.max(0, Math.min(Number(sizeBytes) ?? 0, 50 * 1024 * 1024));
     const [mat] = await db.select().from(schema.materialsTable).where(eq(schema.materialsTable.id, id));
     if (!mat) throw Object.assign(new Error("المادة غير موجودة"), { status: 404 });
     const [f] = await db.insert(schema.materialFilesTable).values({
@@ -1625,7 +1762,7 @@ router.post("/v2/admin/materials/:id/files", requireRole(["admin", "super_admin"
       name,
       kind: kind || "pdf",
       url,
-      sizeBytes: sizeBytes || 0,
+      sizeBytes: safeSize,
       uploadedById: user.id,
       uploadedByName: user.name,
     }).returning();
@@ -1695,14 +1832,19 @@ router.post("/v2/activity/log", (req, res) => {
     if (!userId) throw Object.assign(new Error("غير مسجل"), { status: 401 });
     const { minutes } = req.body as { minutes: number };
     if (!minutes || minutes <= 0) throw Object.assign(new Error("Invalid minutes"), { status: 400 });
+    // cap abuse: max 240 min per request, and cap daily total at 720 min
+    const DAY_CAP = 720, REQ_CAP = 240;
     const today = new Date().toISOString().split("T")[0];
     const [existing] = await db.select().from(schema.activityTable).where(and(eq(schema.activityTable.userId, userId), eq(schema.activityTable.date, today))).limit(1);
-    const earnedPoints = Math.floor(minutes / 10);
+    const already = existing?.minutesStudied ?? 0;
+    const allowed = Math.max(0, Math.min(Math.floor(minutes), REQ_CAP, DAY_CAP - already));
+    if (allowed <= 0) return { loggedMinutes: 0, earnedPoints: 0, totalMinutes: already };
+    const earnedPoints = Math.floor(allowed / 10);
     if (existing) {
       const prevMinutes = existing.minutesStudied;
       const [updated] = await db
         .update(schema.activityTable)
-        .set({ minutesStudied: sql`${schema.activityTable.minutesStudied} + ${minutes}`, pointsEarned: sql`${schema.activityTable.pointsEarned} + ${earnedPoints}` })
+        .set({ minutesStudied: sql`${schema.activityTable.minutesStudied} + ${allowed}`, pointsEarned: sql`${schema.activityTable.pointsEarned} + ${earnedPoints}` })
         .where(eq(schema.activityTable.id, existing.id))
         .returning();
       await db.update(schema.usersTable).set({ points: sql`${schema.usersTable.points} + ${earnedPoints}` }).where(eq(schema.usersTable.id, userId));
@@ -1720,12 +1862,12 @@ router.post("/v2/activity/log", (req, res) => {
       return updated;
     }
     const [row] = await db.insert(schema.activityTable).values({
-      userId, date: today, minutesStudied: minutes, pointsEarned: earnedPoints,
+      userId, date: today, minutesStudied: allowed, pointsEarned: earnedPoints,
     }).returning();
     await db.update(schema.usersTable).set({ points: sql`${schema.usersTable.points} + ${earnedPoints}` }).where(eq(schema.usersTable.id, userId));
-    if (minutes >= 30) {
+    if (allowed >= 30) {
       await db.insert(schema.notificationsTable).values({
-        userId, title: "📚 مذاكرة مسجلة", body: `تم تسجيل ${minutes} دقيقة مذاكرة. حصلت على ${earnedPoints} نقطة.`, type: "info",
+        userId, title: "📚 مذاكرة مسجلة", body: `تم تسجيل ${allowed} دقيقة مذاكرة. حصلت على ${earnedPoints} نقطة.`, type: "info",
       });
     }
     return row;
@@ -1962,12 +2104,19 @@ router.get("/v2/courses/:id/lectures", (req, res) => {
     const quizzes = await db.select().from(schema.lectureQuizzesTable).where(inArray(schema.lectureQuizzesTable.lectureId, lectures.map((l) => l.id)));
     const quizQs = await db.select().from(schema.lectureQuizQuestionsTable).where(inArray(schema.lectureQuizQuestionsTable.quizId, quizzes.map((q) => q.id))).orderBy(schema.lectureQuizQuestionsTable.ord);
     const pdfs = await db.select().from(schema.lecturePdfsTable).where(inArray(schema.lecturePdfsTable.lectureId, lectures.map((l) => l.id)));
+    const userRole = (await getCurrentUser(req))?.role;
+    const isAdmin = userRole === "admin" || userRole === "super_admin";
+    const safeQuestions = (qq: typeof schema.lectureQuizQuestionsTable.$inferSelect) => {
+      const clean: Record<string, unknown> = { id: qq.id, quizId: qq.quizId, text: qq.text, options: qq.options, points: qq.points, ord: qq.ord };
+      if (isAdmin) { clean.correctIndex = qq.correctIndex; }
+      return clean;
+    };
     return lectures.map((l) => ({
       ...l,
       videos: vids.filter((v) => v.lectureId === l.id),
       quizzes: quizzes.filter((q) => q.lectureId === l.id).map((q) => ({
         ...q,
-        questions: quizQs.filter((qq) => qq.quizId === q.id),
+        questions: quizQs.filter((qq) => qq.quizId === q.id).map(safeQuestions),
       })),
       pdfs: pdfs.filter((p) => p.lectureId === l.id),
     }));
@@ -2041,6 +2190,9 @@ router.post("/v2/admin/lectures/:lectureId/pdfs", requireRole(["admin", "super_a
     const user = (req as any).currentUser as typeof schema.usersTable.$inferSelect;
     const { name, url, sizeBytes } = req.body as { name: string; url: string; sizeBytes?: number };
     if (!name || !url) throw Object.assign(new Error("الاسم والرابط مطلوب"), { status: 400 });
+    const parsed = new URL(url);
+    if (!["http:", "https:"].includes(parsed.protocol)) throw Object.assign(new Error("رابط غير صالح"), { status: 400 });
+    const safeSize = Math.max(0, Math.min(Number(sizeBytes) ?? 0, 50 * 1024 * 1024));
     // first get the course from the lecture
     const [lec] = await db.select().from(schema.lecturesTable).where(eq(schema.lecturesTable.id, lectureId));
     if (!lec) throw Object.assign(new Error("المحاضرة غير موجودة"), { status: 404 });
@@ -2051,7 +2203,7 @@ router.post("/v2/admin/lectures/:lectureId/pdfs", requireRole(["admin", "super_a
       name,
       kind: "pdf",
       url,
-      sizeBytes: sizeBytes || 0,
+      sizeBytes: safeSize,
       uploadedById: user.id,
       uploadedByName: user.name,
     }).returning();
@@ -2189,10 +2341,18 @@ router.post("/v2/lecture-quizzes/:quizId/submit", (req, res) => {
       await db.update(schema.lectureQuizAttemptsTable).set({ score, total, answers: ansArr.map(String), completedAt: new Date() }).where(eq(schema.lectureQuizAttemptsTable.id, existing[0].id));
     } else {
       await db.insert(schema.lectureQuizAttemptsTable).values({ userId, quizId, score, total, answers: ansArr.map(String) });
+      await db.update(schema.usersTable).set({ points: sql`${schema.usersTable.points} + ${score}` }).where(eq(schema.usersTable.id, userId));
     }
-    // award points
-    await db.update(schema.usersTable).set({ points: sql`${schema.usersTable.points} + ${score}` }).where(eq(schema.usersTable.id, userId));
-    return { score, total, passed: score / total >= 0.5 };
+    // only reveal the answer key for questions the user actually answered
+    const answeredIndexes = new Map((answers || []).filter((a) => a.chosenIndex != null && a.chosenIndex >= 0).map((a) => [a.questionId, a.chosenIndex]));
+    const details = questions
+      .filter((qq) => answeredIndexes.has(qq.id))
+      .map((qq) => {
+        const ansMap = answers.find((a) => a.questionId === qq.id);
+        const correct = ansMap?.chosenIndex === qq.correctIndex;
+        return { questionId: qq.id, text: qq.text, options: qq.options, correctIndex: qq.correctIndex, userChosen: ansMap?.chosenIndex ?? -1, correct };
+      });
+    return { score, total, passed: score / total >= 0.5, details };
   });
 });
 

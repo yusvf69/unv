@@ -1,5 +1,6 @@
 import { Switch, Route, Router as WouterRouter, useLocation } from "wouter";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
+import { setupCachePersistence, loadCache } from "@/lib/cache-persist";
 import { Toaster } from "@/components/ui/toaster";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { useGetMe } from "@workspace/api-client-react";
@@ -20,6 +21,7 @@ import Forum from "@/pages/forum";
 import ForumDetail from "@/pages/forum-detail";
 import Talents from "@/pages/talents";
 import Skills from "@/pages/skills";
+import SkillsMe from "@/pages/skills-me";
 import SkillDetail from "@/pages/skill-detail";
 import Complaints from "@/pages/complaints";
 import AiChat from "@/pages/ai-chat";
@@ -28,6 +30,10 @@ import AdminDashboard from "@/pages/admin-dashboard";
 import AdminUsers from "@/pages/admin-users";
 import Login from "@/pages/login";
 import Games from "@/pages/games";
+import GameProfile from "@/pages/game-profile";
+import GameReplay from "@/pages/game-replay";
+import Missions from "@/pages/missions";
+import Achievements from "@/pages/achievements";
 import AdminProposalsPage from "@/pages/admin-proposals";
 import AdminNews from "@/pages/admin-news";
 import AdminTalents from "@/pages/admin-talents";
@@ -42,6 +48,7 @@ import AdminDmMonitor from "@/pages/admin-dm-monitor";
 import AdminCourseDetail from "@/pages/admin-course-detail";
 import AdminMaterials from "@/pages/admin-materials";
 import AdminSchedule from "@/pages/admin-schedule";
+import AdminSkills from "@/pages/admin-skills";
 import Events from "@/pages/events";
 import AdminEvents from "@/pages/admin-events";
 import StudentSummaries from "@/pages/student-summaries";
@@ -50,6 +57,9 @@ import StudentProfile from "@/pages/student-profile";
 import FAQ from "@/pages/faq";
 import Guide from "@/pages/guide";
 import Report from "@/pages/report";
+import StudyRooms from "@/pages/study-rooms";
+import CoopChallenges from "@/pages/coop-challenges";
+import GameAnalytics from "@/pages/game-analytics";
 
 const PUBLIC_ROUTES = ["/", "/login", "/news"];
 
@@ -75,10 +85,37 @@ function ProtectedRoute({ path, component: Component }: { path: string; componen
 }
 
 const queryClient = new QueryClient({
-  defaultOptions: { queries: { retry: 1, refetchOnWindowFocus: false } },
+  defaultOptions: {
+    queries: {
+      retry: 1,
+      refetchOnWindowFocus: false,
+      refetchOnReconnect: false,
+      staleTime: Infinity,
+      gcTime: 24 * 60 * 60 * 1000,
+    },
+  },
 });
 
+setupCachePersistence(queryClient);
+loadCache(queryClient);
+
 function Router() {
+  // Handle ?token= in query params at the app level, then scrub it from the URL
+  useEffect(() => {
+    const qp = new URLSearchParams(window.location.search);
+    const t = qp.get("token");
+    if (t) {
+      localStorage.setItem("uv_token", t);
+      qp.delete("token");
+      const qs = qp.toString();
+      window.history.replaceState(
+        {},
+        "",
+        window.location.pathname + (qs ? `?${qs}` : "") + window.location.hash,
+      );
+    }
+  }, []);
+
   return (
     <Layout>
       <Switch>
@@ -99,9 +136,14 @@ function Router() {
         <ProtectedRoute path="/forum" component={Forum} />
         <ProtectedRoute path="/forum/:id" component={ForumDetail} />
         <ProtectedRoute path="/skills" component={Skills} />
+        <ProtectedRoute path="/skills/me" component={SkillsMe} />
         <ProtectedRoute path="/skills/:id" component={SkillDetail} />
         <ProtectedRoute path="/complaints" component={Complaints} />
         <ProtectedRoute path="/games" component={Games} />
+        <ProtectedRoute path="/games/profile" component={GameProfile} />
+        <ProtectedRoute path="/games/replay/:id" component={GameReplay} />
+        <ProtectedRoute path="/missions" component={Missions} />
+        <ProtectedRoute path="/achievements" component={Achievements} />
         <ProtectedRoute path="/students" component={Students} />
         <ProtectedRoute path="/messages" component={Messages} />
         <ProtectedRoute path="/messages/:id" component={DmThread} />
@@ -121,12 +163,16 @@ function Router() {
         <ProtectedRoute path="/admin/schedule" component={AdminSchedule} />
         <ProtectedRoute path="/events" component={Events} />
         <ProtectedRoute path="/admin/events" component={AdminEvents} />
+        <ProtectedRoute path="/admin/skills" component={AdminSkills} />
         <ProtectedRoute path="/summaries" component={StudentSummaries} />
         <ProtectedRoute path="/schedule" component={Schedule} />
         <ProtectedRoute path="/students/:id" component={StudentProfile} />
         <ProtectedRoute path="/faq" component={FAQ} />
         <ProtectedRoute path="/guide" component={Guide} />
         <ProtectedRoute path="/report" component={Report} />
+        <ProtectedRoute path="/study-rooms" component={StudyRooms} />
+        <ProtectedRoute path="/coop-challenges" component={CoopChallenges} />
+        <ProtectedRoute path="/admin/game-analytics" component={GameAnalytics} />
         <Route component={NotFound} />
       </Switch>
     </Layout>
@@ -134,6 +180,30 @@ function Router() {
 }
 
 function App() {
+  useEffect(() => {
+    let unlisten: (() => void) | undefined;
+    let cleanup: (() => void) | undefined;
+
+    const init = async () => {
+      const mod: any = await import("@capacitor/app").catch(() => null);
+      if (!mod?.App) return;
+      unlisten = mod.App.addListener("backButton", async ({ canGoBack }: { canGoBack: boolean }) => {
+        if (canGoBack) {
+          window.history.back();
+        } else {
+          await mod.App.exitApp().catch(() => {});
+        }
+      });
+    };
+
+    init();
+
+    return () => {
+      unlisten?.();
+      cleanup?.();
+    };
+  }, []);
+
   return (
     <QueryClientProvider client={queryClient}>
       <TooltipProvider>

@@ -268,9 +268,9 @@ export default function StudentCourseDetail() {
   const { id } = useParams<{ id: string }>();
   const courseId = Number(id);
   const [, navigate] = useLocation();
-  const { data: lectures = [] } = useCourseLectures(courseId);
-  const { data: progress } = useCourseProgress(courseId);
-  const { data: videoProgressRaw } = useCourseVideoProgress(courseId);
+  const { data: lectures = [], isLoading: lecturesLoading } = useCourseLectures(courseId);
+  const { data: progress, isPending: progressLoading } = useCourseProgress(courseId);
+  const { data: videoProgressRaw, isPending: videoProgressLoading } = useCourseVideoProgress(courseId);
 
   const [tab, setTab] = useState<"all" | "lecture" | "section">("all");
   const t = useTranslation(globalI18n);
@@ -327,7 +327,14 @@ export default function StudentCourseDetail() {
 
       {/* Lectures */}
       <div className="space-y-6">
-        {filtered.length === 0 && <div className="text-center text-muted-foreground py-12">{t("noLecturesYet")}</div>}
+        {(lecturesLoading || progressLoading || videoProgressLoading) && filtered.length === 0 && (
+          <div className="text-center py-12 flex items-center justify-center gap-2 text-muted-foreground">
+            <Loader2 className="h-5 w-5 animate-spin" /> {t("loading")}
+          </div>
+        )}
+        {!lecturesLoading && !progressLoading && !videoProgressLoading && filtered.length === 0 && (
+          <div className="text-center text-muted-foreground py-12">{t("noLecturesYet")}</div>
+        )}
         {filtered.map((l) => (
           <LectureCard key={l.id} lecture={l} videoProgress={videoProgress} />
         ))}

@@ -30,6 +30,7 @@ export async function handle(fn: () => Promise<any>): Promise<Response> {
     return jsonResponse(data);
   } catch (err: any) {
     console.error("🔴 [handle] Caught error:", err?.message, "| status:", err?.status);
+    console.error(err);
     const status = err?.status || 500;
     const message = err?.message || "Internal Server Error";
     return jsonError(message, status);

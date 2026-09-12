@@ -43,6 +43,7 @@ const ADMIN_PERMISSION_DEFS = [
   { key: "manage_dm", ar: "الرسائل", en: "Manage DM" },
   { key: "manage_achievements", ar: "الإنجازات", en: "Manage Achievements" },
   { key: "manage_grades", ar: "الدرجات", en: "Manage Grades" },
+  { key: "manage_skills", ar: "المهارات", en: "Manage Skills" },
 ];
 
 function ensureAdminPermission(user: any, permission: string) {
@@ -147,11 +148,26 @@ async function applyProposal(p: any) {
 // --- Daily Missions Helpers ---
 
 const DEFAULT_MISSIONS = [
-  { title: "ذاكر ساعة واحدة", description: "60 دقيقة مذاكرة مركزة", points: 10, kind: "study" },
-  { title: "راجع ملخصاً", description: "اقرأ ملخصاً لأحد الدروس", points: 5, kind: "study" },
+  { title: "ادرس درس مهارات", description: "أكمل درساً في أي مسار مهارات", points: 10, kind: "skill" },
+  { title: "العب لعبة تعليمية", description: "العب أي لعبة وحقق 3 نجوم", points: 15, kind: "game" },
   { title: "حل 10 أسئلة", description: "أجب عن 10 أسئلة من بنك الأسئلة", points: 15, kind: "quiz" },
+  { title: "أكمل Quick Check", description: "أجب على أسئلة المراجعة بعد الدرس", points: 8, kind: "skill" },
+  { title: "اكسب 30 XP", description: "اجمع 30 نقطة خبرة من أي نشاط", points: 20, kind: "focus" },
   { title: "شارك في المنتدى", description: "اكتب منشوراً أو رداً في المنتدى", points: 8, kind: "forum" },
-  { title: "أكمل اختباراً", description: "اختبر نفسك بنسبة 70%+", points: 20, kind: "quiz" },
+  { title: "أكمل اختباراً بنجاح", description: "اختبر نفسك بنسبة 70%+", points: 20, kind: "quiz" },
+  { title: "العب تحدي اليوم", description: "افتح لعبة اليوم الموصى بها", points: 12, kind: "challenge" },
+  { title: "راجع مساراً", description: "أكمل 3 دروس في مسار مهارات", points: 25, kind: "skill" },
+  { title: "ادرس مع AI", description: "استخدم المساعد الذكي لشرح درس", points: 10, kind: "focus" },
+  { title: "حافظ على التتابع", description: "ادرس أو العب ليومين متتاليين", points: 20, kind: "streak" },
+  { title: "تحدي مزدوج", description: "العب لعبتين مختلفتين", points: 18, kind: "game" },
+  { title: "متفوق Quick Check", description: "أجب على 3 Quick Checks بنتيجة 80%+", points: 22, kind: "skill" },
+  { title: "3 نجوم", description: "احصل على 3 نجوم في أي لعبة", points: 20, kind: "game" },
+  { title: "درس + لعبة", description: "ادرس درساً ثم العب اللعبة المرتبطة", points: 25, kind: "focus" },
+  { title: "Streak 3 أيام", description: "حافظ على تتابع 3 أيام متتالية", points: 30, kind: "streak" },
+  { title: "بطولة سريعة", description: "العب 3 جولات من نفس اللعبة", points: 20, kind: "game" },
+  { title: "نسبة نقاء", description: "أنهِ اختباراً بنسبة 90%+", points: 25, kind: "quiz" },
+  { title: "مستكشف مسار", description: "ابدأ مسار مهارات جديد", points: 12, kind: "skill" },
+  { title: "تحدي الفعالية", description: "شارك في الفعالية الأسبوعية", points: 20, kind: "challenge" },
 ];
 
 async function ensureDailyMissionsTable() {
@@ -173,6 +189,52 @@ async function ensureDailyMissionsTable() {
   } catch {}
 }
 
+async function autoCompleteMissions(userId: number, kind: string) {
+  try {
+    await sql`UPDATE daily_missions SET completed = true WHERE user_id = ${userId} AND mission_date = CURRENT_DATE AND kind = ${kind} AND completed = false`;
+  } catch (e) { console.error("[autoCompleteMissions]", e); }
+}
+
+async function ensureDailyStreaksTable() {
+  await sql`
+    CREATE TABLE IF NOT EXISTS user_daily_streaks (
+      id SERIAL PRIMARY KEY,
+      user_id INTEGER UNIQUE REFERENCES users(id),
+      current_streak INTEGER DEFAULT 0,
+      longest_streak INTEGER DEFAULT 0,
+      last_active_date DATE DEFAULT CURRENT_DATE,
+      updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+    )
+  `;
+}
+
+async function updateDailyStreak(userId: number) {
+  try {
+    await ensureDailyStreaksTable();
+    const today = new Date().toISOString().split("T")[0];
+    const yesterday = new Date(Date.now() - 86400000).toISOString().split("T")[0];
+    const [row] = await sql`SELECT * FROM user_daily_streaks WHERE user_id = ${userId}`;
+    if (!row) {
+      await sql`INSERT INTO user_daily_streaks (user_id, current_streak, longest_streak, last_active_date) VALUES (${userId}, 1, 1, ${today})`;
+    } else if (row.last_active_date?.toISOString().split("T")[0] === today) {
+      // already active today, no change
+    } else if (row.last_active_date?.toISOString().split("T")[0] === yesterday) {
+      const next = row.current_streak + 1;
+      const longest = Math.max(next, row.longest_streak);
+      await sql`UPDATE user_daily_streaks SET current_streak = ${next}, longest_streak = ${longest}, last_active_date = ${today}, updated_at = CURRENT_TIMESTAMP WHERE user_id = ${userId}`;
+    } else {
+      await sql`UPDATE user_daily_streaks SET current_streak = 1, last_active_date = ${today}, updated_at = CURRENT_TIMESTAMP WHERE user_id = ${userId}`;
+    }
+    // award XP for streak milestones
+    const [updated] = await sql`SELECT * FROM user_daily_streaks WHERE user_id = ${userId}`;
+    if (updated && updated.current_streak > 0 && [3, 7, 14, 21, 30, 60, 90, 365].includes(updated.current_streak)) {
+      await sql`UPDATE users SET points = points + ${updated.current_streak * 2} WHERE id = ${userId}`;
+    }
+    // Auto-complete streak missions
+    try { await autoCompleteMissions(userId, "streak"); } catch {}
+  } catch (e) { console.error("[updateDailyStreak]", e); }
+}
+
 async function generateDailyMissions(userId: number): Promise<any[]> {
   await ensureDailyMissionsTable();
   const today = new Date().toISOString().split("T")[0];
@@ -189,10 +251,10 @@ async function generateDailyMissions(userId: number): Promise<any[]> {
 - السنة: ${user.year_in_college || ""}
 - التخصص: ${user.specialization || ""}
 
-المهام يجب أن تكون متنوعة. أعد JSON array فقط:
-[{"title":"عنوان","description":"وصف","points":10,"kind":"study"}]
-الأنواع: study, quiz, forum, attendance, focus
-النقاط: بين 5 و 20`;
+المهام يجب أن تدمج بين المهارات والألعاب والاختبارات. أعد JSON array فقط:
+[{"title":"عنوان","description":"وصف","points":10,"kind":"skill"}]
+الأنواع: skill (مهام المهارات), game (مهام الألعاب), quiz (مهام الاختبارات), forum (المنتدى), focus (تركيز عام)
+النقاط: بين 5 و 25`;
       const res = await fetch("https://openrouter.ai/api/v1/chat/completions", {
         method: "POST",
         headers: {
@@ -280,6 +342,8 @@ async function updateStreak(userId: number): Promise<void> {
   }
 
   await sql`UPDATE users SET streak = ${streak} WHERE id = ${userId}`;
+  // also update the new daily streaks table
+  try { await updateDailyStreak(userId); } catch (e) { console.error("[updateStreak] updateDailyStreak:", e); }
 }
 
 // --- Route Handlers by Domain ---
@@ -334,17 +398,37 @@ async function handleDashboard(req: Request): Promise<Response> {
 
     const activityRows = await sql`SELECT date, minutes_studied, points_earned FROM activity WHERE user_id = ${userId} ORDER BY date DESC LIMIT 30`;
     const activity = activityRows.map((a: any) => ({
-      date: a.date, minutes: a.minutes_studied, points: a.points_earned,
+      date: a.date, minutesStudied: a.minutes_studied, pointsEarned: a.points_earned,
     }));
 
-    const examSchedule = await sql`SELECT * FROM exam_schedule WHERE group_name = ${me.group_name} AND year_in_college = ${me.year_in_college} ORDER BY date LIMIT 5`;
-    const examPrediction = {
-      exams: examSchedule.map((e: any) => ({
-        id: e.id, courseTitle: e.course_title, date: e.date, time: e.time, room: e.room, type: e.type,
-      })),
-      risk: "medium" as const,
-      recommendations: ["راجع المحاضرات الأخيرة", "جرب اختبارات تجريبية"],
-    };
+    const quizPct = grades.length ? grades.reduce((s: number, g: any) => s + g.percent, 0) / grades.length : null;
+    const attendPct = attendanceItems.length ? (attendanceItems.filter((a: any) => a.present).length / attendanceItems.length) * 100 : null;
+    const minutes7 = activityRows.reduce((s: number, a: any) => s + a.minutes_studied, 0);
+    const studyPct = minutes7 > 0 ? (minutes7 / 600) * 100 : null;
+    const weakest = grades.length ? grades.reduce((w: any, g: any) => (g.percent < w.percent ? g : w), grades[0]) : null;
+    const haveAtt = [quizPct, attendPct, studyPct].filter((v) => v != null).length;
+    const predicted =
+      haveAtt > 0
+        ? (quizPct ?? 50) * 0.4 + (attendPct ?? 50) * 0.35 + (studyPct ?? 30) * 0.25
+        : null;
+
+    const examPrediction = predicted == null
+      ? {
+          courseId: 0,
+          courseTitle: "—",
+          predictedScore: 0,
+          confidence: 0.5,
+          risk: "low" as const,
+          recommendations: ["لم يتم رصد درجات بعد. تابع مع الإدارة عند توفرها."],
+        }
+      : {
+          courseId: 0,
+          courseTitle: weakest?.courseTitle ?? "—",
+          predictedScore: Math.max(0, Math.min(100, Math.round(predicted))),
+          confidence: Math.round((0.5 + haveAtt * 0.1) * 100),
+          risk: (predicted < 60 ? "high" : predicted < 75 ? "medium" : "low") as "high" | "medium" | "low",
+          recommendations: buildExamRecommendations(quizPct, attendPct, studyPct, minutes7, weakest?.courseTitle ?? null),
+        };
 
     return {
       user: me, currentLevelMin, nextLevelPoints, rank, weeklyMinutes, focusGoalMinutes,
@@ -354,8 +438,88 @@ async function handleDashboard(req: Request): Promise<Response> {
   });
 }
 
+function buildExamRecommendations(
+  quizPct: number | null,
+  attendPct: number | null,
+  studyPct: number | null,
+  minutes7: number,
+  weakestTitle: string | null,
+): string[] {
+  const recs: string[] = [];
+  if (quizPct != null && quizPct < 60) {
+    recs.push(`متوسط اختباراتك (${Math.round(quizPct)}%) منخفض — أعد حل الاختبارات التجريبية وراجع أخطاءك`);
+  }
+  if (attendPct != null && attendPct < 75) {
+    recs.push(`نسبة التزامك اليومي ${Math.round(attendPct)}% — المواظبة ترفع توقعاتك`);
+  }
+  if (studyPct != null && studyPct < 55) {
+    recs.push(`مذاكرتك الأسبوعية ${Math.round(minutes7 / 60)} ساعات فقط — استهدف 6 ساعات على الأقل`);
+  }
+  if (weakestTitle) {
+    recs.push(`ركّز على مقرر "${weakestTitle}" — الأضعف نسبياً`);
+  }
+  if (!recs.length) {
+    recs.push("استمر على المذاكرة المنتظمة", "حل اختباراً وهمياً قبل كل امتحان");
+  }
+  return recs;
+}
+
 async function handleHealth(): Promise<Response> {
   return jsonResponse({ status: "ok" });
+}
+
+// ---------- LOGIN LOCKOUT (wrong-password protection) ----------
+const LOGIN_ATTEMPTS = new Map<string, { fails: number; lockUntil: number; lockCount: number }>();
+const LOCK_AFTER_ATTEMPTS = 5;
+
+function lockDurationMinutes(lockCount: number): number {
+  if (lockCount <= 1) return 1;
+  if (lockCount === 2) return 5;
+  if (lockCount === 3) return 15;
+  return 30;
+}
+
+function normalizeLoginKey(id: string): string {
+  const key = id.trim().toLowerCase();
+  if (key.includes("@")) return key;
+  return key.replace(/[^0-9]/g, "").replace(/^0/, "+2");
+}
+
+function checkLoginLock(key: string): number {
+  const entry = LOGIN_ATTEMPTS.get(key);
+  if (!entry) return 0;
+  const now = Date.now();
+  if (entry.lockUntil === 0) return 0;
+  if (entry.lockUntil <= now) {
+    entry.lockUntil = 0;
+    entry.fails = 0;
+    return 0;
+  }
+  return entry.lockUntil - now;
+}
+
+function recordFailedLogin(key: string): { lockedMins: number; remaining: number } {
+  const now = Date.now();
+  let entry = LOGIN_ATTEMPTS.get(key);
+  if (!entry) {
+    entry = { fails: 0, lockUntil: 0, lockCount: 0 };
+    LOGIN_ATTEMPTS.set(key, entry);
+  }
+  entry.fails += 1;
+  if (entry.fails >= LOCK_AFTER_ATTEMPTS) {
+    entry.lockCount += 1;
+    const mins = lockDurationMinutes(entry.lockCount);
+    entry.lockUntil = now + mins * 60_000;
+    entry.fails = 0;
+    LOGIN_ATTEMPTS.set(key, entry);
+    return { lockedMins: mins, remaining: 0 };
+  }
+  LOGIN_ATTEMPTS.set(key, entry);
+  return { lockedMins: 0, remaining: LOCK_AFTER_ATTEMPTS - entry.fails };
+}
+
+function clearLoginLock(key: string): void {
+  LOGIN_ATTEMPTS.delete(key);
 }
 
 async function handleAuth(req: Request, parts: string[]): Promise<Response> {
@@ -366,10 +530,23 @@ async function handleAuth(req: Request, parts: string[]): Promise<Response> {
       const body = await req.json();
       const { identifier, password } = body;
       if (!identifier || !password) throw Object.assign(new Error("البريد/الهاتف وكلمة المرور مطلوبة"), { status: 400 });
+      const lockKey = normalizeLoginKey(identifier);
+      const lockedMs = checkLoginLock(lockKey);
+      if (lockedMs > 0) {
+        const mins = Math.max(1, Math.ceil(lockedMs / 60_000));
+        throw Object.assign(new Error(`محاولات كثيرة جداً. انتظر ${mins} دقيقة قبل المحاولة التالية`), { status: 429 });
+      }
       const [user] = await sql`SELECT * FROM users WHERE email = ${identifier} OR phone = ${identifier} LIMIT 1`;
       if (!user) throw Object.assign(new Error("الحساب غير موجود"), { status: 404 });
       const valid = await bcrypt.compare(password, user.password);
-      if (!valid) throw Object.assign(new Error("كلمة المرور غير صحيحة"), { status: 401 });
+      if (!valid) {
+        const out = recordFailedLogin(lockKey);
+        if (out.lockedMins > 0) {
+          throw Object.assign(new Error(`كلمة المرور غير صحيحة. تم إيقاف المحاولات لمدة ${out.lockedMins} دقيقة`), { status: 401 });
+        }
+        throw Object.assign(new Error(`كلمة المرور غير صحيحة. متبقي ${out.remaining} محاولات`), { status: 401 });
+      }
+      clearLoginLock(lockKey);
       const token = generateToken(user.id, user.role);
       return { userId: user.id, role: user.role, token };
     });
@@ -726,6 +903,11 @@ async function handleAuth(req: Request, parts: string[]): Promise<Response> {
     return handle(async () => {
       const body = await req.json();
       const { email, password } = body;
+      const normalizedEmail = String(email || "").trim().toLowerCase();
+      const DEMO_ONLY_EMAIL = "youssef@test.com";
+      if (!password && normalizedEmail !== DEMO_ONLY_EMAIL) {
+        throw Object.assign(new Error("كلمة المرور مطلوبة"), { status: 401 });
+      }
       const [u] = await sql`SELECT * FROM users WHERE email = ${email} LIMIT 1`;
       if (!u) throw Object.assign(new Error("الحساب غير موجود"), { status: 404 });
       if (password) {
@@ -757,7 +939,7 @@ async function handleMe(req: Request): Promise<Response> {
       id: user.id, name: user.name, username: user.username, email: user.email, phone: user.phone,
       role: user.role, groupName: user.group_name, avatarUrl: user.avatar_url, department: user.department,
       year: user.year, yearInCollege: user.year_in_college, specialization: user.specialization,
-      points: user.points, level: user.level, streak: user.streak, title: user.title,
+      points: user.points, coins: user.coins ?? 0, level: user.level, streak: user.streak, title: user.title,
       uniqueCode: user.unique_code, adminPermissions: user.admin_permissions,
       emailVerified: user.email_verified, phoneVerified: user.phone_verified,
       unreadCount, unreadDmCount,
@@ -798,18 +980,6 @@ async function handleMeGroup(req: Request): Promise<Response> {
     if (!["A", "B", "C", "D", "E"].includes(groupName)) throw Object.assign(new Error("اختر مجموعة صحيحة"), { status: 400 });
     await sql`UPDATE users SET group_name = ${groupName} WHERE id = ${userId}`;
     return { ok: true };
-  });
-}
-
-async function handleSwitchRole(req: Request): Promise<Response> {
-  return handle(async () => {
-    const { userId } = requireAuth(req.headers);
-    const body = await req.json();
-    const { role } = body;
-    if (!["student", "doctor", "ta", "admin", "super_admin"].includes(role)) throw Object.assign(new Error("Role غير صالح"), { status: 400 });
-    await sql`UPDATE users SET role = ${role} WHERE id = ${userId}`;
-    const token = generateToken(userId, role);
-    return { token, role };
   });
 }
 
@@ -867,8 +1037,11 @@ async function handleAdminNotifications(req: Request): Promise<Response> {
   });
 }
 
-async function handleAdminOverview(): Promise<Response> {
+async function handleAdminOverview(req: Request): Promise<Response> {
   return handle(async () => {
+    const { userId } = requireAuth(req.headers);
+    const user = await getCurrentUser(userId);
+    requireRole(user, ["admin", "super_admin"]);
     const [{ totalStudents }] = await sql`SELECT count(*)::int AS "totalStudents" FROM users WHERE role = 'student'`;
     const [{ totalStaff }] = await sql`SELECT count(*)::int AS "totalStaff" FROM users WHERE role IN ('doctor', 'ta')`;
     const [{ activeExams }] = await sql`SELECT count(*)::int AS "activeExams" FROM quizzes`;
@@ -921,6 +1094,9 @@ async function handleAdminOverview(): Promise<Response> {
 
 async function handleAdminUsers(req: Request): Promise<Response> {
   return handle(async () => {
+    const { userId } = requireAuth(req.headers);
+    const user = await getCurrentUser(userId);
+    requireRole(user, ["admin", "super_admin"]);
     const url = new URL(req.url, "http://localhost");
     const role = url.searchParams.get("role") || undefined;
     const rows = role ? await sql`SELECT * FROM users WHERE role = ${role} LIMIT 100` : await sql`SELECT * FROM users LIMIT 100`;
@@ -1193,7 +1369,7 @@ async function handleQuizzes(req: Request, parts: string[]): Promise<Response> {
           id: qq.id,
           text: qq.text,
           type: qq.type,
-          options: qq.type === "complete" ? qq.options : shuffledOpts.map((o: any) => o.text),
+          options: qq.type === "complete" ? [] : shuffledOpts.map((o: any) => o.text),
           optionMap: qq.type === "complete" ? [0] : shuffledOpts.map((o: any) => o.originalIndex),
           points: qq.points,
         };
@@ -1223,11 +1399,11 @@ async function handleQuizzes(req: Request, parts: string[]): Promise<Response> {
       if (!q.is_open) throw Object.assign(new Error("هذا الاختبار مغلق حالياً"), { status: 403 });
       const questions = await sql`SELECT * FROM quiz_questions WHERE quiz_id = ${id}`;
       let score = 0, total = 0;
+      for (const qq of questions) total += qq.points;
       const ans: any[] = [];
       for (const a of answers) {
         const qq = questions.find((x: any) => x.id === a.questionId);
         if (!qq) continue;
-        total += qq.points;
         let correct: boolean;
         if (qq.type === "complete") {
           const userText = (a as any).textAnswer || "";
@@ -1252,10 +1428,15 @@ async function handleQuizzes(req: Request, parts: string[]): Promise<Response> {
       try { await recalculateLevel(userId); } catch (e) { console.error("[recalculateLevel]", e); }
       const questionDetails = questions.map((qq: any) => {
         const userAns = ans.find((a: any) => a.questionId === qq.id);
+        const wasAnswered = !!userAns;
         return {
-          questionId: qq.id, text: qq.text, type: qq.type, options: qq.options,
-          correctIndex: qq.correct_index, explanation: qq.explanation, points: qq.points,
-          userChosen: userAns?.chosen ?? -1, correct: userAns?.correct ?? false,
+          questionId: qq.id, text: qq.text, type: qq.type,
+          options: wasAnswered ? qq.options : [],
+          correctIndex: wasAnswered ? qq.correct_index : -1,
+          explanation: wasAnswered ? qq.explanation : "",
+          points: qq.points,
+          userChosen: userAns?.chosen ?? -1,
+          correct: wasAnswered ? userAns.correct : false,
           ...(qq.type === "complete" ? { textAnswer: (userAns as any)?.textAnswer || "" } : {}),
         };
       });
@@ -1412,7 +1593,7 @@ async function handleDM(req: Request, parts: string[]): Promise<Response> {
         const other = byId.get(otherId);
         const msgs = allMsgs.filter((m: any) => m.thread_id === t.id).sort((a: any, b: any) => +new Date(b.created_at) - +new Date(a.created_at));
         const last = msgs[0];
-        const unread = msgs.filter((m: any) => m.from_id !== userId && !(m.is_read || m.read_at)).length;
+        const unread = msgs.filter((m: any) => m.from_id !== userId && !(m.read || m.is_read || m.read_at)).length;
         return {
           threadId: t.id, other: other ? { id: other.id, name: other.name, avatarUrl: other.avatar_url, groupName: other.group_name } : null,
           lastMessage: last ? { body: last.body, createdAt: last.created_at?.toISOString(), fromMe: last.from_id === userId } : null,
@@ -1431,12 +1612,16 @@ async function handleDM(req: Request, parts: string[]): Promise<Response> {
         const threadId = await ensureThread(userId, otherId);
         const msgs = await sql`SELECT id, thread_id, from_id, body, created_at FROM dm_messages WHERE thread_id = ${threadId} ORDER BY created_at`;
         try {
-          await sql`UPDATE dm_messages SET is_read = true WHERE thread_id = ${threadId} AND from_id != ${userId} AND (is_read IS NULL OR is_read = false)`;
+          await sql`UPDATE dm_messages SET read = true WHERE thread_id = ${threadId} AND from_id != ${userId} AND read = false`;
         } catch {
           try {
-            await sql`UPDATE dm_messages SET read_at = now() WHERE thread_id = ${threadId} AND from_id != ${userId} AND read_at IS NULL`;
+            await sql`UPDATE dm_messages SET is_read = true WHERE thread_id = ${threadId} AND from_id != ${userId} AND (is_read IS NULL OR is_read = false)`;
           } catch {
-            // column may not exist, silently ignore
+            try {
+              await sql`UPDATE dm_messages SET read_at = now() WHERE thread_id = ${threadId} AND from_id != ${userId} AND read_at IS NULL`;
+            } catch {
+              // column may not exist, silently ignore
+            }
           }
         }
         return {
@@ -1546,14 +1731,33 @@ async function handleUsers(req: Request, parts: string[]): Promise<Response> {
         const [f] = await sql`SELECT * FROM user_follows WHERE follower_id = ${currentUserId} AND following_id = ${id}`;
         following = !!f;
       }
-      return {
-        ...user, lastSeen: user.last_seen?.toISOString(), createdAt: user.created_at?.toISOString(),
+      let callerRole: string | null = null;
+      if (currentUserId) {
+        const [caller] = await sql`SELECT role FROM users WHERE id = ${currentUserId} LIMIT 1`;
+        callerRole = caller?.role || null;
+      }
+      const canSeePII = currentUserId === user.id || callerRole === "admin" || callerRole === "super_admin";
+      const safe: any = {
+        id: user.id, name: user.name, username: user.username, role: user.role,
+        title: user.title || null, bio: user.bio || null, department: user.department || "غير محدد",
+        specialization: user.specialization || null, groupName: user.group_name || null,
+        avatarUrl: user.avatar_url || null, points: user.points || 0, level: user.level || 1,
+        streak: user.streak || 0, coins: user.coins || 0,
+        year: user.year_in_college || null, yearInCollege: user.year_in_college || null,
+        lastSeen: user.last_seen?.toISOString?.() ?? user.last_seen ?? null,
+        createdAt: user.created_at?.toISOString?.() ?? user.created_at ?? null,
         followerCount, followingCount, totalLikesReceived: totalTalentLikes + totalForumLikes,
-        forumPosts: forumPosts.map((p: any) => ({ ...p, createdAt: p.created_at?.toISOString() })),
-        talents: talents.map((t: any) => ({ ...t, createdAt: t.created_at?.toISOString() })),
-        summaries: summaries.map((s: any) => ({ ...s, createdAt: s.created_at?.toISOString() })),
+        forumPosts: forumPosts.map((p: any) => ({ ...p, createdAt: p.created_at?.toISOString?.() })),
+        talents: talents.map((t: any) => ({ ...t, createdAt: t.created_at?.toISOString?.() })),
+        summaries: summaries.map((s: any) => ({ ...s, createdAt: s.created_at?.toISOString?.() })),
         following,
       };
+      if (canSeePII) {
+        safe.email = user.email;
+        safe.phone = user.phone;
+        safe.uniqueCode = user.unique_code;
+      }
+      return safe;
     });
   }
 
@@ -1628,9 +1832,36 @@ async function ensureSkillTables() {
       ord INT NOT NULL DEFAULT 0
     )
   `;
+  try { await sql`ALTER TABLE skill_tracks ADD COLUMN IF NOT EXISTS year_in_college INT DEFAULT 0`; } catch {}
+  try { await sql`ALTER TABLE skill_tracks ADD COLUMN IF NOT EXISTS prerequisites INT[] DEFAULT '{}'`; } catch {}
+  try { await sql`ALTER TABLE users ADD COLUMN IF NOT EXISTS coins INT DEFAULT 0`; } catch {}
   try { await sql`CREATE INDEX IF NOT EXISTS idx_usp_user ON user_skill_progress (user_id)`; } catch {}
   try { await sql`CREATE INDEX IF NOT EXISTS idx_usp_track ON user_skill_progress (track_id)`; } catch {}
   try { await sql`CREATE INDEX IF NOT EXISTS idx_sqc_lesson ON skill_quick_checks (lesson_id)`; } catch {}
+  await sql`
+    CREATE TABLE IF NOT EXISTS lab_steps (
+      id SERIAL PRIMARY KEY,
+      lesson_id INT NOT NULL REFERENCES skill_lessons(id) ON DELETE CASCADE,
+      title TEXT NOT NULL DEFAULT '',
+      description TEXT NOT NULL DEFAULT '',
+      kind TEXT NOT NULL DEFAULT 'info',
+      config JSONB NOT NULL DEFAULT '{}',
+      ord INT NOT NULL DEFAULT 0
+    )
+  `;
+  try { await sql`CREATE INDEX IF NOT EXISTS idx_ls_lesson ON lab_steps (lesson_id)`; } catch {}
+  await sql`
+    CREATE TABLE IF NOT EXISTS lesson_notes (
+      id SERIAL PRIMARY KEY,
+      user_id INT NOT NULL,
+      lesson_id INT NOT NULL REFERENCES skill_lessons(id) ON DELETE CASCADE,
+      content TEXT NOT NULL DEFAULT '',
+      created_at TIMESTAMP DEFAULT NOW(),
+      updated_at TIMESTAMP DEFAULT NOW(),
+      UNIQUE(user_id, lesson_id)
+    )
+  `;
+  try { await sql`CREATE INDEX IF NOT EXISTS idx_ln_user_lesson ON lesson_notes (user_id, lesson_id)`; } catch {}
 }
 
 function computeSkillLevel(totalLessons: number, completed: number, avgQuickCheckScore: number): string {
@@ -1640,6 +1871,90 @@ function computeSkillLevel(totalLessons: number, completed: number, avgQuickChec
   if (pct >= 1 && avgQuickCheckScore >= 70) return "practitioner";
   if (pct >= 0.5) return "learner";
   return "beginner";
+}
+
+const LAB_TEMPLATES: Record<string, { title: string; description: string; kind: string; config: any }[]> = {
+  default: [
+    { title: "نظرة عامة", description: "اقرأ التعليمات التالية بعناية قبل بدء التجربة.\n\nتأكد من توفر جميع الأدوات والمواد المطلوبة.", kind: "info", config: {} },
+    { title: "المواد والأدوات", description: "المواد المطلوبة:\n• عينة التربة\n• ماء مقطر\n• ورق ترشيح\n• أنابيب اختبار", kind: "info", config: {} },
+    { title: "خطوات العمل", description: "اتبع الخطوات التالية بالترتيب:\n1. ضع العينة في الأنبوب\n2. أضف الماء المقطر\n3. رجّ الأنبوب جيداً\n4. سجّل الملاحظات", kind: "info", config: {} },
+    { title: "التسجيل", description: "سجّل نتائج ملاحظاتك في الحقل أدناه.", kind: "input", config: { placeholder: "أدخل ملاحظاتك هنا..." } },
+    { title: "الاستنتاج", description: "بناءً على ما لاحظته، استنتج:\n• هل النتيجة متوقعة؟\n• ما التطبيق العملي لهذه التجربة؟", kind: "input", config: { placeholder: "اكتب استنتاجك..." } },
+  ],
+  soil: [
+    { title: "الهدف من التجربة", description: "قياس درجة حموضة التربة (pH) لتحديد مدى ملاءمتها للمحاصيل المختلفة.", kind: "info", config: {} },
+    { title: "الأدوات والمواد", description: "• عينة تربة (50 جم)\n• ماء مقطر (100 مل)\n• جهاز قياس pH\n• ورق ترشيح\n• دورق زجاجي\n• ملعقة خلط", kind: "info", config: {} },
+    { title: "تحضير العينة", description: "1. ضع 50 جم من عينة التربة في الدورق الزجاجي.\n2. أضف 100 مل من الماء المقطر.\n3. حرّك المخلوط لمدة دقيقتين.\n4. اتركه لمدة 5 دقائق حتى تستقر العوالق.", kind: "info", config: {} },
+    { title: "القياس", description: "1. اغمس جهاز قياس pH في المحلول.\n2. انتظر حتى يستقر الرقم.\n3. سجّل قراءة pH.", kind: "input", config: { placeholder: "أدخل قراءة pH...", unit: "pH" } },
+    { title: "تحليل النتيجة", description: "• pH 6-7.5: مناسب لمعظم المحاصيل\n• pH < 6: تربة حمضية — تحتاج إضافة جير\n• pH > 7.5: تربة قلوية — تحتاج إضافة كبريت", kind: "info", config: {} },
+    { title: "التوصيات", description: "بناءً على قراءتك:\n1. هل التربة مناسبة للزراعة؟\n2. أي المحاصيل تناسب هذه التربة؟\n3. ما التعديلات المطلوبة؟", kind: "input", config: { placeholder: "اكتب توصياتك..." } },
+  ],
+  plant: [
+    { title: "الهدف من التجربة", description: "التعرف على أجزاء النبات المختلفة ووظائفها من خلال التشريح.", kind: "info", config: {} },
+    { title: "الأدوات والمواد", description: "• نبتة طازجة (يفضل نبات بقولي)\n• مشرط حاد\n• عدسة مكبرة\n• ورق أبيض\n• ملقط", kind: "info", config: {} },
+    { title: "الفحص الخارجي", description: "1. افحص النبات بالعين المجردة.\n2. حدّد الأجزاء الرئيسية: الجذر، الساق، الأوراق، الأزهار.\n3. سجّل ملاحظاتك عن شكل كل جزء.", kind: "input", config: { placeholder: "صف الأجزاء الخارجية..." } },
+    { title: "تشريح الساق", description: "1. اقطع الساق عرضياً بالمشرط.\n2. ضع المقطع على الورق الأبيض.\n3. افحص بالعدسة المكبرة.\n4. لاحظ الحزم الوعائية.", kind: "info", config: {} },
+    { title: "تشريح الورقة", description: "1. اقطع جزءاً صغيراً من الورقة.\n2. افحص سطح الورقة العلوي والسفلي.\n3. سجّل الفروق بين السطحين.", kind: "input", config: { placeholder: "سجّل ملاحظات تشريح الورقة..." } },
+    { title: "الاستنتاج", description: "اكتب تقريراً موجزاً عن:\n• الأجزاء الرئيسية للنبات\n• وظيفة كل جزء\n• كيف تتكيف هذه النبتة مع بيئتها", kind: "input", config: { placeholder: "اكتب التقرير الختامي..." } },
+  ],
+};
+
+async function seedLabSteps(lessonId: number, lessonTitle: string) {
+  const title = lessonTitle.toLowerCase();
+  let template = LAB_TEMPLATES.default;
+  if (title.includes("تربة") || title.includes("ph") || title.includes("حمض") || title.includes("قلو")) {
+    template = LAB_TEMPLATES.soil;
+  } else if (title.includes("نبات") || title.includes("زرع") || title.includes("تشريح") || title.includes("محصول") || title.includes("بذ") || title.includes("جذر")) {
+    template = LAB_TEMPLATES.plant;
+  }
+  for (let i = 0; i < template.length; i++) {
+    const s = template[i];
+    await sql`INSERT INTO lab_steps (lesson_id, title, description, kind, config, ord) VALUES (${lessonId}, ${s.title}, ${s.description}, ${s.kind}, ${JSON.stringify(s.config)}, ${i})`;
+  }
+}
+
+async function ensureVisualCardsTable() {
+  await sql`
+    CREATE TABLE IF NOT EXISTS visual_cards (
+      id SERIAL PRIMARY KEY,
+      lesson_id INTEGER REFERENCES skill_lessons(id),
+      title TEXT NOT NULL DEFAULT '',
+      description TEXT NOT NULL DEFAULT '',
+      image_url TEXT DEFAULT '',
+      ord INTEGER DEFAULT 0
+    )
+  `;
+}
+
+const VISUAL_TEMPLATES: Record<string, { title: string; description: string; imageHint: string }[]> = {
+  soil: [
+    { title: "مقياس pH التربة", description: "pH يقاس من 0 إلى 14. التربة الحامضية أقل من 7، القلوية أكثر من 7، المتعادلة 7. معظم المحاصيل تنمو في pH 6-7.5", imageHint: "soil-ph-scale" },
+    { title: "أنسجة التربة", description: "التربة الرملية: تصريف سريع - فقيرة بالماء. التربة الطينية: تصريف بطيء - غنية بالماء. التربة الطميية: مثالية للزراعة", imageHint: "soil-texture-triangle" },
+    { title: "العناصر الغذائية الكبرى", description: "N نيتروجين: نمو خضري\nP فوسفور: جذور وأزهار\nK بوتاسيوم: جودة الثمار", imageHint: "npk-chart" },
+  ],
+  plant: [
+    { title: "أجزاء النبات", description: "الجذر: امتصاص الماء والعناصر\nالساق: دعم ونقل\nالأوراق: بناء ضوئي\nالأزهار: تكاثر", imageHint: "plant-parts" },
+    { title: "عملية البناء الضوئي", description: "CO₂ + H₂O → C₆H₁₂O₆ + O₂\nضوء الشمس + كلوروفيل + ماء + ثاني أكسيد كربون → سكر + أكسجين", imageHint: "photosynthesis" },
+    { title: "أعراض نقص العناصر", description: "نقص N: اصفرار الأوراق السفلية\nنقص P: تلون بنفسجي\nنقص K: احتراق حواف الأوراق\nنقص Fe: اصفرار العروق", imageHint: "deficiency-symptoms" },
+  ],
+  default: [
+    { title: "ملخص الدرس", description: "راجع النقاط الرئيسية من هذا الدرس لفهم أفضل للمحتوى", imageHint: "summary" },
+    { title: "المصطلحات الأساسية", description: "تعرف على أهم المصطلحات والمفاهيم التي تم شرحها في الدرس", imageHint: "key-terms" },
+  ],
+};
+
+async function seedVisualCards(lessonId: number, lessonTitle: string) {
+  const title = lessonTitle.toLowerCase();
+  let template = VISUAL_TEMPLATES.default;
+  if (title.includes("تربة") || title.includes("ph") || title.includes("soil") || title.includes("حمض") || title.includes("قلو") || title.includes("عناصر")) {
+    template = VISUAL_TEMPLATES.soil;
+  } else if (title.includes("نبات") || title.includes("زرع") || title.includes("محصول") || title.includes("بذ") || title.includes("جذر") || title.includes("ورق") || title.includes("زهر")) {
+    template = VISUAL_TEMPLATES.plant;
+  }
+  for (let i = 0; i < template.length; i++) {
+    const c = template[i];
+    await sql`INSERT INTO visual_cards (lesson_id, title, description, image_url, ord) VALUES (${lessonId}, ${c.title}, ${c.description}, ${`/images/${c.imageHint}.svg`}, ${i})`;
+  }
 }
 
 async function handleSkills(req: Request, parts: string[]): Promise<Response> {
@@ -1679,8 +1994,276 @@ async function handleSkills(req: Request, parts: string[]): Promise<Response> {
           id: t.id, title: t.title, category: t.category, description: t.description,
           difficulty: t.difficulty, coverUrl: t.cover_url, progress: trackProgress,
           level, lessons: enrichedLessons,
+          yearInCollege: t.year_in_college ?? 0,
+          prerequisites: t.prerequisites ?? [],
         };
       });
+    });
+  }
+
+  // GET /skills/me — user's overall skill dashboard
+  if (parts[1] === "me") {
+    return handle(async () => {
+      const { userId } = requireAuth(req.headers);
+      const tracks = await sql`SELECT * FROM skill_tracks`;
+      if (!tracks.length) return { totalTracks: 0, totalLessons: 0, completedLessons: 0, progress: 0, level: "beginner", tracks: [] };
+      const lessons = await sql`SELECT * FROM skill_lessons ORDER BY ord, id`;
+      const userProgress = await sql`SELECT * FROM user_skill_progress WHERE user_id = ${userId}`;
+      const user = await sql`SELECT * FROM users WHERE id = ${userId}`;
+      const me = user[0];
+
+      const trackSummaries = tracks.map((t: any) => {
+        const trackLessons = lessons.filter((l: any) => l.track_id === t.id);
+        const done = trackLessons.filter((l: any) => userProgress.find((p: any) => p.lesson_id === l.id && p.completed));
+        const trackQPs = userProgress.filter((p: any) => p.track_id === t.id);
+        const avgScore = trackQPs.length ? trackQPs.reduce((s: number, p: any) => s + p.quick_check_score, 0) / trackQPs.length : 0;
+        return {
+          id: t.id, title: t.title, category: t.category, difficulty: t.difficulty,
+          totalLessons: trackLessons.length, completedLessons: done.length,
+          progress: trackLessons.length ? done.length / trackLessons.length : 0,
+          level: computeSkillLevel(trackLessons.length, done.length, avgScore),
+        };
+      });
+
+      const totalLessons = lessons.length;
+      const completedLessons = userProgress.filter((p: any) => p.completed).length;
+      const overallProgress = totalLessons > 0 ? completedLessons / totalLessons : 0;
+      const allAvgScore = userProgress.length ? userProgress.reduce((s: number, p: any) => s + p.quick_check_score, 0) / userProgress.length : 0;
+      const overallLevel = computeSkillLevel(totalLessons, completedLessons, allAvgScore);
+
+      return {
+        totalTracks: tracks.length,
+        totalLessons,
+        completedLessons,
+        progress: overallProgress,
+        level: overallLevel,
+        points: me?.points ?? 0,
+        xpFromSkills: completedLessons * 5,
+        tracks: trackSummaries,
+      };
+    });
+  }
+
+  // GET/POST /skills/notes/:lessonId — lesson notes
+  if (parts[1] === "notes" && parts[2]) {
+    const lessonId = Number(parts[2]);
+    if (req.method === "GET") {
+      return handle(async () => {
+        const { userId } = requireAuth(req.headers);
+        const [note] = await sql`SELECT * FROM lesson_notes WHERE user_id = ${userId} AND lesson_id = ${lessonId}`;
+        return { lessonId, content: note?.content ?? "" };
+      });
+    }
+    if (req.method === "POST") {
+      return handle(async () => {
+        const { userId } = requireAuth(req.headers);
+        const body = await req.json();
+        const { content } = body;
+        await sql`
+          INSERT INTO lesson_notes (user_id, lesson_id, content, updated_at)
+          VALUES (${userId}, ${lessonId}, ${content || ""}, NOW())
+          ON CONFLICT (user_id, lesson_id) DO UPDATE SET content = EXCLUDED.content, updated_at = NOW()
+        `;
+        return { ok: true };
+      });
+    }
+  }
+
+  // GET /skills/recommendations — smart recommendations based on user profile + performance
+  if (parts[1] === "recommendations") {
+    return handle(async () => {
+      const { userId } = requireAuth(req.headers);
+      const [u] = await sql`SELECT * FROM users WHERE id = ${userId}`;
+      if (!u) return [];
+      const tracks = await sql`SELECT * FROM skill_tracks ORDER BY id`;
+      if (!tracks.length) return [];
+      const lessons = await sql`SELECT * FROM skill_lessons ORDER BY ord, id`;
+      const userProgress = await sql`SELECT * FROM user_skill_progress WHERE user_id = ${userId}`;
+      const quizAttempts = await sql`SELECT qa.*, q.title AS quiz_title FROM quiz_attempts qa JOIN quizzes q ON q.id = qa.quiz_id WHERE qa.user_id = ${userId} ORDER BY qa.created_at DESC LIMIT 50`;
+
+      const spec = (u.specialization || "").toLowerCase();
+      const year = u.year_in_college || 1;
+      const completedTrackIds = new Set(
+        tracks.filter((t: any) => {
+          const trackLessons = lessons.filter((l: any) => l.track_id === t.id);
+          return trackLessons.length > 0 && trackLessons.every((l: any) => userProgress.find((p: any) => p.lesson_id === l.id && p.completed));
+        }).map((t: any) => t.id)
+      );
+
+      // Find weak areas from quiz attempts
+      const weakQuizTopics: string[] = [];
+      for (const a of quizAttempts) {
+        if (a.total > 0 && (a.score / a.total) < 0.6) {
+          weakQuizTopics.push((a.quiz_title || "").toLowerCase());
+        }
+      }
+
+      // Find weak categories from quick check scores
+      const catScores: Record<string, { total: number; sum: number }> = {};
+      for (const t of tracks) {
+        const trackLessons = lessons.filter((l: any) => l.track_id === t.id);
+        const qps = userProgress.filter((p: any) => trackLessons.some((l: any) => l.id === p.lesson_id));
+        if (qps.length > 0) {
+          catScores[t.category] = catScores[t.category] || { total: 0, sum: 0 };
+          catScores[t.category].total += qps.length;
+          catScores[t.category].sum += qps.reduce((s: number, p: any) => s + p.quick_check_score, 0);
+        }
+      }
+
+      // Recommend tracks
+      const recommendations: { trackId: number; reason: string; priority: number; xpEstimate: number; durationMinutes: number }[] = [];
+
+      for (const t of tracks) {
+        if (completedTrackIds.has(t.id)) continue;
+        const trackLessons = lessons.filter((l: any) => l.track_id === t.id);
+        const doneCount = trackLessons.filter((l: any) => userProgress.find((p: any) => p.lesson_id === l.id && p.completed)).length;
+        const totalCount = trackLessons.length;
+        const remainingXP = (totalCount - doneCount) * 5;
+        const remainingMin = trackLessons.slice(doneCount).reduce((s: number, l: any) => s + l.duration_minutes, 0);
+
+        let priority = 0;
+        let reasons: string[] = [];
+
+        // Track specialization match
+        const title = t.title.toLowerCase();
+        if (spec && (title.includes(spec) || spec.includes(t.category) || t.category === "practical" && spec.includes("زراع"))) {
+          priority += 3;
+          reasons.push(`يناسب تخصصك (${u.specialization})`);
+        }
+
+        // Year match
+        if (t.difficulty === "beginner" && year <= 2) { priority += 2; reasons.push("مناسب لسنتك الدراسية"); }
+        else if (t.difficulty === "intermediate" && year >= 2 && year <= 3) { priority += 2; reasons.push("مناسب لمستوى سنتك"); }
+        else if (t.difficulty === "advanced" && year >= 3) { priority += 2; reasons.push("تحدٍ مناسب لسنتك"); }
+
+        // In progress — high priority
+        if (doneCount > 0 && doneCount < totalCount) { priority += 5; reasons.push("أكمل ما بدأته"); }
+
+        // Near completion
+        if (doneCount / totalCount >= 0.7) { priority += 3; reasons.push("على وشك الإنهاء"); }
+
+        // Weak area match
+        if (weakQuizTopics.some((topic) => title.includes(topic))) { priority += 4; reasons.push("يعالج نقاط ضعفك في الاختبارات"); }
+
+        // Weak category
+        const catAvg = catScores[t.category];
+        if (catAvg && catAvg.total > 0 && catAvg.sum / catAvg.total < 70) { priority += 3; reasons.push(`حسّن مستواك في ${t.category}`); }
+
+        if (reasons.length > 0) {
+          recommendations.push({ trackId: t.id, reason: reasons.join(" · "), priority, xpEstimate: remainingXP, durationMinutes: remainingMin });
+        }
+      }
+
+      // Not started tracks (low priority but useful)
+      for (const t of tracks) {
+        if (completedTrackIds.has(t.id)) continue;
+        if (recommendations.some((r) => r.trackId === t.id)) continue;
+        const trackLessons = lessons.filter((l: any) => l.track_id === t.id);
+        const totalMin = trackLessons.reduce((s: number, l: any) => s + l.duration_minutes, 0);
+        recommendations.push({ trackId: t.id, reason: `اكتشف مسار ${t.title}`, priority: 0, xpEstimate: trackLessons.length * 5, durationMinutes: totalMin });
+      }
+
+      recommendations.sort((a, b) => b.priority - a.priority);
+      const topRecs = recommendations.slice(0, 5);
+
+      // Personal summary
+      const weakCats = Object.entries(catScores)
+        .filter(([, v]: any) => v.total > 0 && v.sum / v.total < 70)
+        .map(([k]) => k);
+      const weakTopics = [...new Set(weakQuizTopics.map((t) => t.replace("اختبار ", "").trim()))];
+      const summary = `مرحباً ${u.name || "طالب"}! أنت في السنة ${year} ${u.specialization ? `تخصص ${u.specialization}` : ""}. ${completedTrackIds.size > 0 ? `أكملت ${completedTrackIds.size} مسار${completedTrackIds.size > 1 ? "ات" : ""} حتى الآن.` : "لم تكمل أي مسار بعد."} ${weakCats.length > 0 ? `تحتاج تحسين في مجالات: ${weakCats.join("، ")}.` : ""}`;
+      const weakAreas = [
+        ...weakCats.map((c) => `ضعف في ${c}`),
+        ...weakTopics.slice(0, 3).map((t) => `ضعف في ${t}`),
+      ];
+
+      return { summary, weakAreas: weakAreas.slice(0, 4), tracks: topRecs };
+    });
+  }
+
+  // GET /skills/labs/:id — lab steps for a lesson
+  if (parts[1] === "labs" && parts[2] && !parts[3]) {
+    return handle(async () => {
+      const lessonId = Number(parts[2]);
+      if (isNaN(lessonId)) throw Object.assign(new Error("معرف الدرس غير صالح"), { status: 400 });
+      const [lesson] = await sql`SELECT * FROM skill_lessons WHERE id = ${lessonId}`;
+      if (!lesson) throw Object.assign(new Error("الدرس غير موجود"), { status: 404 });
+      let steps = await sql`SELECT * FROM lab_steps WHERE lesson_id = ${lessonId} ORDER BY ord, id`;
+      if (!steps.length) {
+        await seedLabSteps(lessonId, lesson.title);
+        steps = await sql`SELECT * FROM lab_steps WHERE lesson_id = ${lessonId} ORDER BY ord, id`;
+      }
+      return { lesson: { id: lesson.id, title: lesson.title, kind: lesson.kind }, steps: steps.map((s: any) => ({ id: s.id, title: s.title, description: s.description, kind: s.kind, config: s.config, ord: s.ord })) };
+    });
+  }
+
+  // GET /skills/visual/:id — visual card / infographic for a lesson
+  if (parts[1] === "visual" && parts[2] && !parts[3]) {
+    return handle(async () => {
+      const lessonId = Number(parts[2]);
+      if (isNaN(lessonId)) throw Object.assign(new Error("معرف الدرس غير صالح"), { status: 400 });
+      const [lesson] = await sql`SELECT * FROM skill_lessons WHERE id = ${lessonId}`;
+      if (!lesson) throw Object.assign(new Error("الدرس غير موجود"), { status: 404 });
+      await ensureVisualCardsTable();
+      let cards = await sql`SELECT * FROM visual_cards WHERE lesson_id = ${lessonId} ORDER BY ord, id`;
+      if (!cards.length) {
+        await seedVisualCards(lessonId, lesson.title);
+        cards = await sql`SELECT * FROM visual_cards WHERE lesson_id = ${lessonId} ORDER BY ord, id`;
+      }
+      return { lesson: { id: lesson.id, title: lesson.title, kind: lesson.kind }, cards: cards.map((c: any) => ({ id: c.id, title: c.title, description: c.description, imageUrl: c.image_url, ord: c.ord })) };
+    });
+  }
+
+  // GET /skills/capstone/:id — generate capstone challenge for a track
+  if (parts[1] === "capstone" && parts[2]) {
+    return handle(async () => {
+      const { userId } = requireAuth(req.headers);
+      const trackId = Number(parts[2]);
+      const [track] = await sql`SELECT * FROM skill_tracks WHERE id = ${trackId}`;
+      if (!track) throw Object.assign(new Error("المسار غير موجود"), { status: 404 });
+      const lessons = await sql`SELECT * FROM skill_lessons WHERE track_id = ${trackId} ORDER BY ord, id`;
+      const qcs = await sql`SELECT * FROM skill_quick_checks WHERE lesson_id = ANY(${lessons.map((l: any) => l.id)}) ORDER BY ord`;
+      const userProgress = await sql`SELECT * FROM user_skill_progress WHERE user_id = ${userId} AND track_id = ${trackId}`;
+
+      // Build challenge from quick checks + generate scenario questions
+      const challenges = qcs.map((qc: any) => ({
+        id: qc.id, question: qc.question, options: qc.options,
+      }));
+
+      const doneCount = userProgress.filter((p: any) => p.completed).length;
+      const totalCount = lessons.length;
+
+      return {
+        trackTitle: track.title,
+        totalLessons: totalCount,
+        completedLessons: doneCount,
+        ready: doneCount === totalCount,
+        challenge: challenges.slice(0, 10),
+        timeEstimate: "10-15 دقيقة",
+        xpReward: 50,
+      };
+    });
+  }
+
+  // GET /skills/flashcards/:id — generate flashcards for a track
+  if (parts[1] === "flashcards" && parts[2]) {
+    return handle(async () => {
+      const trackId = Number(parts[2]);
+      const [track] = await sql`SELECT * FROM skill_tracks WHERE id = ${trackId}`;
+      if (!track) throw Object.assign(new Error("المسار غير موجود"), { status: 404 });
+      const lessons = await sql`SELECT * FROM skill_lessons WHERE track_id = ${trackId} ORDER BY ord, id`;
+      const qcs = await sql`SELECT * FROM skill_quick_checks WHERE lesson_id = ANY(${lessons.map((l: any) => l.id)}) ORDER BY ord`;
+      const cards = qcs.map((qc: any, i: number) => ({
+        id: i + 1,
+        front: qc.question,
+        back: qc.explanation || (qc.options[qc.correct_index] || ""),
+        topic: lessons.find((l: any) => l.id === qc.lesson_id)?.title || "",
+      }));
+      // Add lesson title cards
+      for (const lesson of lessons) {
+        cards.push({ id: cards.length + 1, front: `ماذا تعرف عن: ${lesson.title}?`, back: `درس في مسار ${track.title} — مدته ${lesson.duration_minutes} دقائق`, topic: lesson.title });
+      }
+      return { trackTitle: track.title, cards: cards.slice(0, 20) };
     });
   }
 
@@ -1706,7 +2289,6 @@ async function handleSkills(req: Request, parts: string[]): Promise<Response> {
           ord: l.ord,
           quickChecks: lessonQCs.map((qc: any) => ({
             id: qc.id, question: qc.question, options: qc.options,
-            correctIndex: qc.correct_index, explanation: qc.explanation,
           })),
         };
       });
@@ -1719,6 +2301,8 @@ async function handleSkills(req: Request, parts: string[]): Promise<Response> {
         id: track.id, title: track.title, category: track.category, description: track.description,
         difficulty: track.difficulty, coverUrl: track.cover_url, progress: trackProgress,
         level, lessons: enrichedLessons,
+        yearInCollege: track.year_in_college ?? 0,
+        prerequisites: track.prerequisites ?? [],
       };
     });
   }
@@ -1753,6 +2337,8 @@ async function handleSkills(req: Request, parts: string[]): Promise<Response> {
       // Award points
       await sql`UPDATE users SET points = points + 5 WHERE id = ${userId}`;
       try { await recalculateLevel(userId); } catch (e) { console.error("[recalculateLevel]", e); }
+      try { await autoCompleteMissions(userId, "skill"); } catch (e) { console.error("[autoCompleteMissions skill]", e); }
+      try { await updateDailyStreak(userId); } catch (e) { console.error("[updateDailyStreak skill]", e); }
 
       return { ok: true, level, progress, xpEarned: 5 };
     });
@@ -1789,6 +2375,11 @@ async function handleSkills(req: Request, parts: string[]): Promise<Response> {
   return jsonError("Not Found", 404);
 }
 
+const GAME_MAX_SCORES: Record<string, number> = {
+  soil_match: 850, plant_quiz: 1000, harvest_run: 1500, plant_id: 960, soil_ph: 1500,
+  crop_match: 1200, disease_detect: 1400, case_battle: 2000,
+};
+
 async function handleGames(req: Request, parts: string[]): Promise<Response> {
   if (parts[1] === "score" && req.method === "POST") {
     return handle(async () => {
@@ -1796,9 +2387,32 @@ async function handleGames(req: Request, parts: string[]): Promise<Response> {
       const body = await req.json();
       const { gameKey, score, durationMs } = body;
       if (!gameKey || typeof score !== "number") throw Object.assign(new Error("بيانات ناقصة"), { status: 400 });
-      const [row] = await sql`INSERT INTO game_scores (user_id, game_key, score, duration_ms) VALUES (${userId}, ${gameKey}, ${score}, ${durationMs ?? 0}) RETURNING *`;
-      await sql`UPDATE users SET points = points + ${Math.floor(score / 10)} WHERE id = ${userId}`;
-      try { await recalculateLevel(userId); } catch (e) { console.error("[recalculateLevel]", e); }
+      const maxScore = GAME_MAX_SCORES[gameKey] ?? 1000;
+      const clampedScore = Math.min(Math.max(0, Math.floor(score)), maxScore);
+      const [bestRow] = await sql`SELECT MAX(score) AS best FROM game_scores WHERE user_id = ${userId} AND game_key = ${gameKey}`;
+      const isNewBest = clampedScore > (bestRow?.best ?? -1);
+      const [row] = await sql`INSERT INTO game_scores (user_id, game_key, score, duration_ms) VALUES (${userId}, ${gameKey}, ${clampedScore}, ${durationMs ?? 0}) RETURNING *`;
+      if (isNewBest) {
+        const earnedXP = Math.floor(clampedScore / 10);
+        const earnedCoins = Math.floor(clampedScore / 100);
+        await sql`UPDATE users SET points = points + ${earnedXP}, coins = coins + ${earnedCoins} WHERE id = ${userId}`;
+        try { await recalculateLevel(userId); } catch (e) { console.error("[recalculateLevel]", e); }
+      }
+      try { await autoCompleteMissions(userId, "game"); } catch (e) { console.error("[autoCompleteMissions game]", e); }
+      try { await updateDailyStreak(userId); } catch (e) { console.error("[updateDailyStreak game]", e); }
+      // Update challenge progress
+      try {
+        await ensureChallengesTable();
+        const today = new Date().toISOString().split("T")[0];
+        await sql`UPDATE game_challenges SET progress = LEAST(progress + ${clampedScore}, target_score) WHERE user_id = ${userId} AND created_date = ${today} AND game_key = ${gameKey} AND completed = false`;
+        // Auto-complete challenges that meet target
+        await sql`UPDATE game_challenges SET completed = true, progress = target_score WHERE user_id = ${userId} AND created_date = ${today} AND game_key = ${gameKey} AND progress >= target_score AND completed = false`;
+        // Award XP for completed challenges
+        const [completed] = await sql`SELECT * FROM game_challenges WHERE user_id = ${userId} AND created_date = ${today} AND game_key = ${gameKey} AND completed = true AND progress >= target_score`;
+        if (completed) {
+          await sql`UPDATE users SET points = points + ${completed.xp_reward} WHERE id = ${userId}`;
+        }
+      } catch (e) { console.error("[challenge progress]", e); }
       return row;
     });
   }
@@ -1815,7 +2429,416 @@ async function handleGames(req: Request, parts: string[]): Promise<Response> {
     });
   }
 
+  if (parts[1] === "my-scores" && req.method === "GET") {
+    return handle(async () => {
+      const { userId } = requireAuth(req.headers);
+      const limit = Math.min(Number(new URL(req.url, "http://localhost").searchParams.get("limit")) || 50, 200);
+      const rows = await sql`SELECT * FROM game_scores WHERE user_id = ${userId} ORDER BY created_at DESC LIMIT ${limit}`;
+      return rows.map((r: any) => ({
+        id: r.id, gameKey: r.game_key, score: r.score, durationMs: r.duration_ms,
+        createdAt: r.created_at?.toISOString?.() ?? r.created_at,
+      }));
+    });
+  }
+
+  if (parts[1] === "stats" && req.method === "GET") {
+    return handle(async () => {
+      const { userId } = requireAuth(req.headers);
+      const rows = await sql`SELECT * FROM game_scores WHERE user_id = ${userId}`;
+      const byGame = new Map<string, { count: number; best: number; total: number; stars3: number; stars2: number; stars1: number }>();
+      for (const r of rows) {
+        const gk = r.game_key as string;
+        if (!byGame.has(gk)) byGame.set(gk, { count: 0, best: 0, total: 0, stars3: 0, stars2: 0, stars1: 0 });
+        const s = byGame.get(gk)!;
+        s.count++;
+        s.total += r.score;
+        if (r.score > s.best) s.best = r.score;
+        const maxScore = GAME_MAX_SCORES[gk] ?? 1000;
+        const pct = maxScore > 0 ? r.score / maxScore : 0;
+        if (pct >= 0.8) s.stars3++;
+        else if (pct >= 0.5) s.stars2++;
+        else if (r.score > 0) s.stars1++;
+      }
+      const totals = { gamesPlayed: rows.length, totalScore: rows.reduce((a: number, r: any) => a + r.score, 0), totalXP: Math.floor(rows.reduce((a: number, r: any) => a + r.score, 0) / 10) };
+      return { byGame: Object.fromEntries(byGame), totals };
+    });
+  }
+
+  // GET /v2/games/replay/:id
+  if (parts[1] === "replay" && parts[2]) {
+    return handle(async () => {
+      const scoreId = Number(parts[2]);
+      const [score] = await sql`SELECT * FROM game_scores WHERE id = ${scoreId}`;
+      if (!score) throw Object.assign(new Error("النتيجة غير موجودة"), { status: 404 });
+      const [u] = await sql`SELECT name, avatar_url FROM users WHERE id = ${score.user_id}`;
+      return {
+        id: score.id,
+        gameKey: score.game_key,
+        score: score.score,
+        durationMs: score.duration_ms,
+        user: u || { name: "طالب" },
+        createdAt: score.created_at,
+      };
+    });
+  }
+
   return jsonError("Not Found", 404);
+}
+
+// ── Challenges System ──
+async function ensureChallengesTable() {
+  await sql`
+    CREATE TABLE IF NOT EXISTS game_challenges (
+      id SERIAL PRIMARY KEY,
+      user_id INT NOT NULL REFERENCES users(id),
+      challenge_type TEXT NOT NULL DEFAULT 'daily',
+      game_key TEXT,
+      target_score INT NOT NULL DEFAULT 1000,
+      xp_reward INT NOT NULL DEFAULT 50,
+      progress INT NOT NULL DEFAULT 0,
+      completed BOOLEAN DEFAULT false,
+      week_start DATE,
+      created_date DATE NOT NULL DEFAULT CURRENT_DATE,
+      created_at TIMESTAMP DEFAULT NOW()
+    )
+  `;
+  try { await sql`CREATE INDEX IF NOT EXISTS idx_challenges_user_date ON game_challenges (user_id, created_date)`; } catch {}
+}
+
+async function ensureSeasonalEventsTable() {
+  await sql`
+    CREATE TABLE IF NOT EXISTS seasonal_events (
+      id SERIAL PRIMARY KEY,
+      title TEXT NOT NULL,
+      description TEXT,
+      game_key TEXT,
+      xp_reward INT NOT NULL DEFAULT 50,
+      badge_title TEXT,
+      start_date DATE NOT NULL,
+      end_date DATE NOT NULL,
+      active BOOLEAN DEFAULT true,
+      created_at TIMESTAMP DEFAULT NOW()
+    )
+  `;
+}
+
+async function ensureDailyRewardsTable() {
+  await sql`
+    CREATE TABLE IF NOT EXISTS daily_rewards (
+      id SERIAL PRIMARY KEY,
+      user_id INT NOT NULL REFERENCES users(id),
+      claim_date DATE NOT NULL DEFAULT CURRENT_DATE,
+      reward_type TEXT NOT NULL DEFAULT 'xp',
+      reward_value INT NOT NULL DEFAULT 10,
+      created_at TIMESTAMP DEFAULT NOW()
+    )
+  `;
+  try { await sql`CREATE UNIQUE INDEX IF NOT EXISTS idx_rewards_user_date ON daily_rewards (user_id, claim_date)`; } catch {}
+}
+
+async function handleChallenges(req: Request, parts: string[]): Promise<Response> {
+  const { userId } = requireAuth(req.headers);
+
+  // GET /v2/challenges — today's challenges + progress
+  if (!parts[1]) {
+    return handle(async () => {
+      await ensureChallengesTable();
+      const today = new Date().toISOString().split("T")[0];
+      let challenges = await sql`SELECT * FROM game_challenges WHERE user_id = ${userId} AND created_date = ${today} ORDER BY id`;
+      if (!challenges.length) {
+        // Generate a daily challenge based on a random game
+        const gameKeys = Object.keys(GAME_MAX_SCORES);
+        const gameKey = gameKeys[Math.floor(Math.random() * gameKeys.length)];
+        const maxScore = GAME_MAX_SCORES[gameKey];
+        const target = Math.round(maxScore * 0.7);
+        await sql`INSERT INTO game_challenges (user_id, challenge_type, game_key, target_score, xp_reward, progress, created_date) VALUES (${userId}, 'daily', ${gameKey}, ${target}, 50, 0, ${today})`;
+        challenges = await sql`SELECT * FROM game_challenges WHERE user_id = ${userId} AND created_date = ${today} ORDER BY id`;
+      }
+      return challenges.map((c: any) => ({
+        id: c.id,
+        type: c.challenge_type,
+        gameKey: c.game_key,
+        targetScore: c.target_score,
+        xpReward: c.xp_reward,
+        progress: c.progress,
+        completed: c.completed,
+      }));
+    });
+  }
+
+  // POST /v2/challenges/claim — claim daily reward chest
+  if (parts[1] === "claim") {
+    return handle(async () => {
+      await ensureDailyRewardsTable();
+      const today = new Date().toISOString().split("T")[0];
+      const [existing] = await sql`SELECT * FROM daily_rewards WHERE user_id = ${userId} AND claim_date = ${today}`;
+      if (existing) throw Object.assign(new Error("لقد حصلت على المكافأة اليومية بالفعل"), { status: 400 });
+      // Random reward: 10-50 XP, sometimes a bonus
+      const xpValues = [10, 15, 20, 25, 30, 50];
+      const xp = xpValues[Math.floor(Math.random() * xpValues.length)];
+      await sql`INSERT INTO daily_rewards (user_id, claim_date, reward_type, reward_value) VALUES (${userId}, ${today}, 'xp', ${xp})`;
+      await sql`UPDATE users SET points = points + ${xp} WHERE id = ${userId}`;
+      try { await recalculateLevel(userId); } catch {}
+      return { xp, type: "xp", message: `+${xp} XP مكافأة يومية! 🎁` };
+    });
+  }
+
+  return jsonError("Not Found", 404);
+}
+
+async function handleSeasonalEventsRoute(req: Request): Promise<Response> {
+  return handle(async () => {
+    await ensureSeasonalEventsTable();
+    // Seed default events if none exist
+    const count = await sql`SELECT COUNT(*) as cnt FROM seasonal_events WHERE active = true`;
+    if (!count.length || count[0].cnt === 0) {
+      const today = new Date();
+      const end = new Date(today); end.setDate(end.getDate() + 7);
+      await sql`INSERT INTO seasonal_events (title, description, game_key, xp_reward, badge_title, start_date, end_date) VALUES
+        ('تحدي التربة', 'تنافس مع زملائك في لعبة توازن التربة — أفضل 3 لاعبين يفوزون بشارة خاصة', 'soil_ph', 80, 'Soil Master', ${today.toISOString().split("T")[0]}, ${end.toISOString().split("T")[0]}),
+        ('موسم الزراعة', 'العب ذاكرة المحاصيل واجمع أكبر عدد من النقاط', 'soil_match', 50, NULL, ${today.toISOString().split("T")[0]}, ${end.toISOString().split("T")[0]})
+      `;
+    }
+    const todayStr = new Date().toISOString().split("T")[0];
+    const events = await sql`SELECT * FROM seasonal_events WHERE active = true AND start_date <= ${todayStr} AND end_date >= ${todayStr} ORDER BY id`;
+    return events.map((e: any) => ({
+      id: e.id, title: e.title, description: e.description, gameKey: e.game_key,
+      xpReward: e.xp_reward, badgeTitle: e.badge_title,
+      startDate: e.start_date?.toISOString?.()?.split("T")[0] || e.start_date,
+      endDate: e.end_date?.toISOString?.()?.split("T")[0] || e.end_date,
+    }));
+  });
+}
+
+// ── Study Rooms ──
+async function ensureStudyRoomsTable() {
+  await sql`
+    CREATE TABLE IF NOT EXISTS study_rooms (
+      id SERIAL PRIMARY KEY,
+      track_id INT,
+      title TEXT NOT NULL,
+      description TEXT,
+      created_by INT NOT NULL,
+      created_at TIMESTAMP DEFAULT NOW()
+    )
+  `;
+  await sql`
+    CREATE TABLE IF NOT EXISTS study_room_members (
+      id SERIAL PRIMARY KEY,
+      room_id INT NOT NULL REFERENCES study_rooms(id) ON DELETE CASCADE,
+      user_id INT NOT NULL,
+      joined_at TIMESTAMP DEFAULT NOW(),
+      UNIQUE(room_id, user_id)
+    )
+  `;
+}
+
+async function handleStudyRooms(req: Request, parts: string[]): Promise<Response> {
+  const { userId } = requireAuth(req.headers);
+
+  if (!parts[0] || parts[0] === "create") {
+    return handle(async () => {
+      await ensureStudyRoomsTable();
+      const rows = await sql`
+        SELECT r.*, (SELECT COUNT(*) FROM study_room_members m WHERE m.room_id = r.id) as member_count
+        FROM study_rooms r ORDER BY r.created_at DESC
+      `;
+      const trackIds = rows.map((r: any) => r.track_id).filter(Boolean);
+      const tracks = trackIds.length ? await sql`SELECT id, title FROM skill_tracks WHERE id = ANY(${trackIds})` : [];
+      const trackMap = new Map(tracks.map((t: any) => [t.id, t.title]));
+      const userIds = rows.map((r: any) => r.created_by);
+      const users = userIds.length ? await sql`SELECT id, name FROM users WHERE id = ANY(${userIds})` : [];
+      const userMap = new Map(users.map((u: any) => [u.id, u.name]));
+      const memberRows = await sql`SELECT room_id FROM study_room_members WHERE user_id = ${userId}`;
+      const myRoomIds = new Set(memberRows.map((r: any) => r.room_id));
+      return rows.map((r: any) => ({
+        id: r.id, trackId: r.track_id, trackTitle: trackMap.get(r.track_id) || null,
+        title: r.title, description: r.description,
+        createdBy: r.created_by, createdByName: userMap.get(r.created_by) || "طالب",
+        memberCount: Number(r.member_count), isMember: myRoomIds.has(r.id),
+      }));
+    });
+  }
+
+  if (parts[0] === "create") {
+    return handle(async () => {
+      await ensureStudyRoomsTable();
+      const body = await req.json();
+      const { title, description, trackId } = body;
+      if (!title) throw Object.assign(new Error("عنوان الغرفة مطلوب"), { status: 400 });
+      const [row] = await sql`INSERT INTO study_rooms (title, description, track_id, created_by) VALUES (${title}, ${description || ""}, ${trackId || null}, ${userId}) RETURNING *`;
+      await sql`INSERT INTO study_room_members (room_id, user_id) VALUES (${row.id}, ${userId})`;
+      return row;
+    });
+  }
+
+  if (parts[0] === "join" && parts[1]) {
+    return handle(async () => {
+      await ensureStudyRoomsTable();
+      const roomId = Number(parts[1]);
+      const [room] = await sql`SELECT * FROM study_rooms WHERE id = ${roomId}`;
+      if (!room) throw Object.assign(new Error("الغرفة غير موجودة"), { status: 404 });
+      try { await sql`INSERT INTO study_room_members (room_id, user_id) VALUES (${roomId}, ${userId})`; }
+      catch { throw Object.assign(new Error("أنت بالفعل عضو في هذه الغرفة"), { status: 400 }); }
+      return { ok: true };
+    });
+  }
+
+  if (parts[0] === "leave" && parts[1]) {
+    return handle(async () => {
+      await ensureStudyRoomsTable();
+      const roomId = Number(parts[1]);
+      await sql`DELETE FROM study_room_members WHERE room_id = ${roomId} AND user_id = ${userId}`;
+      return { ok: true };
+    });
+  }
+
+  return jsonError("Not Found", 404);
+}
+
+// ── Co-op Challenges ──
+async function ensureCoopTables() {
+  await sql`
+    CREATE TABLE IF NOT EXISTS team_challenges (
+      id SERIAL PRIMARY KEY,
+      title TEXT NOT NULL,
+      game_key TEXT NOT NULL,
+      target_score INT NOT NULL DEFAULT 1000,
+      xp_reward INT NOT NULL DEFAULT 75,
+      start_date DATE NOT NULL DEFAULT CURRENT_DATE,
+      end_date DATE NOT NULL,
+      created_by INT NOT NULL,
+      created_at TIMESTAMP DEFAULT NOW()
+    )
+  `;
+  await sql`
+    CREATE TABLE IF NOT EXISTS team_challenge_participants (
+      id SERIAL PRIMARY KEY,
+      challenge_id INT NOT NULL REFERENCES team_challenges(id) ON DELETE CASCADE,
+      user_id INT NOT NULL,
+      team_name TEXT NOT NULL DEFAULT '',
+      score INT NOT NULL DEFAULT 0,
+      completed BOOLEAN DEFAULT false,
+      joined_at TIMESTAMP DEFAULT NOW(),
+      UNIQUE(challenge_id, user_id)
+    )
+  `;
+}
+
+async function handleCoopChallenges(req: Request, parts: string[]): Promise<Response> {
+  const { userId } = requireAuth(req.headers);
+
+  if (!parts[0]) {
+    return handle(async () => {
+      await ensureCoopTables();
+      const today = new Date().toISOString().split("T")[0];
+      const rows = await sql`SELECT * FROM team_challenges WHERE end_date >= ${today} ORDER BY start_date ASC`;
+      const myEntries = await sql`SELECT challenge_id, score, team_name FROM team_challenge_participants WHERE user_id = ${userId}`;
+      const entryMap = new Map(myEntries.map((e: any) => [e.challenge_id, e]));
+      return rows.map((c: any) => {
+        const my = entryMap.get(c.id);
+        return {
+          id: c.id, title: c.title, gameKey: c.game_key, targetScore: c.target_score,
+          xpReward: c.xp_reward, startDate: c.start_date, endDate: c.end_date,
+          myScore: my?.score || 0, myTeamName: my?.team_name || "", joined: !!my,
+        };
+      });
+    });
+  }
+
+  if (parts[0] === "join" && parts[1]) {
+    return handle(async () => {
+      await ensureCoopTables();
+      const challengeId = Number(parts[1]);
+      const body = await req.json();
+      const teamName = body.teamName || "";
+      const [challenge] = await sql`SELECT * FROM team_challenges WHERE id = ${challengeId}`;
+      if (!challenge) throw Object.assign(new Error("التحدي غير موجود"), { status: 404 });
+      try { await sql`INSERT INTO team_challenge_participants (challenge_id, user_id, team_name) VALUES (${challengeId}, ${userId}, ${teamName})`; }
+      catch { throw Object.assign(new Error("أنت مشترك بالفعل"), { status: 400 }); }
+      return { ok: true };
+    });
+  }
+
+  if (parts[0] === "score" && parts[1]) {
+    return handle(async () => {
+      await ensureCoopTables();
+      const challengeId = Number(parts[1]);
+      const body = await req.json();
+      const { score } = body;
+      const [existing] = await sql`SELECT * FROM team_challenge_participants WHERE challenge_id = ${challengeId} AND user_id = ${userId}`;
+      if (!existing) throw Object.assign(new Error("أنت غير مشترك في هذا التحدي"), { status: 400 });
+      if (existing.completed) throw Object.assign(new Error("لقد سجلت نتيجتك بالفعل"), { status: 400 });
+      await sql`UPDATE team_challenge_participants SET score = ${score}, completed = true WHERE challenge_id = ${challengeId} AND user_id = ${userId}`;
+      await sql`UPDATE users SET points = points + ${Math.floor(score / 10)} WHERE id = ${userId}`;
+      return { ok: true, xpEarned: Math.floor(score / 10) };
+    });
+  }
+
+  return jsonError("Not Found", 404);
+}
+
+// ── Game Analytics ──
+async function handleGameAnalytics(req: Request): Promise<Response> {
+  const { userId } = requireAuth(req.headers);
+  const user = await getCurrentUser(userId);
+  requireRole(user, ["admin", "super_admin"]);
+
+  return handle(async () => {
+    const allScores = await sql`SELECT * FROM game_scores ORDER BY created_at DESC`;
+    const totalPlayers = new Set(allScores.map((s: any) => s.user_id)).size;
+    const byGame: Record<string, { plays: number; totalScore: number; avgScore: number; bestScore: number; players: Set<number> }> = {};
+    for (const s of allScores) {
+      const gk = s.game_key;
+      if (!byGame[gk]) byGame[gk] = { plays: 0, totalScore: 0, avgScore: 0, bestScore: 0, players: new Set() };
+      byGame[gk].plays++;
+      byGame[gk].totalScore += s.score;
+      if (s.score > byGame[gk].bestScore) byGame[gk].bestScore = s.score;
+      byGame[gk].players.add(s.user_id);
+    }
+    const gameAnalytics = Object.entries(byGame).map(([gameKey, data]) => ({
+      gameKey, plays: data.plays,
+      avgScore: Math.round(data.totalScore / data.plays),
+      bestScore: data.bestScore,
+      totalScore: data.totalScore,
+      uniquePlayers: data.players.size,
+    }));
+    return {
+      totalGamesPlayed: allScores.length,
+      totalUniquePlayers: totalPlayers,
+      byGame: gameAnalytics.sort((a, b) => b.plays - a.plays),
+    };
+  });
+}
+
+// ── Weekly Tournament ──
+async function handleTournament(req: Request, parts: string[]): Promise<Response> {
+  return handle(async () => {
+    const url = new URL(req.url, "http://localhost");
+    const gameKey = url.searchParams.get("gameKey");
+    const weekAgo = new Date(); weekAgo.setDate(weekAgo.getDate() - 7);
+    let rows;
+    if (gameKey) {
+      rows = await sql`SELECT s.user_id, MAX(s.score) AS best_score, COUNT(*) AS plays, SUM(score) AS total_score FROM game_scores s WHERE s.game_key = ${gameKey} AND s.created_at >= ${weekAgo} GROUP BY s.user_id ORDER BY best_score DESC LIMIT 20`;
+    } else {
+      rows = await sql`SELECT s.user_id, MAX(s.score) AS best_score, COUNT(*) AS plays, SUM(s.score) AS total_score FROM game_scores s WHERE s.created_at >= ${weekAgo} GROUP BY s.user_id ORDER BY total_score DESC LIMIT 20`;
+    }
+    const userIds = rows.map((r: any) => r.user_id);
+    const users = userIds.length ? await sql`SELECT * FROM users WHERE id = ANY(${userIds})` : [];
+    const byId = new Map(users.map((u: any) => [u.id, u]));
+    return rows.map((r: any, i: number) => {
+      const u = byId.get(Number(r.user_id));
+      return {
+        rank: i + 1,
+        userId: r.user_id,
+        userName: u?.name || "طالب",
+        userAvatar: u?.avatar_url || null,
+        bestScore: Number(r.best_score),
+        totalScore: Number(r.total_score),
+        plays: Number(r.plays),
+      };
+    });
+  });
 }
 
 async function handleLeaderboard(req: Request): Promise<Response> {
@@ -1873,6 +2896,277 @@ async function handleLeaderboard(req: Request): Promise<Response> {
   });
 }
 
+async function handleStreak(req: Request): Promise<Response> {
+  return handle(async () => {
+    const { userId } = requireAuth(req.headers);
+    await ensureDailyStreaksTable();
+    const [row] = await sql`SELECT * FROM user_daily_streaks WHERE user_id = ${userId}`;
+    const today = new Date().toISOString().split("T")[0];
+    const lastActive = row?.last_active_date?.toISOString().split("T")[0];
+    const activeToday = lastActive === today;
+    return {
+      currentStreak: row?.current_streak ?? 0,
+      longestStreak: row?.longest_streak ?? 0,
+      lastActiveDate: lastActive ?? null,
+      activeToday,
+    };
+  });
+}
+
+async function handleBadges(req: Request): Promise<Response> {
+  return handle(async () => {
+    const { userId } = requireAuth(req.headers);
+    const me = await getCurrentUser(userId);
+    if (!me) return [];
+    const userProgress = await sql`SELECT * FROM user_skill_progress WHERE user_id = ${me.id}`;
+    const games = await sql`SELECT * FROM game_scores WHERE user_id = ${me.id}`;
+    const tracks = await sql`SELECT * FROM skill_tracks`;
+    const completedTracks = tracks.filter((t: any) => {
+      const trackLessons = userProgress.filter((p: any) => p.track_id === t.id);
+      const completed = trackLessons.filter((p: any) => p.completed);
+      const total = trackLessons.length;
+      return total > 0 && completed.length >= total;
+    });
+    const completedTrackNames = completedTracks.map((t: any) => t.title.toLowerCase());
+    const threeStarGames = games.filter((g: any) => {
+      const maxScore = GAME_MAX_SCORES[g.game_key] ?? 1000;
+      return maxScore > 0 && g.score / maxScore >= 0.8;
+    }).length;
+
+    const badges = [
+      {
+        id: "soil-starter", title: "Soil Starter", desc: "أكمل مسار أساسيات التربة",
+        unlocked: completedTrackNames.some((t: string) => t.includes("تربة") || t.includes("soil")),
+        icon: "🪴", category: "مهارات",
+      },
+      {
+        id: "plant-doctor", title: "Plant Doctor", desc: "أكمل مسار أمراض النبات",
+        unlocked: completedTrackNames.some((t: string) => t.includes("أمراض") || t.includes("مرض") || t.includes("تشخيص")),
+        icon: "🔬", category: "مهارات",
+      },
+      {
+        id: "pest-hunter", title: "Pest Hunter", desc: "أكمل مسار مكافحة الآفات",
+        unlocked: completedTrackNames.some((t: string) => t.includes("آفات") || t.includes("حشرات") || t.includes("مكافحة")),
+        icon: "🐛", category: "مهارات",
+      },
+      {
+        id: "lab-explorer", title: "Lab Explorer", desc: "أكمل 3 دروس مختبرية",
+        unlocked: userProgress.filter((p: any) => p.completed && p.track_id > 0).length >= 3,
+        icon: "🧪", category: "مهارات",
+      },
+      {
+        id: "top-agronomist", title: "Top Agronomist", desc: "أكمل 5 مسارات مهارات",
+        unlocked: completedTracks.length >= 5,
+        icon: "🏅", category: "مهارات",
+      },
+      {
+        id: "game-collector", title: "Game Collector", desc: "العب كل أنواع الألعاب",
+        unlocked: new Set(games.map((g: any) => g.game_key)).size >= 8,
+        icon: "🎮", category: "ألعاب",
+      },
+      {
+        id: "memory-ace", title: "ذاكرة ممتازة", desc: "احصل على 3 نجوم في ذاكرة المحاصيل",
+        unlocked: games.some((g: any) => g.game_key === "soil_match" && (GAME_MAX_SCORES.soil_match > 0 && g.score / GAME_MAX_SCORES.soil_match >= 0.8)),
+        icon: "🧠", category: "ألعاب",
+      },
+      {
+        id: "ph-master", title: "pH Master", desc: "احصل على 3 نجوم في توازن التربة",
+        unlocked: games.some((g: any) => g.game_key === "soil_ph" && (GAME_MAX_SCORES.soil_ph > 0 && g.score / GAME_MAX_SCORES.soil_ph >= 0.8)),
+        icon: "⚗️", category: "ألعاب",
+      },
+      {
+        id: "crop-master", title: "Crop Master", desc: "احصل على 3 نجوم في مطابقة المحاصيل",
+        unlocked: games.some((g: any) => g.game_key === "crop_match" && (GAME_MAX_SCORES.crop_match > 0 && g.score / GAME_MAX_SCORES.crop_match >= 0.8)),
+        icon: "📅", category: "ألعاب",
+      },
+      {
+        id: "detective", title: "Disease Detective", desc: "احصل على 3 نجوم في كشف الأمراض",
+        unlocked: games.some((g: any) => g.game_key === "disease_detect" && (GAME_MAX_SCORES.disease_detect > 0 && g.score / GAME_MAX_SCORES.disease_detect >= 0.8)),
+        icon: "🔬", category: "ألعاب",
+      },
+      {
+        id: "strategist", title: "Agronomy Strategist", desc: "احصل على 3 نجوم في معركة القرار",
+        unlocked: games.some((g: any) => g.game_key === "case_battle" && (GAME_MAX_SCORES.case_battle > 0 && g.score / GAME_MAX_SCORES.case_battle >= 0.8)),
+        icon: "⚔️", category: "ألعاب",
+      },
+    ];
+    return badges.map((b) => ({
+      ...b,
+      completed: b.unlocked,
+      percent: b.unlocked ? 100 : 0,
+    }));
+  });
+}
+
+async function handleActivityHeatmap(req: Request): Promise<Response> {
+  return handle(async () => {
+    const { userId } = requireAuth(req.headers);
+    const yearAgo = new Date();
+    yearAgo.setFullYear(yearAgo.getFullYear() - 1);
+    const activity = await sql`
+      SELECT date, minutes_studied, points_earned FROM activity
+      WHERE user_id = ${userId} AND date >= ${yearAgo.toISOString().split("T")[0]}
+      ORDER BY date ASC
+    `;
+    const heatmap: Record<string, { minutes: number; points: number }> = {};
+    for (const a of activity) {
+      const d = typeof a.date === "string" ? a.date : new Date(a.date).toISOString().split("T")[0];
+      heatmap[d] = { minutes: Number(a.minutes_studied), points: Number(a.points_earned) };
+    }
+    // Generate all dates for the past year
+    const data: { date: string; minutes: number; points: number; level: number }[] = [];
+    const start = new Date();
+    start.setFullYear(start.getFullYear() - 1);
+    for (let i = 0; i < 365; i++) {
+      const d = new Date(start);
+      d.setDate(d.getDate() + i);
+      const key = d.toISOString().split("T")[0];
+      const entry = heatmap[key];
+      const minutes = entry?.minutes ?? 0;
+      data.push({
+        date: key,
+        minutes,
+        points: entry?.points ?? 0,
+        level: minutes > 120 ? 4 : minutes > 60 ? 3 : minutes > 30 ? 2 : minutes > 0 ? 1 : 0,
+      });
+    }
+    // Stats
+    const totalMinutes = data.reduce((s, d) => s + d.minutes, 0);
+    const activeDays = data.filter((d) => d.minutes > 0).length;
+    const longestStreak = data.reduce((acc, d) => {
+      if (d.minutes > 0) acc.current++;
+      else acc.current = 0;
+      acc.longest = Math.max(acc.longest, acc.current);
+      return acc;
+    }, { current: 0, longest: 0 }).longest;
+    return { data, totalMinutes, activeDays, longestStreak, totalDays: 365 };
+  });
+}
+
+const UNLOCKABLES = [
+  { id: "title-soil-starter", type: "title", label: "Soil Starter", icon: "🪴", requirement: "أكمل مسار أساسيات التربة",
+    check: async (uid: number) => {
+      const up = await sql`SELECT * FROM user_skill_progress WHERE user_id = ${uid}`;
+      const tr = await sql`SELECT * FROM skill_tracks`;
+      const done = tr.filter((t: any) => {
+        const l = up.filter((p: any) => p.track_id === t.id && p.completed);
+        const q = up.filter((p: any) => p.track_id === t.id);
+        return q.length > 0 && l.length >= q.length;
+      });
+      return done.some((t: any) => t.title.toLowerCase().includes("تربة") || t.title.toLowerCase().includes("soil"));
+    }
+  },
+  { id: "title-plant-doctor", type: "title", label: "Plant Doctor", icon: "🔬", requirement: "أكمل مسار أمراض النبات",
+    check: async (uid: number) => {
+      const up = await sql`SELECT * FROM user_skill_progress WHERE user_id = ${uid}`;
+      const tr = await sql`SELECT * FROM skill_tracks`;
+      const done = tr.filter((t: any) => {
+        const l = up.filter((p: any) => p.track_id === t.id && p.completed);
+        const q = up.filter((p: any) => p.track_id === t.id);
+        return q.length > 0 && l.length >= q.length;
+      });
+      return done.some((t: any) => t.title.toLowerCase().includes("أمراض") || t.title.toLowerCase().includes("تشخيص"));
+    }
+  },
+  { id: "title-lab-explorer", type: "title", label: "Lab Explorer", icon: "🧪", requirement: "أكمل 3 مختبرات",
+    check: async (uid: number) => {
+      const up = await sql`SELECT * FROM user_skill_progress WHERE user_id = ${uid}`;
+      return up.filter((p: any) => p.completed).length >= 3;
+    }
+  },
+  { id: "title-game-master", type: "title", label: "Game Master", icon: "🎮", requirement: "العب 50 لعبة",
+    check: async (uid: number) => {
+      const games = await sql`SELECT * FROM game_scores WHERE user_id = ${uid}`;
+      return games.length >= 50;
+    }
+  },
+  { id: "frame-level-5", type: "frame", label: "إطار برونزي", icon: "🥉", requirement: "المستوى 5",
+    check: async (uid: number) => {
+      const [u] = await sql`SELECT * FROM users WHERE id = ${uid}`;
+      return u?.level >= 5;
+    }
+  },
+  { id: "frame-level-10", type: "frame", label: "إطار فضي", icon: "🥈", requirement: "المستوى 10",
+    check: async (uid: number) => {
+      const [u] = await sql`SELECT * FROM users WHERE id = ${uid}`;
+      return u?.level >= 10;
+    }
+  },
+  { id: "frame-level-20", type: "frame", label: "إطار ذهبي", icon: "🥇", requirement: "المستوى 20",
+    check: async (uid: number) => {
+      const [u] = await sql`SELECT * FROM users WHERE id = ${uid}`;
+      return u?.level >= 20;
+    }
+  },
+  { id: "frame-streak-7", type: "frame", label: "إطار متابع", icon: "🔥", requirement: "7 أيام متتالية",
+    check: async (uid: number) => {
+      const [s] = await sql`SELECT * FROM user_daily_streaks WHERE user_id = ${uid}`;
+      return (s?.current_streak ?? 0) >= 7;
+    }
+  },
+  { id: "frame-streak-30", type: "frame", label: "إطار ملتزم", icon: "💪", requirement: "30 يوم متتالي",
+    check: async (uid: number) => {
+      const [s] = await sql`SELECT * FROM user_daily_streaks WHERE user_id = ${uid}`;
+      return (s?.current_streak ?? 0) >= 30;
+    }
+  },
+  { id: "theme-nature", type: "theme", label: "الطبيعة", icon: "🌿", requirement: "10 دروس مهارات",
+    check: async (uid: number) => {
+      const up = await sql`SELECT * FROM user_skill_progress WHERE user_id = ${uid}`;
+      return up.filter((p: any) => p.completed).length >= 10;
+    }
+  },
+  { id: "theme-desert", type: "theme", label: "الصحراء", icon: "🏜️", requirement: "المستوى 15",
+    check: async (uid: number) => {
+      const [u] = await sql`SELECT * FROM users WHERE id = ${uid}`;
+      return u?.level >= 15;
+    }
+  },
+  { id: "theme-ocean", type: "theme", label: "المحيط", icon: "🌊", requirement: "أكمل 10 مسارات",
+    check: async (uid: number) => {
+      const up = await sql`SELECT * FROM user_skill_progress WHERE user_id = ${uid}`;
+      const tr = await sql`SELECT * FROM skill_tracks`;
+      return tr.filter((t: any) => {
+        const l = up.filter((p: any) => p.track_id === t.id && p.completed);
+        const q = up.filter((p: any) => p.track_id === t.id);
+        return q.length > 0 && l.length >= q.length;
+      }).length >= 10;
+    }
+  },
+];
+
+async function handleUnlockables(req: Request): Promise<Response> {
+  return handle(async () => {
+    const { userId } = requireAuth(req.headers);
+    const results = await Promise.all(UNLOCKABLES.map(async (u) => ({
+      id: u.id, type: u.type, label: u.label, icon: u.icon, requirement: u.requirement,
+      unlocked: await u.check(userId),
+    })));
+    const [me] = await sql`SELECT * FROM users WHERE id = ${userId}`;
+    return {
+      items: results,
+      equipped: { title: me?.title ?? "", frame: me?.avatar_frame ?? "none", theme: me?.theme ?? "default" },
+    };
+  });
+}
+
+async function handleEquipUnlockable(req: Request): Promise<Response> {
+  return handle(async () => {
+    const { userId } = requireAuth(req.headers);
+    const body = await req.json();
+    const { itemId } = body;
+    if (!itemId) throw Object.assign(new Error("معرف القطعة مطلوب"), { status: 400 });
+    const item = UNLOCKABLES.find((u) => u.id === itemId);
+    if (!item) throw Object.assign(new Error("القطعة غير موجودة"), { status: 404 });
+    const unlocked = await item.check(userId);
+    if (!unlocked) throw Object.assign(new Error("لم يتم فتح هذه القطعة بعد"), { status: 403 });
+    if (item.type === "title") await sql`UPDATE users SET title = ${item.label} WHERE id = ${userId}`;
+    else if (item.type === "frame") await sql`UPDATE users SET avatar_frame = ${item.id} WHERE id = ${userId}`;
+    else if (item.type === "theme") await sql`UPDATE users SET theme = ${item.id.replace("theme-", "")} WHERE id = ${userId}`;
+    return { ok: true, type: item.type, value: item.label };
+  });
+}
+
 async function handleActivity(req: Request): Promise<Response> {
   if (req.method === "POST") {
     return handle(async () => {
@@ -1880,14 +3174,20 @@ async function handleActivity(req: Request): Promise<Response> {
       const body = await req.json();
       const { minutes } = body;
       if (!minutes || minutes <= 0) throw Object.assign(new Error("Invalid minutes"), { status: 400 });
+      // cap abuse: max 240 min per request, and cap daily total at 720 min
+      const DAY_CAP = 720, REQ_CAP = 240;
       const today = new Date().toISOString().split("T")[0];
-      const earnedPoints = Math.floor(minutes / 10);
+      const [cur] = await sql`SELECT * FROM activity WHERE user_id = ${userId} AND date = ${today}`;
+      const already = Number(cur?.minutes_studied ?? 0);
+      const allowed = Math.max(0, Math.min(Math.floor(minutes), REQ_CAP, DAY_CAP - already));
+      if (allowed <= 0) return { loggedMinutes: 0, earnedPoints: 0, totalMinutes: already };
+      const earnedPoints = Math.floor(allowed / 10);
 
       try { await sql`CREATE UNIQUE INDEX IF NOT EXISTS idx_activity_user_date ON activity (user_id, date)`; } catch {}
 
       await sql`
         INSERT INTO activity (user_id, date, minutes_studied, points_earned)
-        VALUES (${userId}, ${today}, ${minutes}, ${earnedPoints})
+        VALUES (${userId}, ${today}, ${allowed}, ${earnedPoints})
         ON CONFLICT (user_id, date) DO UPDATE
         SET minutes_studied = activity.minutes_studied + EXCLUDED.minutes_studied,
             points_earned = activity.points_earned + EXCLUDED.points_earned
@@ -1896,8 +3196,8 @@ async function handleActivity(req: Request): Promise<Response> {
       await sql`UPDATE users SET points = points + ${earnedPoints} WHERE id = ${userId}`;
       try { await recalculateLevel(userId); } catch (e) { console.error("[recalculateLevel]", e); }
 
-      if (minutes >= 30) {
-        await sql`INSERT INTO notifications (user_id, title, body, type) VALUES (${userId}, '📚 مذاكرة مسجلة', ${`تم تسجيل ${minutes} دقيقة مذاكرة. حصلت على ${earnedPoints} نقطة.`}, 'info')`;
+      if (allowed >= 30) {
+        await sql`INSERT INTO notifications (user_id, title, body, type) VALUES (${userId}, '📚 مذاكرة مسجلة', ${`تم تسجيل ${allowed} دقيقة مذاكرة. حصلت على ${earnedPoints} نقطة.`}, 'info')`;
       }
 
       const [record] = await sql`SELECT * FROM activity WHERE user_id = ${userId} AND date = ${today}`;
@@ -1927,17 +3227,66 @@ async function handleAchievements(req: Request): Promise<Response> {
     const passes = attempts.filter((a: any) => a.total > 0 && a.score / a.total >= 0.8).length;
     const games = await sql`SELECT * FROM game_scores WHERE user_id = ${me.id}`;
     const followers = await sql`SELECT * FROM user_follows WHERE following_id = ${me.id}`;
-    const lessons = await sql`SELECT * FROM skill_lessons WHERE completed = true`;
+    const userProgress = await sql`SELECT * FROM user_skill_progress WHERE user_id = ${me.id}`;
+    const labsDone = userProgress.filter((p: any) => p.completed).length;
+    const gameStreaks = await sql`SELECT DISTINCT game_key FROM game_scores WHERE user_id = ${me.id}`;
+    const distinctGames = gameStreaks.length;
+    const threeStarGames = games.filter((g: any) => {
+      const maxScore = GAME_MAX_SCORES[g.game_key] ?? 1000;
+      return maxScore > 0 && g.score / maxScore >= 0.8;
+    }).length;
+    const missions = await sql`SELECT * FROM daily_missions WHERE user_id = ${me.id} AND completed = true`;
     const list = [
       { id: "quiz-passer-5", title: "ناجح متمكن", desc: "اجتز 5 اختبارات بنسبة 80%+", target: 5, value: passes, icon: "🎯" },
       { id: "quiz-passer-25", title: "خبير الاختبارات", desc: "اجتز 25 اختباراً بنسبة 80%+", target: 25, value: passes, icon: "🏆" },
       { id: "game-master-10", title: "لاعب متفان", desc: "العب 10 ألعاب", target: 10, value: games.length, icon: "🎮" },
-      { id: "skill-builder-15", title: "صانع المهارات", desc: "أنجز 15 درس مهارة", target: 15, value: lessons.length, icon: "📚" },
+      { id: "game-master-50", title: "بطل الألعاب", desc: "العب 50 لعبة", target: 50, value: games.length, icon: "🎮" },
+      { id: "star-collector-30", title: "جامع النجوم", desc: "احصل على 30 لعبة بثلاث نجوم", target: 30, value: threeStarGames, icon: "⭐" },
+      { id: "game-explorer-3", title: "مستكشف الألعاب", desc: "العب 3 أنواع مختلفة من الألعاب", target: 3, value: distinctGames, icon: "🎯" },
+      { id: "skill-builder-15", title: "صانع المهارات", desc: "أكمل 15 درس مهارة", target: 15, value: labsDone, icon: "📚" },
+      { id: "skill-builder-50", title: "خبير المهارات", desc: "أكمل 50 درس مهارة", target: 50, value: labsDone, icon: "📚" },
       { id: "follower-10", title: "مؤثر صاعد", desc: "احصل على 10 متابعين", target: 10, value: followers.length, icon: "⭐" },
       { id: "points-500", title: "جامع النقاط", desc: "اجمع 500 نقطة", target: 500, value: me.points, icon: "💎" },
+      { id: "points-2000", title: "مليونير النقاط", desc: "اجمع 2000 نقطة", target: 2000, value: me.points, icon: "💎" },
       { id: "level-5", title: "مستوى متقدم", desc: "وصول للمستوى 5", target: 5, value: me.level, icon: "🚀" },
+      { id: "level-10", title: "أسطورة", desc: "وصول للمستوى 10", target: 10, value: me.level, icon: "🚀" },
+      { id: "mission-complete-10", title: "منجز المهام", desc: "أكمل 10 مهام يومية", target: 10, value: missions.length, icon: "📋" },
     ];
     return list.map((a) => ({ ...a, completed: a.value >= a.target, percent: Math.min(100, Math.round((a.value / a.target) * 100)) }));
+  });
+}
+
+async function handleCertificate(req: Request, parts: string[]): Promise<Response> {
+  return handle(async () => {
+    const { userId } = requireAuth(req.headers);
+    const trackId = Number(parts[1]);
+    if (isNaN(trackId)) throw Object.assign(new Error("معرف المسار غير صالح"), { status: 400 });
+    const [track] = await sql`SELECT * FROM skill_tracks WHERE id = ${trackId}`;
+    if (!track) throw Object.assign(new Error("المسار غير موجود"), { status: 404 });
+    const lessons = await sql`SELECT * FROM skill_lessons WHERE track_id = ${trackId}`;
+    const userProgress = await sql`SELECT * FROM user_skill_progress WHERE user_id = ${userId} AND track_id = ${trackId}`;
+    const doneCount = userProgress.filter((p: any) => p.completed).length;
+    if (doneCount < lessons.length) throw Object.assign(new Error("لم تكمل كل الدروس"), { status: 400 });
+    const [me] = await sql`SELECT * FROM users WHERE id = ${userId}`;
+    // Calculate mastery level
+    const avgScore = userProgress.length ? Math.round(userProgress.reduce((s: number, p: any) => s + p.quick_check_score, 0) / userProgress.length) : 0;
+    const mastery = avgScore >= 90 ? "متقن" : avgScore >= 70 ? "ممارس" : avgScore >= 50 ? "متعلم" : "مبتدئ";
+    const totalXP = lessons.length * 5 + userProgress.filter((p: any) => p.quick_check_score > 0).length * 3;
+    // Generate certificate ID
+    const certId = `UV-CERT-${trackId}-${userId}-${Date.now().toString(36).toUpperCase()}`;
+    return {
+      id: certId,
+      userName: me?.name || "طالب",
+      trackTitle: track.title,
+      trackCategory: track.category,
+      difficulty: track.difficulty,
+      lessonsCompleted: doneCount,
+      totalLessons: lessons.length,
+      averageScore: avgScore,
+      mastery,
+      totalXP,
+      issuedAt: new Date().toISOString(),
+    };
   });
 }
 
@@ -2057,6 +3406,9 @@ async function handleCourses(req: Request, parts: string[]): Promise<Response> {
   }
   if (parts[2] && parts[3] === "lectures") {
     return handle(async () => {
+      const { userId } = requireAuth(req.headers);
+      const viewer = await getCurrentUser(userId);
+      const isAdmin = viewer?.role === "admin" || viewer?.role === "super_admin";
       const courseId = Number(parts[2]);
       const lectures = await sql`SELECT * FROM lectures WHERE course_id = ${courseId} ORDER BY ord`;
       if (!lectures.length) return [];
@@ -2065,10 +3417,15 @@ async function handleCourses(req: Request, parts: string[]): Promise<Response> {
       const quizzes = await sql`SELECT * FROM lecture_quizzes WHERE lecture_id = ANY(${lecIds})`;
       const quizQs = quizzes.length ? await sql`SELECT * FROM lecture_quiz_questions WHERE quiz_id = ANY(${quizzes.map((q: any) => q.id)}) ORDER BY ord` : [];
       const pdfs = await sql`SELECT * FROM lecture_pdfs WHERE lecture_id = ANY(${lecIds})`;
+      const quizQToClient = (qq: any) => {
+        const clean: any = { id: qq.id, quizId: qq.quiz_id, text: qq.text, options: Array.isArray(qq.options) ? qq.options : (typeof qq.options === "string" ? JSON.parse(qq.options) : []), points: qq.points, ord: qq.ord };
+        if (isAdmin) { clean.correctIndex = qq.correct_index; }
+        return clean;
+      };
       return lectures.map((l: any) => ({
         id: l.id, courseId: l.course_id, title: l.title, type: l.type, ord: l.ord,
         videos: vids.filter((v: any) => v.lecture_id === l.id).map((v: any) => ({ id: v.id, lectureId: v.lecture_id, title: v.title, youtubeUrl: v.youtube_url, youtubeId: v.youtube_id, ord: v.ord })),
-        quizzes: quizzes.filter((q: any) => q.lecture_id === l.id).map((q: any) => ({ id: q.id, lectureId: q.lecture_id, title: q.title, questions: quizQs.filter((qq: any) => qq.quiz_id === q.id).map((qq: any) => ({ id: qq.id, quizId: qq.quiz_id, text: qq.text, options: Array.isArray(qq.options) ? qq.options : (typeof qq.options === "string" ? JSON.parse(qq.options) : []), correctIndex: qq.correct_index, points: qq.points, ord: qq.ord })) })),
+        quizzes: quizzes.filter((q: any) => q.lecture_id === l.id).map((q: any) => ({ id: q.id, lectureId: q.lecture_id, title: q.title, questions: quizQs.filter((qq: any) => qq.quiz_id === q.id).map(quizQToClient) })),
         pdfs: pdfs.filter((p: any) => p.lecture_id === l.id).map((p: any) => ({ id: p.id, lectureId: p.lecture_id, name: p.name, url: p.url, sizeBytes: p.size_bytes, materialFileId: p.material_file_id })),
       }));
     });
@@ -2346,11 +3703,14 @@ async function handleAdminCrud(req: Request, parts: string[]): Promise<Response>
       const body = await req.json();
       const { name, url, sizeBytes } = body;
       if (!name || !url) throw Object.assign(new Error("الاسم والرابط مطلوب"), { status: 400 });
+      const parsed = new URL(url);
+      if (!["http:", "https:"].includes(parsed.protocol)) throw Object.assign(new Error("رابط غير صالح"), { status: 400 });
+      const safeSize = Math.max(0, Math.min(Number(sizeBytes) || 0, 50 * 1024 * 1024));
       const [lec] = await sql`SELECT * FROM lectures WHERE id = ${lectureId}`;
       if (!lec) throw Object.assign(new Error("المحاضرة غير موجودة"), { status: 404 });
       const [meUser] = await sql`SELECT * FROM users WHERE id = ${userId}`;
-      const [mf] = await sql`INSERT INTO material_files (material_id, course_id, name, kind, url, size_bytes, uploaded_by_id, uploaded_by_name) VALUES (NULL, ${lec.course_id}, ${name}, 'pdf', ${url}, ${sizeBytes || 0}, ${userId}, ${meUser.name}) RETURNING *`;
-      const [p] = await sql`INSERT INTO lecture_pdfs (lecture_id, name, url, size_bytes, material_file_id) VALUES (${lectureId}, ${name}, ${url}, ${sizeBytes || 0}, ${mf.id}) RETURNING *`;
+      const [mf] = await sql`INSERT INTO material_files (material_id, course_id, name, kind, url, size_bytes, uploaded_by_id, uploaded_by_name) VALUES (NULL, ${lec.course_id}, ${name}, 'pdf', ${url}, ${safeSize}, ${userId}, ${meUser.name}) RETURNING *`;
+      const [p] = await sql`INSERT INTO lecture_pdfs (lecture_id, name, url, size_bytes, material_file_id) VALUES (${lectureId}, ${name}, ${url}, ${safeSize}, ${mf.id}) RETURNING *`;
       return { ...p, materialFileId: mf.id };
     });
   }
@@ -2463,10 +3823,13 @@ async function handleAdminCrud(req: Request, parts: string[]): Promise<Response>
         const body = await req.json();
         const { name, kind, url, sizeBytes } = body;
         if (!name || !url) throw Object.assign(new Error("name و url مطلوبان"), { status: 400 });
+        const parsed = new URL(url);
+        if (!["http:", "https:"].includes(parsed.protocol)) throw Object.assign(new Error("رابط غير صالح"), { status: 400 });
+        const safeSize = Math.max(0, Math.min(Number(sizeBytes) || 0, 50 * 1024 * 1024));
         const [mat] = await sql`SELECT * FROM materials WHERE id = ${id}`;
         if (!mat) throw Object.assign(new Error("المادة غير موجودة"), { status: 404 });
         const [meUser] = await sql`SELECT * FROM users WHERE id = ${userId}`;
-        const [f] = await sql`INSERT INTO material_files (material_id, course_id, name, kind, url, size_bytes, uploaded_by_id, uploaded_by_name) VALUES (${id}, ${mat.course_id}, ${name}, ${kind || "pdf"}, ${url}, ${sizeBytes || 0}, ${userId}, ${meUser.name}) RETURNING *`;
+        const [f] = await sql`INSERT INTO material_files (material_id, course_id, name, kind, url, size_bytes, uploaded_by_id, uploaded_by_name) VALUES (${id}, ${mat.course_id}, ${name}, ${kind || "pdf"}, ${url}, ${safeSize}, ${userId}, ${meUser.name}) RETURNING *`;
         return f;
       });
     }
@@ -2509,11 +3872,10 @@ async function handleAdminCrud(req: Request, parts: string[]): Promise<Response>
 }
 
 async function handleMaterialFiles(req: Request, parts: string[]): Promise<Response> {
-    if (parts[1]) {
+  if (parts[1]) {
     return handle(async () => sql`SELECT * FROM material_files WHERE material_id = ${Number(parts[1])} AND (category IS NULL OR category != 'student-summary') ORDER BY created_at DESC`);
-    }
-    return jsonError("Not Found", 404);
   }
+  return jsonError("Not Found", 404);
 }
 
 async function handleLectureQuizSubmit(req: Request, parts: string[]): Promise<Response> {
@@ -2523,22 +3885,25 @@ async function handleLectureQuizSubmit(req: Request, parts: string[]): Promise<R
     const body = await req.json();
     const { answers } = body;
     if (!answers) throw Object.assign(new Error("الإجابات مطلوبة"), { status: 400 });
-    const questions = await sql`SELECT * FROM lecture_quiz_questions WHERE quiz_id = ${quizId}`;
+const questions = await sql`SELECT * FROM lecture_quiz_questions WHERE quiz_id = ${quizId}`;
     let score = 0, total = 0;
     const details: any[] = [];
     const ansArr: string[] = [];
+    const submitted = (answers || []).filter((a: any) => a && a.chosenIndex != null && a.chosenIndex >= 0);
     for (const qq of questions) {
       total += qq.points;
-      const a = answers.find((x: any) => x.questionId === qq.id);
+      const a = submitted.find((x: any) => x.questionId === qq.id);
       const chosen = a?.chosenIndex ?? -1;
       const correct = chosen === qq.correct_index;
       if (correct) score += qq.points;
       ansArr.push(`${qq.id}:${chosen}`);
-      details.push({
-        questionId: qq.id, text: qq.text, options: qq.options,
-        correctIndex: qq.correct_index, points: qq.points,
-        userChosen: chosen, correct, explanation: qq.explanation || "",
-      });
+      if (chosen >= 0) {
+        details.push({
+          questionId: qq.id, text: qq.text, options: qq.options,
+          correctIndex: qq.correct_index, points: qq.points,
+          userChosen: chosen, correct, explanation: qq.explanation || "",
+        });
+      }
     }
     const existing = await sql`SELECT * FROM lecture_quiz_attempts WHERE user_id = ${userId} AND quiz_id = ${quizId}`;
     if (existing.length) {
@@ -2549,29 +3914,26 @@ async function handleLectureQuizSubmit(req: Request, parts: string[]): Promise<R
       } catch (e: any) {
         if (e?.message?.includes("relation") || e?.message?.includes("does not exist")) {
           await sql`CREATE TABLE IF NOT EXISTS lecture_quiz_attempts (id SERIAL PRIMARY KEY, user_id INT, quiz_id INT, score INT, total INT, answers text[], completed_at TIMESTAMP DEFAULT now())`;
-          await sql`INSERT INTO lecture_quiz_attempts (user_id, quiz_id, score, total, answers) VALUES (${userId}, ${quizId}, ${score}, ${total}, ${ansArr})`;
+          await sql`INSERT INTO lecture_quiz_attempts (user_id, quiz_id, score, total, answers) VALUES (${userId}, ${quizId}, ${score}, ${total}, 
+${ansArr})`;
         } else {
           throw e;
         }
       }
     }
-    await sql`UPDATE users SET points = points + ${score} WHERE id = ${userId}`;
+    if (!existing.length) {
+      await sql`UPDATE users SET points = points + ${score} WHERE id = ${userId}`;
+    }
     return { score, total, passed: score / total >= 0.5, details };
   });
 }
 
 async function handleLectureQuizAttempts(req: Request, parts: string[]): Promise<Response> {
   return handle(async () => {
+    const { userId } = requireAuth(req.headers);
     const quizId = Number(parts[2]);
-    const attempts = await sql`SELECT * FROM lecture_quiz_attempts WHERE quiz_id = ${quizId} ORDER BY score DESC, completed_at DESC`;
-    const userIds = Array.from(new Set(attempts.map((a: any) => a.user_id)));
-    const users = userIds.length ? await sql`SELECT * FROM users WHERE id = ANY(${userIds})` : [];
-    const byId = new Map(users.map((u: any) => [u.id, u]));
-    return attempts.map((a: any) => ({
-      ...a, completedAt: a.completed_at?.toISOString(),
-      userName: byId.get(a.user_id)?.name, userAvatar: byId.get(a.user_id)?.avatar_url,
-      userGroup: byId.get(a.user_id)?.group_name,
-    }));
+    const attempts = await sql`SELECT id, user_id, quiz_id, score, total, passed, answers, completed_at FROM lecture_quiz_attempts WHERE user_id = ${userId} AND quiz_id = ${quizId} ORDER BY completed_at DESC`;
+    return attempts.map((a: any) => ({ ...a, completedAt: a.completed_at?.toISOString() }));
   });
 }
 
@@ -2599,12 +3961,24 @@ async function handleVideoWatch(req: Request, parts: string[]): Promise<Response
   });
 }
 
-async function handleQuizById(quizId: number): Promise<Response> {
+async function handleQuizById(req: Request, quizId: number): Promise<Response> {
   return handle(async () => {
+    const { userId } = requireAuth(req.headers);
+    const user = await getCurrentUser(userId);
+    const isAdmin = user?.role === "admin" || user?.role === "super_admin";
     const [q] = await sql`SELECT * FROM quizzes WHERE id = ${quizId}`;
     if (!q) throw Object.assign(new Error("الاختبار غير موجود"), { status: 404 });
     const questions = await sql`SELECT * FROM quiz_questions WHERE quiz_id = ${quizId} ORDER BY ord`;
-    return { ...q, createdAt: q.created_at?.toISOString(), questions };
+    const safeQuestions = questions.map((qq: any) => {
+      const clean: any = { id: qq.id, text: qq.text, type: qq.type, options: qq.options, points: qq.points, ord: qq.ord };
+      if (isAdmin) {
+        clean.correctIndex = qq.correct_index;
+        clean.explanation = qq.explanation;
+      }
+      return clean;
+    });
+    const cleanQuiz: any = { ...q, createdAt: q.created_at?.toISOString(), questions: safeQuestions };
+    return cleanQuiz;
   });
 }
 
@@ -2845,35 +4219,41 @@ async function handleStaffDoctors(): Promise<Response> {
   });
 }
 
+function sanitizeStaffRow(u: any, isAdmin: boolean): any {
+  const clean: any = {
+    id: u.id, name: u.name, role: u.role, department: u.department,
+    title: u.title, avatarUrl: u.avatar_url, bio: u.bio ?? null,
+    groupName: u.group_name, yearInCollege: u.year_in_college, specialization: u.specialization,
+    researchInterests: u.research_interests ?? [], officeHours: u.office_hours ?? null,
+  };
+  if (isAdmin) {
+    clean.email = u.email;
+    clean.phone = u.phone;
+    clean.username = u.username;
+  }
+  return clean;
+}
+
 async function handleStaff(req: Request, parts: string[]): Promise<Response> {
+  const callerId = (() => {
+    try { return requireAuth(req.headers).userId; } catch { return null; }
+  })();
+  const caller = callerId ? await getCurrentUser(callerId) : null;
+  const isAdmin = caller?.role === "admin" || caller?.role === "super_admin";
+
   if (req.method === "GET" && parts[1] && !isNaN(Number(parts[1]))) {
     return handle(async () => {
       const id = Number(parts[1]);
       const [u] = await sql`SELECT * FROM users WHERE id = ${id} AND role IN ('doctor', 'ta', 'admin', 'super_admin')`;
       if (!u) throw Object.assign(new Error("عضو الهيئة غير موجود"), { status: 404 });
-      return {
-        ...u,
-        lastSeen: u.last_seen?.toISOString(),
-        createdAt: u.created_at?.toISOString(),
-        researchInterests: u.research_interests ?? [],
-        officeHours: u.office_hours ?? null,
-        bio: u.bio ?? null,
-      };
+      return sanitizeStaffRow(u, isAdmin);
     });
   }
 
   if (req.method === "GET") {
     return handle(async () => {
-      try {
-        requireAuth(req.headers);
-        const rows = await sql`SELECT * FROM users WHERE role IN ('doctor', 'ta', 'admin', 'super_admin') ORDER BY role, name`;
-        return rows.map((u: any) => ({
-          ...u, lastSeen: u.last_seen?.toISOString(), createdAt: u.created_at?.toISOString(),
-        }));
-      } catch (err) {
-        console.error("handleStaff GET error:", err);
-        throw err;
-      }
+      const rows = await sql`SELECT * FROM users WHERE role IN ('doctor', 'ta', 'admin', 'super_admin') ORDER BY role, name`;
+      return rows.map((u: any) => sanitizeStaffRow(u, isAdmin));
     });
   }
 
@@ -3056,10 +4436,14 @@ async function handleStudentSummaries(req: Request, parts: string[]): Promise<Re
       }
       const { name, kind, url, sizeBytes, courseId } = body;
       if (!name || !url || !courseId) throw Object.assign(new Error("بيانات ناقصة"), { status: 400 });
+      const parsed = new URL(url);
+      if (!["http:", "https:"].includes(parsed.protocol)) throw Object.assign(new Error("رابط غير صالح"), { status: 400 });
+      const safeKind = (kind || "pdf").toString().slice(0, 20);
+      const safeSize = Math.max(0, Math.min(Number(sizeBytes) || 0, 50 * 1024 * 1024));
       const [me] = await sql`SELECT * FROM users WHERE id = ${userId}`;
       const [f] = await sql`
         INSERT INTO material_files (material_id, course_id, name, kind, url, size_bytes, uploaded_by_id, uploaded_by_name, category)
-        VALUES (NULL, ${courseId}, ${name}, ${kind || "pdf"}, ${url}, ${sizeBytes || 0}, ${userId}, ${me?.name || ""}, 'student-summary')
+        VALUES (NULL, ${courseId}, ${name}, ${safeKind}, ${url}, ${safeSize}, ${userId}, ${me?.name || ""}, 'student-summary')
         RETURNING *`;
       return f;
     });
@@ -3224,6 +4608,113 @@ async function handleAdminEvents(request: Request, parts: string[]): Promise<Res
   return jsonError("Not Found", 404);
 }
 
+// ── Admin Skills CRUD ──
+async function handleAdminSkills(request: Request, parts: string[]): Promise<Response> {
+  const { userId } = requireAuth(request.headers);
+  const user = await getCurrentUser(userId);
+  requireRole(user, ["admin", "super_admin"]);
+  ensureAdminPermission(user, "manage_skills");
+
+  // GET /admin/skills/tracks — list all tracks (admin view, no per-user progress)
+  if (request.method === "GET" && parts[3] === "tracks" && !parts[4]) {
+    return handle(async () => {
+      const tracks = await sql`SELECT * FROM skill_tracks ORDER BY id`;
+      const trackIds = tracks.map((t: any) => t.id);
+      const lessons = trackIds.length ? await sql`SELECT * FROM skill_lessons WHERE track_id = ANY(${trackIds}) ORDER BY ord, id` : [];
+      return tracks.map((t: any) => ({
+        id: t.id, title: t.title, category: t.category, description: t.description,
+        difficulty: t.difficulty, coverUrl: t.cover_url,
+        yearInCollege: t.year_in_college ?? 0,
+        prerequisites: t.prerequisites ?? [],
+        lessons: lessons.filter((l: any) => l.track_id === t.id).map((l: any) => ({
+          id: l.id, trackId: l.track_id, title: l.title,
+          durationMinutes: l.duration_minutes, kind: l.kind, ord: l.ord,
+        })),
+      }));
+    });
+  }
+
+  // POST /admin/skills/tracks — create a track
+  if (request.method === "POST" && parts[3] === "tracks") {
+    return handle(async () => {
+      const body = await request.json();
+      const { title, category, description, difficulty, coverUrl, yearInCollege, prerequisites } = body;
+      if (!title || !category) throw Object.assign(new Error("العنوان والتصنيف مطلوبان"), { status: 400 });
+      const [r] = await sql`
+        INSERT INTO skill_tracks (title, category, description, difficulty, cover_url, year_in_college, prerequisites)
+        VALUES (${title}, ${category}, ${description || ""}, ${difficulty || "beginner"}, ${coverUrl || null}, ${yearInCollege ? Number(yearInCollege) : 0}, ${prerequisites ? prerequisites : []})
+        RETURNING *`;
+      return r;
+    });
+  }
+
+  // PUT /admin/skills/tracks/:id — update a track
+  if (request.method === "PUT" && parts[3] === "tracks" && parts[4]) {
+    return handle(async () => {
+      const id = Number(parts[4]);
+      const body = await request.json();
+      if (body.title !== undefined) await sql`UPDATE skill_tracks SET title = ${body.title} WHERE id = ${id}`;
+      if (body.category !== undefined) await sql`UPDATE skill_tracks SET category = ${body.category} WHERE id = ${id}`;
+      if (body.description !== undefined) await sql`UPDATE skill_tracks SET description = ${body.description} WHERE id = ${id}`;
+      if (body.difficulty !== undefined) await sql`UPDATE skill_tracks SET difficulty = ${body.difficulty} WHERE id = ${id}`;
+      if (body.coverUrl !== undefined) await sql`UPDATE skill_tracks SET cover_url = ${body.coverUrl} WHERE id = ${id}`;
+      if (body.yearInCollege !== undefined) await sql`UPDATE skill_tracks SET year_in_college = ${Number(body.yearInCollege)} WHERE id = ${id}`;
+      if (body.prerequisites !== undefined) await sql`UPDATE skill_tracks SET prerequisites = ${body.prerequisites} WHERE id = ${id}`;
+      const [updated] = await sql`SELECT * FROM skill_tracks WHERE id = ${id}`;
+      return updated;
+    });
+  }
+
+  // DELETE /admin/skills/tracks/:id — delete a track
+  if (request.method === "DELETE" && parts[3] === "tracks" && parts[4]) {
+    return handle(async () => {
+      await sql`DELETE FROM skill_tracks WHERE id = ${Number(parts[4])}`;
+      return { ok: true };
+    });
+  }
+
+  // POST /admin/skills/lessons — create a lesson
+  if (request.method === "POST" && parts[3] === "lessons") {
+    return handle(async () => {
+      const body = await request.json();
+      const { trackId, title, durationMinutes, kind, ord } = body;
+      if (!trackId || !title) throw Object.assign(new Error("المسار والعنوان مطلوبان"), { status: 400 });
+      const maxOrd = await sql`SELECT COALESCE(MAX(ord), 0) + 1 AS next_ord FROM skill_lessons WHERE track_id = ${trackId}`;
+      const nextOrd = ord ?? maxOrd[0].next_ord;
+      const [r] = await sql`
+        INSERT INTO skill_lessons (track_id, title, duration_minutes, kind, ord)
+        VALUES (${trackId}, ${title}, ${durationMinutes ?? 10}, ${kind || "lesson"}, ${nextOrd})
+        RETURNING *`;
+      return r;
+    });
+  }
+
+  // PUT /admin/skills/lessons/:id — update a lesson
+  if (request.method === "PUT" && parts[3] === "lessons" && parts[4]) {
+    return handle(async () => {
+      const id = Number(parts[4]);
+      const body = await request.json();
+      if (body.trackId !== undefined) await sql`UPDATE skill_lessons SET track_id = ${body.trackId} WHERE id = ${id}`;
+      if (body.title !== undefined) await sql`UPDATE skill_lessons SET title = ${body.title} WHERE id = ${id}`;
+      if (body.durationMinutes !== undefined) await sql`UPDATE skill_lessons SET duration_minutes = ${body.durationMinutes} WHERE id = ${id}`;
+      if (body.kind !== undefined) await sql`UPDATE skill_lessons SET kind = ${body.kind} WHERE id = ${id}`;
+      if (body.ord !== undefined) await sql`UPDATE skill_lessons SET ord = ${body.ord} WHERE id = ${id}`;
+      const [updated] = await sql`SELECT * FROM skill_lessons WHERE id = ${id}`;
+      return updated;
+    });
+  }
+
+  // DELETE /admin/skills/lessons/:id — delete a lesson
+  if (request.method === "DELETE" && parts[3] === "lessons" && parts[4]) {
+    return handle(async () => {
+      await sql`DELETE FROM skill_lessons WHERE id = ${Number(parts[3])}`;
+      return { ok: true };
+    });
+  }
+
+  return jsonError("Not Found", 404);
+}
+
 // --- Main Request Handler ---
 
 async function handleRequest(request: Request): Promise<Response> {
@@ -3284,7 +4775,6 @@ async function handleRequest(request: Request): Promise<Response> {
     "PATCH /me": () => handleMeProfile(request),
     "PATCH /me/profile": () => handleMeProfile(request),
     "POST /me/group": () => handleMeGroup(request),
-    "POST /me/role": () => handleSwitchRole(request),
     "GET /v2/me": () => handleMe(request),
     "PATCH /v2/me/profile": () => handleMeProfile(request),
     "POST /v2/me/group": () => handleMeGroup(request),
@@ -3301,7 +4791,7 @@ async function handleRequest(request: Request): Promise<Response> {
     "POST /v2/admin/notifications/system": () => handleAdminNotifications(request),
 
     // Admin
-    "GET /admin/overview": () => handleAdminOverview(),
+    "GET /admin/overview": () => handleAdminOverview(request),
     "GET /admin/users": () => handleAdminUsers(request),
     "GET /admin/proposals": () => handleAdminProposals(request, ["admin", "proposals"]),
     "POST /admin/proposals": () => handleAdminProposals(request, ["admin", "proposals"]),
@@ -3319,7 +4809,7 @@ async function handleRequest(request: Request): Promise<Response> {
     "GET /admin/talents": () => handleAdminCrud(request, ["", "admin", "talents"]),
     "GET /admin/news": () => handleAdminNews(request, ["admin", "news"]),
     "POST /admin/news": () => handleAdminNews(request, ["admin", "news"]),
-    "GET /admin/dm/threads/:id": () => handleAdminCrud(request, ["", "admin", "dm", "threads", parts[3]]),
+    "GET /admin/dm/threads/:id": () => handleAdminCrud(request, ["", "admin", "dm", "threads", parts[4]]),
     "DELETE /admin/staff/:id": () => handleAdminCrud(request, ["", "admin", "staff", parts[2]]),
     "POST /admin/staff": () => handleStaff(request, ["admin", "staff"]),
     "PATCH /admin/staff/:id": () => handleStaff(request, ["admin", "staff", parts[2]]),
@@ -3363,7 +4853,7 @@ async function handleRequest(request: Request): Promise<Response> {
     "POST /admin/news/:id/approve": () => handleAdminNews(request, ["admin", "news", parts[2], "approve"]),
     "POST /admin/news/:id/reject": () => handleAdminNews(request, ["admin", "news", parts[2], "reject"]),
     "DELETE /admin/news/:id": () => handleAdminNews(request, ["admin", "news", parts[2]]),
-    "GET /v2/admin/overview": () => handleAdminOverview(),
+    "GET /v2/admin/overview": () => handleAdminOverview(request),
     "GET /v2/admin/users": () => handleAdminUsers(request),
     "GET /v2/admin/proposals": () => handleAdminProposals(request, ["admin", "proposals"]),
     "POST /v2/admin/proposals": () => handleAdminProposals(request, ["admin", "proposals"]),
@@ -3381,7 +4871,7 @@ async function handleRequest(request: Request): Promise<Response> {
     "GET /v2/admin/talents": () => handleAdminCrud(request, ["", "admin", "talents"]),
     "GET /v2/admin/news": () => handleAdminNews(request, ["admin", ...parts.slice(2)]),
     "POST /v2/admin/news": () => handleAdminNews(request, ["admin", ...parts.slice(2)]),
-    "GET /v2/admin/dm/threads/:id": () => handleAdminCrud(request, ["", "admin", "dm", "threads", parts[3]]),
+    "GET /v2/admin/dm/threads/:id": () => handleAdminCrud(request, ["", "admin", "dm", "threads", parts[4]]),
     "DELETE /v2/admin/staff/:id": () => handleAdminCrud(request, ["", "admin", "staff", parts[3]]),
     "POST /v2/admin/staff": () => handleStaff(request, ["admin", "staff"]),
     "PATCH /v2/admin/staff/:id": () => handleStaff(request, ["admin", "staff", parts[3]]),
@@ -3516,7 +5006,7 @@ async function handleRequest(request: Request): Promise<Response> {
 
     // Quizzes
     "GET /quizzes": () => handleQuizzesList(),
-    "GET /quizzes/:id": () => handleQuizById(Number(parts[1])),
+    "GET /quizzes/:id": () => handleQuizById(request, Number(parts[1])),
     "GET /quizzes/open": () => handleQuizzes(request, ["quizzes", "open"]),
     "GET /quizzes/:id/start": () => handleQuizzes(request, ["quizzes", parts[1], "start"]),
     "POST /quizzes/:id/submit": () => handleQuizzes(request, ["quizzes", parts[1], "submit"]),
@@ -3529,8 +5019,8 @@ async function handleRequest(request: Request): Promise<Response> {
     "GET /dm/with/:id": () => handleDM(request, ["dm", "with", parts[2]]),
     "POST /dm/with/:id": () => handleDM(request, ["dm", "with", parts[2]]),
     "GET /v2/dm/threads": () => handleDM(request, ["dm", "threads"]),
-    "GET /v2/dm/with/:id": () => handleDM(request, ["dm", "with", parts[2]]),
-    "POST /v2/dm/with/:id": () => handleDM(request, ["dm", "with", parts[2]]),
+    "GET /v2/dm/with/:id": () => handleDM(request, ["dm", "with", parts[3]]),
+    "POST /v2/dm/with/:id": () => handleDM(request, ["dm", "with", parts[3]]),
 
     // Follow
     "POST /follow/:id": () => handleFollow(request, ["x", "follow", parts[1]]),
@@ -3553,18 +5043,72 @@ async function handleRequest(request: Request): Promise<Response> {
     // Skills
     "GET /skills": () => handleSkills(request, ["skills"]),
     "GET /skills/tracks": () => handleSkills(request, ["skills", "tracks"]),
+    "GET /skills/me": () => handleSkills(request, ["skills", "me"]),
     "GET /skills/:id": () => handleSkills(request, ["skills", parts[1]]),
     "POST /skills/lessons/:id/complete": () => handleSkills(request, ["skills", "lessons", parts[2], "complete"]),
     "POST /skills/quick-checks/:id/submit": () => handleSkills(request, ["skills", "quick-checks", parts[2], "submit"]),
+    "GET /skills/labs/:id": () => handleSkills(request, ["skills", "labs", parts[2]]),
     "GET /v2/skills/tracks": () => handleSkills(request, ["skills", "tracks"]),
+    "GET /v2/skills/me": () => handleSkills(request, ["skills", "me"]),
+    "GET /v2/skills/recommendations": () => handleSkills(request, ["skills", "recommendations"]),
+    "GET /v2/skills/notes/:id": () => handleSkills(request, ["skills", "notes", parts[3]]),
+    "POST /v2/skills/notes/:id": () => handleSkills(request, ["skills", "notes", parts[3]]),
+    "GET /skills/notes/:id": () => handleSkills(request, ["skills", "notes", parts[2]]),
+    "POST /skills/notes/:id": () => handleSkills(request, ["skills", "notes", parts[2]]),
     "POST /v2/skills/lessons/:id/complete": () => handleSkills(request, ["skills", "lessons", parts[2], "complete"]),
     "POST /v2/skills/quick-checks/:id/submit": () => handleSkills(request, ["skills", "quick-checks", parts[3], "submit"]),
+    "GET /v2/skills/labs/:id": () => handleSkills(request, ["skills", "labs", parts[3]]),
+    "GET /v2/skills/capstone/:id": () => handleSkills(request, ["skills", "capstone", parts[3]]),
+    "GET /v2/skills/flashcards/:id": () => handleSkills(request, ["skills", "flashcards", parts[3]]),
+    "GET /skills/capstone/:id": () => handleSkills(request, ["skills", "capstone", parts[2]]),
+    "GET /skills/flashcards/:id": () => handleSkills(request, ["skills", "flashcards", parts[2]]),
+    "GET /skills/visual/:id": () => handleSkills(request, ["skills", "visual", parts[2]]),
+    "GET /v2/skills/visual/:id": () => handleSkills(request, ["skills", "visual", parts[3]]),
 
     // Games
     "POST /games/score": () => handleGames(request, ["games", "score"]),
     "GET /games/leaderboard": () => handleGames(request, ["games", "leaderboard"]),
     "POST /v2/games/score": () => handleGames(request, ["games", "score"]),
     "GET /v2/games/leaderboard": () => handleGames(request, ["games", "leaderboard"]),
+    "GET /v2/games/my-scores": () => handleGames(request, ["games", "my-scores"]),
+    "GET /v2/games/stats": () => handleGames(request, ["games", "stats"]),
+    "GET /games/my-scores": () => handleGames(request, ["games", "my-scores"]),
+    "GET /games/stats": () => handleGames(request, ["games", "stats"]),
+    "GET /v2/games/replay/:id": () => handleGames(request, ["games", "replay", parts[3]]),
+
+    // Study Rooms
+    "GET /v2/study-rooms": () => handleStudyRooms(request, []),
+    "POST /v2/study-rooms": () => handleStudyRooms(request, ["create"]),
+    "POST /v2/study-rooms/:id/join": () => handleStudyRooms(request, ["join", parts[3]]),
+    "POST /v2/study-rooms/:id/leave": () => handleStudyRooms(request, ["leave", parts[3]]),
+
+    // Co-op Challenges
+    "GET /v2/coop-challenges": () => handleCoopChallenges(request, []),
+    "POST /v2/coop-challenges/:id/join": () => handleCoopChallenges(request, ["join", parts[3]]),
+    "POST /v2/coop-challenges/:id/score": () => handleCoopChallenges(request, ["score", parts[3]]),
+
+    // Game Analytics (admin)
+    "GET /v2/admin/game-analytics": () => handleGameAnalytics(request),
+
+    // Admin Skills CRUD
+    "GET /admin/skills/tracks": () => handleAdminSkills(request, ["", "admin", "skills", "tracks"]),
+    "POST /admin/skills/tracks": () => handleAdminSkills(request, ["", "admin", "skills", "tracks"]),
+    "PUT /admin/skills/tracks/:id": () => handleAdminSkills(request, ["", "admin", "skills", "tracks", parts[3]]),
+    "DELETE /admin/skills/tracks/:id": () => handleAdminSkills(request, ["", "admin", "skills", "tracks", parts[3]]),
+    "POST /admin/skills/lessons": () => handleAdminSkills(request, ["", "admin", "skills", "lessons"]),
+    "PUT /admin/skills/lessons/:id": () => handleAdminSkills(request, ["", "admin", "skills", "lessons", parts[3]]),
+    "DELETE /admin/skills/lessons/:id": () => handleAdminSkills(request, ["", "admin", "skills", "lessons", parts[3]]),
+    "GET /v2/admin/skills/tracks": () => handleAdminSkills(request, ["", "admin", "skills", "tracks"]),
+    "POST /v2/admin/skills/tracks": () => handleAdminSkills(request, ["", "admin", "skills", "tracks"]),
+    "PUT /v2/admin/skills/tracks/:id": () => handleAdminSkills(request, ["", "admin", "skills", "tracks", parts[4]]),
+    "DELETE /v2/admin/skills/tracks/:id": () => handleAdminSkills(request, ["", "admin", "skills", "tracks", parts[4]]),
+    "POST /v2/admin/skills/lessons": () => handleAdminSkills(request, ["", "admin", "skills", "lessons"]),
+    "PUT /v2/admin/skills/lessons/:id": () => handleAdminSkills(request, ["", "admin", "skills", "lessons", parts[4]]),
+    "DELETE /v2/admin/skills/lessons/:id": () => handleAdminSkills(request, ["", "admin", "skills", "lessons", parts[4]]),
+
+     // Streak
+    "GET /v2/user/streak": () => handleStreak(request),
+    "GET /v2/user/activity-heatmap": () => handleActivityHeatmap(request),
 
     // Leaderboard (generated API client)
     "GET /leaderboard": () => handleLeaderboard(request),
@@ -3576,6 +5120,13 @@ async function handleRequest(request: Request): Promise<Response> {
     // Achievements
     "GET /achievements": () => handleAchievements(request),
     "GET /v2/achievements": () => handleAchievements(request),
+    "GET /badges": () => handleBadges(request),
+    "GET /v2/badges": () => handleBadges(request),
+    "GET /v2/unlockables": () => handleUnlockables(request),
+    "POST /v2/unlockables/equip": () => handleEquipUnlockable(request),
+
+    // Certificates
+    "GET /v2/certificates/:trackId": () => handleCertificate(request, [parts[2]]),
 
     // Schedules
     "GET /group-schedule": () => handleGroupSchedule(request, ["group-schedule"]),
@@ -3646,6 +5197,12 @@ async function handleRequest(request: Request): Promise<Response> {
     // AI Chat
     "POST /ai/chat": () => handleAiChat(request),
 
+    // Challenges
+    "GET /v2/challenges": () => handleChallenges(request, []),
+    "POST /v2/challenges/claim": () => handleChallenges(request, ["claim"]),
+    "GET /v2/events/seasonal": () => handleSeasonalEventsRoute(request),
+    "GET /v2/tournament": () => handleTournament(request, []),
+
     // Missions
     "GET /missions": () => handleDailyMissionsRoute(request, ["missions"]),
     "POST /missions/:id/complete": () => handleDailyMissionsRoute(request, ["missions", parts[1], "complete"]),
@@ -3704,6 +5261,8 @@ async function handleRequest(request: Request): Promise<Response> {
   console.log("🔴 [handler] No route found");
   return jsonError(`Route not found: ${method} /${path}`, 404);
 }
+
+export { handleRequest };
 
 export default async function handler(req: IncomingMessage, res: ServerResponse) {
   try {

@@ -4,12 +4,12 @@ import { useLocation } from "wouter";
 import {
   Sparkles, CheckCircle2, Circle, Clock, Loader2, ArrowRight,
   GraduationCap, FlaskConical, Briefcase, UserCheck, Target,
-  Trophy, Zap, Flame, BookOpen, Star, ChevronDown, Filter, Award,
+  Trophy, Zap, Flame, BookOpen, Star, ChevronDown, Filter, Award, Medal, Lock,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
-import { useSkillTracks, useCompleteLesson } from "@/lib/api";
+import { useSkillTracks, useCompleteLesson, useSkillRecommendations, useStreak } from "@/lib/api";
 import { useToast } from "@/hooks/use-toast";
 import { useTranslation, globalI18n } from "@/lib/i18n";
 
@@ -21,9 +21,15 @@ const CATEGORIES = [
 ] as const;
 
 const DIFFICULTIES = ["beginner", "intermediate", "advanced"];
+const DURATION_RANGES = [
+  { key: "short", label: "قصير (< 30 د)", max: 30 },
+  { key: "medium", label: "متوسط (30-60 د)", max: 60 },
+  { key: "long", label: "طويل (> 60 د)", max: Infinity },
+];
 
 export default function Skills() {
   const { data: tracks = [], isLoading } = useSkillTracks();
+  const { data: streak } = useStreak();
   const complete = useCompleteLesson();
   const { toast } = useToast();
   const t = useTranslation(globalI18n);
@@ -31,6 +37,8 @@ export default function Skills() {
   const [busyId, setBusyId] = useState<number | null>(null);
   const [selectedCategory, setSelectedCategory] = useState<string | null>(null);
   const [selectedDifficulty, setSelectedDifficulty] = useState<string | null>(null);
+  const [selectedYear, setSelectedYear] = useState<number | null>(null);
+  const [selectedDuration, setSelectedDuration] = useState<string | null>(null);
   const [search, setSearch] = useState("");
   const [showFilters, setShowFilters] = useState(false);
 
@@ -53,18 +61,30 @@ export default function Skills() {
     return inProgress[0] || null;
   }, [tracks]);
 
-  const completedCount = tracks.filter((t) => t.progress === 1).length;
-  const totalXP = useMemo(() => {
+  const nextLesson = useMemo(() => {
+    if (!currentTrack) return null;
+    return currentTrack.lessons.find((l) => !l.completed) || null;
+  }, [currentTrack]);
+
+  const remainingMinutes = currentTrack
+    ? currentTrack.lessons.filter((l) => !l.completed).reduce((s, l) => s + l.durationMinutes, 0)
+    : 0;
+
+  const doneXP = useMemo(() => {
     let xp = 0;
     for (const t of tracks) {
       xp += t.lessons.filter((l) => l.completed).length * 5;
     }
     return xp;
   }, [tracks]);
+  const remainingRewardXP = currentTrack
+    ? currentTrack.lessons.filter((l) => !l.completed).length * 5
+    : 0;
+
+  const completedCount = tracks.filter((t) => t.progress === 1).length;
   const totalBadges = completedCount;
   const totalLessons = tracks.reduce((s, t) => s + t.lessons.length, 0);
   const completedLessons = tracks.reduce((s, t) => s + t.lessons.filter((l) => l.completed).length, 0);
-  const streakDays = 0;
 
   const strengths = useMemo(() => {
     const cats = tracks.reduce((acc, t) => {
@@ -80,8 +100,14 @@ export default function Skills() {
     };
   }, [tracks]);
 
+  const { data: apiRecs } = useSkillRecommendations();
   const recommendations = useMemo(() => {
-    const recs: { trackId: number; reason: string }[] = [];
+    if (apiRecs) {
+      // New format: { summary, weakAreas, tracks }
+      if (Array.isArray(apiRecs)) return { tracks: apiRecs, summary: null, weakAreas: [] };
+      if (apiRecs.tracks && apiRecs.tracks.length > 0) return apiRecs as { summary: string | null; weakAreas: string[]; tracks: { trackId: number; reason: string; priority?: number; xpEstimate?: number; durationMinutes?: number }[] };
+    }
+    const recs: { trackId: number; reason: string; priority?: number; xpEstimate?: number; durationMinutes?: number }[] = [];
     for (const t of tracks) {
       if (t.progress === 1) continue;
       const done = t.lessons.filter((l) => l.completed).length;
@@ -95,17 +121,35 @@ export default function Skills() {
         recs.push({ trackId: weakTracks[0].id, reason: `حسّن مستواك في ${weakTracks[0].category} — ${weakTracks[0].title}` });
       }
     }
-    return recs.slice(0, 3);
-  }, [tracks, strengths]);
+    return { tracks: recs.slice(0, 3), summary: null, weakAreas: [] };
+  }, [tracks, strengths, apiRecs]);
+
+  const trackDurations = useMemo(() => {
+    const map: Record<number, number> = {};
+    for (const t of tracks) {
+      map[t.id] = t.lessons.reduce((s, l) => s + l.durationMinutes, 0);
+    }
+    return map;
+  }, [tracks]);
 
   const filteredTracks = useMemo(() => {
     return tracks.filter((t) => {
       if (selectedCategory && t.category !== selectedCategory) return false;
       if (selectedDifficulty && t.difficulty !== selectedDifficulty) return false;
+      if (selectedYear !== null && (t as any).yearInCollege && (t as any).yearInCollege !== selectedYear) return false;
+      if (selectedDuration) {
+        const dur = trackDurations[t.id] || 0;
+        const range = DURATION_RANGES.find((r) => r.key === selectedDuration);
+        if (range) {
+          const prev = DURATION_RANGES[DURATION_RANGES.indexOf(range) - 1];
+          const min = prev ? prev.max : 0;
+          if (dur < min || dur >= range.max) return false;
+        }
+      }
       if (search && !t.title.toLowerCase().includes(search.toLowerCase()) && !t.description.toLowerCase().includes(search.toLowerCase())) return false;
       return true;
     });
-  }, [tracks, selectedCategory, selectedDifficulty, search]);
+  }, [tracks, selectedCategory, selectedDifficulty, selectedYear, selectedDuration, search, trackDurations]);
 
   const tracksByCategory = useMemo(() => {
     const map: Record<string, typeof tracks> = {};
@@ -134,6 +178,16 @@ export default function Skills() {
             <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
               <div className="flex-1 min-w-0">
                 <h2 className="text-lg sm:text-2xl font-bold truncate">{currentTrack.title}</h2>
+                {nextLesson && (
+                  <div className="flex items-center gap-1.5 text-xs text-muted-foreground mt-0.5">
+                    <ArrowRight className="h-3 w-3 text-primary" />
+                    <span>التالي: <strong className="text-foreground">{nextLesson.title}</strong></span>
+                    <span className="flex items-center gap-0.5">
+                      <Clock className="h-2.5 w-2.5" />
+                      {nextLesson.durationMinutes} د
+                    </span>
+                  </div>
+                )}
                 <div className="flex flex-wrap items-center gap-2 sm:gap-4 mt-1 text-xs sm:text-sm text-muted-foreground">
                   <span className="flex items-center gap-1">
                     <Target className="h-3.5 w-3.5" />
@@ -145,7 +199,11 @@ export default function Skills() {
                   </span>
                   <span className="flex items-center gap-1">
                     <Clock className="h-3.5 w-3.5" />
-                    ~{currentTrack.lessons.filter((l) => !l.completed).reduce((s, l) => s + l.durationMinutes, 0)} دقيقة
+                    ~{remainingMinutes} دقيقة
+                  </span>
+                  <span className="flex items-center gap-1 text-amber-600 font-bold">
+                    <Zap className="h-3.5 w-3.5" />
+                    +{remainingRewardXP} XP عند الإنهاء
                   </span>
                 </div>
                 <div className="mt-2 h-2 bg-muted rounded-full overflow-hidden max-w-md">
@@ -166,6 +224,12 @@ export default function Skills() {
       )}
 
       <div className="container mx-auto px-3 sm:px-4 py-4 sm:py-6">
+        <div className="flex items-center justify-between mb-3">
+          <div />
+          <button onClick={() => setLocation("/skills/me")} className="flex items-center gap-1 text-xs text-primary hover:text-primary/80 transition-colors">
+            <Medal className="h-3.5 w-3.5" /> ملفي
+          </button>
+        </div>
         {/* ===== TOP STATS SNAPSHOT ===== */}
         <motion.div
           initial={{ opacity: 0, y: -10 }}
@@ -174,9 +238,9 @@ export default function Skills() {
         >
           {[
             { icon: Trophy, label: "المسارات المكتملة", value: completedCount, color: "text-emerald-600" },
-            { icon: Zap, label: "XP من المهارات", value: totalXP, color: "text-amber-600" },
+            { icon: Zap, label: "XP من المهارات", value: doneXP, color: "text-amber-600" },
             { icon: Star, label: "الشارات", value: totalBadges, color: "text-purple-600" },
-            { icon: Flame, label: "الأيام المتتالية", value: streakDays, color: "text-orange-600" },
+            { icon: Flame, label: "الأيام المتتالية", value: streak?.currentStreak ?? 0, color: "text-orange-600" },
           ].map((stat, i) => (
             <div key={i} className="bg-card border rounded-xl p-3 sm:p-4 flex items-center gap-2 sm:gap-3">
               <div className={`p-1.5 sm:p-2 rounded-lg bg-muted ${stat.color}`}>
@@ -185,13 +249,28 @@ export default function Skills() {
               <div className="min-w-0">
                 <div className="text-lg sm:text-2xl font-bold">{stat.value}</div>
                 <div className="text-[10px] sm:text-xs text-muted-foreground truncate">{stat.label}</div>
+                {i === 1 && doneXP > 0 && <div className="text-[9px] text-amber-600">+{doneXP} XP</div>}
               </div>
             </div>
           ))}
         </motion.div>
+        {strengths.strongest && (
+          <div className="flex items-center gap-2 mb-4 text-[10px] sm:text-xs text-muted-foreground">
+            <span className="flex items-center gap-1">
+              <Zap className="h-3 w-3 text-emerald-500" />
+              أقوى مجال: <strong className="text-foreground">{strengths.strongest === "academic" ? "أكاديمية" : strengths.strongest === "practical" ? "عملية" : strengths.strongest === "career" ? "سوق العمل" : "شخصية"}</strong>
+            </span>
+            {strengths.weakest && (
+              <span className="flex items-center gap-1">
+                <Target className="h-3 w-3 text-amber-500" />
+                يحتاج تحسين: <strong className="text-foreground">{strengths.weakest === "academic" ? "أكاديمية" : strengths.weakest === "practical" ? "عملية" : strengths.weakest === "career" ? "سوق العمل" : "شخصية"}</strong>
+              </span>
+            )}
+          </div>
+        )}
 
         {/* ===== RECOMMENDATIONS ===== */}
-        {recommendations.length > 0 && (
+        {recommendations.tracks.length > 0 && (
           <motion.div
             initial={{ opacity: 0, y: -10 }}
             animate={{ opacity: 1, y: 0 }}
@@ -201,8 +280,18 @@ export default function Skills() {
               <Sparkles className="h-4 w-4 text-primary" />
               <span>مقترح لك</span>
             </div>
+            {recommendations.summary && (
+              <p className="text-[10px] sm:text-xs text-muted-foreground mb-2">{recommendations.summary}</p>
+            )}
+            {recommendations.weakAreas.length > 0 && (
+              <div className="flex flex-wrap gap-1 mb-2">
+                {recommendations.weakAreas.map((w: string, wi: number) => (
+                  <Badge key={wi} variant="destructive" className="text-[9px]">{w}</Badge>
+                ))}
+              </div>
+            )}
             <div className="space-y-1.5">
-              {recommendations.map((rec, i) => {
+              {recommendations.tracks.map((rec: any, i: number) => {
                 const track = tracks.find((t) => t.id === rec.trackId);
                 if (!track) return null;
                 return (
@@ -213,6 +302,12 @@ export default function Skills() {
                   >
                     <ArrowRight className="h-3 w-3 text-primary shrink-0" />
                     <span className="flex-1">{rec.reason}</span>
+                    {rec.xpEstimate > 0 && (
+                      <span className="text-[10px] font-bold text-amber-600 whitespace-nowrap">+{rec.xpEstimate} XP</span>
+                    )}
+                    {rec.durationMinutes > 0 && (
+                      <span className="text-[10px] text-muted-foreground whitespace-nowrap">~{rec.durationMinutes} د</span>
+                    )}
                     <Badge variant="outline" className="text-[10px]">{track.difficulty}</Badge>
                   </button>
                 );
@@ -287,6 +382,24 @@ export default function Skills() {
                         className={`text-xs px-2.5 py-1 rounded-full transition ${selectedDifficulty === d ? "bg-primary text-primary-foreground" : "bg-muted hover:bg-muted/70"}`}
                       >
                         {d === "beginner" ? "مبتدئ" : d === "intermediate" ? "متوسط" : "متقدم"}
+                      </button>
+                    ))}
+                  </div>
+                  <div className="flex flex-wrap gap-1.5">
+                    <span className="text-[10px] text-muted-foreground self-center ml-1">السنة:</span>
+                    <button onClick={() => setSelectedYear(null)} className={`text-xs px-2.5 py-1 rounded-full transition ${selectedYear === null ? "bg-primary text-primary-foreground" : "bg-muted hover:bg-muted/70"}`}>الكل</button>
+                    {[1, 2, 3, 4].map((y) => (
+                      <button key={y} onClick={() => setSelectedYear(selectedYear === y ? null : y)} className={`text-xs px-2.5 py-1 rounded-full transition ${selectedYear === y ? "bg-primary text-primary-foreground" : "bg-muted hover:bg-muted/70"}`}>
+                        {y}
+                      </button>
+                    ))}
+                  </div>
+                  <div className="flex flex-wrap gap-1.5">
+                    <span className="text-[10px] text-muted-foreground self-center ml-1">المدة:</span>
+                    <button onClick={() => setSelectedDuration(null)} className={`text-xs px-2.5 py-1 rounded-full transition ${selectedDuration === null ? "bg-primary text-primary-foreground" : "bg-muted hover:bg-muted/70"}`}>الكل</button>
+                    {DURATION_RANGES.map((r) => (
+                      <button key={r.key} onClick={() => setSelectedDuration(selectedDuration === r.key ? null : r.key)} className={`text-xs px-2.5 py-1 rounded-full transition ${selectedDuration === r.key ? "bg-primary text-primary-foreground" : "bg-muted hover:bg-muted/70"}`}>
+                        {r.label}
                       </button>
                     ))}
                   </div>
@@ -369,7 +482,17 @@ export default function Skills() {
                         <Badge variant={track.difficulty === "advanced" ? "destructive" : track.difficulty === "intermediate" ? "secondary" : "default"} className="text-[10px] shrink-0">
                           {track.difficulty === "beginner" ? "مبتدئ" : track.difficulty === "intermediate" ? "متوسط" : "متقدم"}
                         </Badge>
+                        {(track as any).yearInCollege > 0 && (
+                          <Badge variant="outline" className="text-[8px] shrink-0">سنة {(track as any).yearInCollege}</Badge>
+                        )}
                       </div>
+
+                      {(track as any).prerequisites?.length > 0 && (
+                        <div className="mt-1 flex items-center gap-1 text-[9px] text-muted-foreground">
+                          <Lock className="h-2.5 w-2.5" />
+                          <span>يتطلب: مسارات {((track as any).prerequisites as number[]).length}</span>
+                        </div>
+                      )}
 
                       <div className="mt-2 flex items-center gap-3 text-[10px] sm:text-xs text-muted-foreground">
                         <span className="flex items-center gap-1">

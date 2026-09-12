@@ -10,26 +10,13 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
-import { api } from "@/lib/api";
+import { useOpenQuizzes, type QuizOpenItem, api } from "@/lib/api";
 import { useToast } from "@/hooks/use-toast";
 import { useTranslation, globalI18n } from "@/lib/i18n";
 
-interface Quiz {
-  id: number; title: string; description: string; courseId: number; courseTitle: string;
-  durationMinutes: number; totalPoints: number; difficulty: string;
-  groupOnly: string | null; yearOnly: number | null; isOpen: boolean;
-  randomize: boolean; passPercent: number; createdAt: string;
-  myAttemptsCount: number; myBestScore: number;
-}
-
 export default function QuizzesPage() {
-  const [quizzes, setQuizzes] = useState<Quiz[]>([]);
-  const [loading, setLoading] = useState(true);
+  const { data: quizzes = [], isLoading: loading } = useOpenQuizzes();
   const t = useTranslation(globalI18n);
-
-  useEffect(() => {
-    api.get<Quiz[]>("/v2/quizzes/open").then((data) => { setQuizzes(data); }).finally(() => setLoading(false));
-  }, []);
 
   if (loading) return <div className="p-8 text-center text-muted-foreground">{t("loading")}</div>;
 
@@ -124,11 +111,13 @@ export function QuizTakePage() {
     setSubmitting(true);
     setShowConfirm(false);
     try {
-      const ansArr = questions.map((q) => ({
-        questionId: q.id,
-        chosenOriginalIndex: q.type === "complete" ? 0 : q.optionMap[answers[q.id] ?? 0] ?? 0,
-        ...(q.type === "complete" ? { textAnswer: answers[q.id] || "" } : {}),
-      }));
+      const ansArr = questions
+        .filter((q) => answers[q.id] !== undefined && answers[q.id] !== "")
+        .map((q) => ({
+          questionId: q.id,
+          chosenOriginalIndex: q.type === "complete" ? 0 : q.optionMap[answers[q.id] as number] ?? 0,
+          ...(q.type === "complete" ? { textAnswer: answers[q.id] as string } : {}),
+        }));
       const durationSec = quiz.durationMinutes * 60 - Math.max(timeLeft, 0);
       const res = await api.post(`/v2/quizzes/${quiz.id}/submit`, { answers: ansArr, durationSec });
       setResult(res);

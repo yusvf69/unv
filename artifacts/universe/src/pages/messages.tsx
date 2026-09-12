@@ -1,8 +1,9 @@
 import { Link } from "wouter";
 import { motion } from "framer-motion";
-import { MessageCircle, Inbox } from "lucide-react";
+import { MessageCircle, Inbox, RefreshCw, WifiOff } from "lucide-react";
 import { useDmThreads } from "@/lib/api";
 import { useTranslation, globalI18n } from "@/lib/i18n";
+import { Button } from "@/components/ui/button";
 
 function timeAgo(iso: string, t: (key: string) => string): string {
   const diff = Date.now() - new Date(iso).getTime();
@@ -15,7 +16,7 @@ function timeAgo(iso: string, t: (key: string) => string): string {
 }
 
 export default function Messages() {
-  const { data: threads = [], isLoading } = useDmThreads();
+  const { data: threads = [], isLoading, isError, refetch, isFetching } = useDmThreads();
   const t = useTranslation(globalI18n);
 
   return (
@@ -27,7 +28,18 @@ export default function Messages() {
 
       {isLoading && <p className="text-center text-muted-foreground py-8 sm:py-12 text-sm">{t("loading")}</p>}
 
-      {!isLoading && !threads.length && (
+      {isError && (
+        <div className="text-center py-10 sm:py-14 border-2 border-dashed rounded-xl sm:rounded-2xl">
+          <WifiOff className="h-8 w-8 sm:h-12 sm:w-12 mx-auto text-muted-foreground mb-2 sm:mb-3" />
+          <p className="text-muted-foreground text-sm mb-3">{t("errorOccurred")}</p>
+          <Button variant="outline" size="sm" onClick={() => refetch()} disabled={isFetching}>
+            <RefreshCw className={`h-4 w-4 me-1 ${isFetching ? "animate-spin" : ""}`} />
+            {t("retry")}
+          </Button>
+        </div>
+      )}
+
+      {!isLoading && !isError && !threads.length && (
         <div className="text-center py-12 sm:py-16 border-2 border-dashed rounded-xl sm:rounded-2xl">
           <MessageCircle className="h-8 w-8 sm:h-12 sm:w-12 mx-auto text-muted-foreground mb-2 sm:mb-3" />
           <p className="text-muted-foreground text-sm">{t("noConversationsYet")}</p>

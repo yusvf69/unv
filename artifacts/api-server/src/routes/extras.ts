@@ -282,6 +282,9 @@ router.post("/v2/student-summaries", (req, res) => {
     if (!me) throw Object.assign(new Error("سجل دخول"), { status: 401 });
     const { name, kind, url, sizeBytes, courseId } = req.body as any;
     if (!name || !url || !courseId) throw Object.assign(new Error("بيانات ناقصة"), { status: 400 });
+    const parsed = new URL(url);
+    if (!["http:", "https:"].includes(parsed.protocol)) throw Object.assign(new Error("رابط غير صالح"), { status: 400 });
+    const safeSize = Math.max(0, Math.min(Number(sizeBytes) ?? 0, 50 * 1024 * 1024));
     const [f] = await db
       .insert(schema.materialFilesTable)
       .values({
@@ -291,7 +294,7 @@ router.post("/v2/student-summaries", (req, res) => {
         kind: kind || "pdf",
         category: "student-summary",
         url,
-        sizeBytes: sizeBytes || 0,
+        sizeBytes: safeSize,
         uploadedById: me.id,
         uploadedByName: me.name,
       })

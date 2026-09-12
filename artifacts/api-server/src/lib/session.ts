@@ -2,7 +2,15 @@ import type { Request, Response, NextFunction } from "express";
 import jwt from "jsonwebtoken";
 
 const COOKIE_NAME = "uv_demo_user";
-const JWT_SECRET = process.env.JWT_SECRET || "uv-secret-change-me";
+
+function loadSecret(): string {
+  const s = process.env.JWT_SECRET;
+  if (!s || s.length < 32) {
+    throw new Error("JWT_SECRET environment variable is required (>= 32 chars). Set it in artifacts/api-server/.env");
+  }
+  return s;
+}
+const JWT_SECRET = loadSecret();
 
 export interface DemoSession {
   currentUserId: number | null;
@@ -19,23 +27,16 @@ declare global {
 export function demoSession(req: Request, res: Response, next: NextFunction) {
   let id: number | null = null;
 
-  // Try JWT from Authorization header first
+  // Identity comes ONLY from a valid signed JWT (Bearer header).
   const authHeader = req.headers.authorization || "";
   const token = authHeader.startsWith("Bearer ") ? authHeader.slice(7) : null;
   if (token) {
     try {
       const decoded = jwt.verify(token, JWT_SECRET) as { userId: number };
-      id = decoded.userId;
+      id = Number(decoded.userId) > 0 ? decoded.userId : null;
     } catch {
-      // Token invalid, fall through to cookie check
+      id = null;
     }
-  }
-
-  // Fall back to cookie
-  if (!id) {
-    const raw = req.cookies?.[COOKIE_NAME];
-    const parsed = raw ? Number.parseInt(raw, 10) : NaN;
-    id = Number.isFinite(parsed) && parsed > 0 ? parsed : null;
   }
 
   req.demo = { currentUserId: id };
@@ -43,14 +44,15 @@ export function demoSession(req: Request, res: Response, next: NextFunction) {
 }
 
 export function setDemoUser(res: Response, id: number) {
-  // Set cookie for local dev
+  // Convenience cookie for local dev only — NEVER trusted for authentication.
   res.cookie(COOKIE_NAME, String(id), {
-    httpOnly: false,
+    httpOnly: true,
     sameSite: "lax",
+    secure: process.env.NODE_ENV === "production",
     maxAge: 1000 * 60 * 60 * 24 * 30,
   });
 
-  // Also attach JWT token to response body for production
+  // Attach signed JWT to response body for the client.
   const token = jwt.sign({ userId: id }, JWT_SECRET, { expiresIn: "30d" });
   const originalJson = res.json.bind(res);
   res.json = function (body: any) {
