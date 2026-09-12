@@ -63,4 +63,5 @@ artifacts/app/node_modules/
 .env.local
 .env.*.local
 dist_public
-public
+/public
+artifacts/app/
