@@ -69,3 +69,5 @@ dist_public
 /public
 artifacts/app/
 .vercel
+
+/.session-tmp/

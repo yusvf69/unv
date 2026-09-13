@@ -3477,6 +3477,120 @@ async function handleExamSchedule(req: Request, parts: string[]): Promise<Respon
   return jsonError("Not Found", 404);
 }
 
+const mapRetakeRow = (r: any) => ({
+  id: r.id, courseTitle: r.course_title, sourceYear: r.source_year,
+  day: r.day, dayNumber: r.day_number ?? AR_DAY_TO_NUM[r.day] ?? 0,
+  startTime: r.start_time, endTime: r.end_time,
+  room: r.room, instructor: r.instructor, type: r.type,
+});
+
+async function handleRetakes(req: Request, parts: string[]): Promise<Response> {
+  const { userId } = requireAuth(req.headers);
+  const user = await getCurrentUser(userId);
+
+  if (parts[0] === "retake-courses") {
+    requireRole(user, ["admin", "super_admin"]);
+    if (req.method === "GET") {
+      return handle(async () => {
+        const rows = await sql`SELECT * FROM retake_courses ORDER BY source_year, course_title, day_number, start_time`;
+        return rows.map(mapRetakeRow);
+      });
+    }
+    if (req.method === "POST") {
+      return handle(async () => {
+        const body = await req.json();
+        const list = Array.isArray(body?.rows) ? body.rows : [body];
+        if (!list.length) throw Object.assign(new Error("لا توجد بيانات لإضافتها"), { status: 400 });
+        const created: unknown[] = [];
+        for (const r of list) {
+          const { courseTitle, sourceYear, day, dayNumber, startTime, endTime, room, instructor, type } = r;
+          if (!courseTitle || !sourceYear || !day || !startTime || !endTime) throw Object.assign(new Error("بيانات ناقصة (اسم المادة، السنة، اليوم، والوقت مطلوبون)"), { status: 400 });
+          const dn = dayNumber != null ? Number(dayNumber) : AR_DAY_TO_NUM[day] ?? 0;
+          const [ins] = await sql`INSERT INTO retake_courses (course_title, source_year, day, day_number, start_time, end_time, room, instructor, type) VALUES (${courseTitle}, ${Number(sourceYear)}, ${day}, ${dn}, ${startTime}, ${endTime}, ${room || null}, ${instructor || null}, ${type || "lecture"}) RETURNING *`;
+          created.push(ins);
+        }
+        return Array.isArray(body?.rows) ? { ok: true, created: created.length } : mapRetakeRow(created[0]);
+      });
+    }
+    if (req.method === "PUT") {
+      return handle(async () => {
+        const id = Number(parts[2]);
+        if (!id) throw Object.assign(new Error("id غير صالح"), { status: 400 });
+        const body = await req.json();
+        const { courseTitle, sourceYear, day, dayNumber, startTime, endTime, room, instructor, type } = body;
+        const hasAny = [courseTitle, sourceYear, day, dayNumber, startTime, endTime, room, instructor, type].some((v) => v !== undefined);
+        if (!hasAny) throw Object.assign(new Error("لا توجد بيانات للتعديل"), { status: 400 });
+        if (courseTitle !== undefined) await sql`UPDATE retake_courses SET course_title = ${String(courseTitle)} WHERE id = ${id}`;
+        if (sourceYear !== undefined) await sql`UPDATE retake_courses SET source_year = ${Number(sourceYear)} WHERE id = ${id}`;
+        if (day !== undefined) await sql`UPDATE retake_courses SET day = ${String(day)}, day_number = ${AR_DAY_TO_NUM[day] ?? 0} WHERE id = ${id}`;
+        if (dayNumber !== undefined) await sql`UPDATE retake_courses SET day_number = ${Number(dayNumber)} WHERE id = ${id}`;
+        if (startTime !== undefined) await sql`UPDATE retake_courses SET start_time = ${String(startTime)} WHERE id = ${id}`;
+        if (endTime !== undefined) await sql`UPDATE retake_courses SET end_time = ${String(endTime)} WHERE id = ${id}`;
+        if (room !== undefined) await sql`UPDATE retake_courses SET room = ${(room as string) || null} WHERE id = ${id}`;
+        if (instructor !== undefined) await sql`UPDATE retake_courses SET instructor = ${(instructor as string) || null} WHERE id = ${id}`;
+        if (type !== undefined) await sql`UPDATE retake_courses SET type = ${String(type)} WHERE id = ${id}`;
+        const [r] = await sql`SELECT * FROM retake_courses WHERE id = ${id}`;
+        if (!r) throw Object.assign(new Error("الصف غير موجود"), { status: 404 });
+        return mapRetakeRow(r);
+      });
+    }
+    if (req.method === "DELETE") return handle(async () => { await sql`DELETE FROM retake_courses WHERE id = ${Number(parts[2])}`; return { ok: true }; });
+  }
+
+  if (parts[0] === "retake-options") {
+    return handle(async () => {
+      const rows = await sql`SELECT * FROM retake_courses ORDER BY source_year, course_title, day_number, start_time`;
+      const my = await sql`SELECT id, course_title, source_year FROM student_retakes WHERE user_id = ${userId}`;
+      const carriedIdByKey = new Map(my.map((s: any) => [`${s.course_title}||${s.source_year}`, s.id]));
+      const map = new Map<string, { courseTitle: string; sourceYear: number; blocks: any[] }>();
+      for (const r of rows) {
+        const key = `${r.course_title}||${r.source_year}`;
+        if (!map.has(key)) map.set(key, { courseTitle: r.course_title, sourceYear: r.source_year, blocks: [] });
+        map.get(key)!.blocks.push(mapRetakeRow(r));
+      }
+      return Array.from(map.values()).map((o) => ({
+        ...o,
+        carriedId: carriedIdByKey.get(`${o.courseTitle}||${o.sourceYear}`) ?? null,
+        carried: carriedIdByKey.has(`${o.courseTitle}||${o.sourceYear}`),
+      }));
+    });
+  }
+
+  if (parts[0] === "my-retakes") {
+    if (req.method === "GET") {
+      return handle(async () => {
+        const carried = await sql`SELECT * FROM student_retakes WHERE user_id = ${userId} ORDER BY source_year, course_title`;
+        const blocks: any[] = [];
+        for (const c of carried) {
+          const rs = await sql`SELECT * FROM retake_courses WHERE course_title = ${c.course_title} AND source_year = ${c.source_year} ORDER BY day_number, start_time`;
+          for (const r of rs) blocks.push({ ...mapRetakeRow(r), retakeId: c.id });
+        }
+        return { carried: carried.map((c: any) => ({ id: c.id, courseTitle: c.course_title, sourceYear: c.source_year })), blocks };
+      });
+    }
+    if (req.method === "POST") {
+      return handle(async () => {
+        const body = await req.json();
+        const { courseTitle, sourceYear } = body;
+        if (!courseTitle || !sourceYear) throw Object.assign(new Error("بيانات ناقصة"), { status: 400 });
+        const [exists] = await sql`SELECT 1 FROM retake_courses WHERE course_title = ${courseTitle} AND source_year = ${Number(sourceYear)} LIMIT 1`;
+        if (!exists) throw Object.assign(new Error("المادة دي مش متاحة كمواد معادة"), { status: 400 });
+        const [r] = await sql`INSERT INTO student_retakes (user_id, course_title, source_year) VALUES (${userId}, ${courseTitle}, ${Number(sourceYear)}) ON CONFLICT (user_id, course_title, source_year) DO NOTHING RETURNING *`;
+        return r ? { ok: true, id: r.id } : { ok: true, already: true };
+      });
+    }
+    if (req.method === "DELETE") {
+      return handle(async () => { await sql`DELETE FROM student_retakes WHERE id = ${Number(parts[2])} AND user_id = ${userId}`; return { ok: true }; });
+    }
+  }
+
+  return jsonError("Not Found", 404);
+}
+
+function argsDayNumber(day: string): number {
+  return AR_DAY_TO_NUM[day] ?? 0;
+}
+
 async function handleCourses(req: Request, parts: string[]): Promise<Response> {
   if (parts[2] && parts[3] === "materials") {
     return handle(async () => sql`SELECT * FROM materials WHERE course_id = ${Number(parts[2])} ORDER BY ord`);
@@ -5001,6 +5115,10 @@ async function handleRequest(request: Request): Promise<Response> {
     "PUT /v2/admin/group-schedule/:id": () => handleGroupSchedule(request, ["group-schedule", "admin", parts[3]]),
     "DELETE /v2/admin/exam-schedule/:id": () => handleExamSchedule(request, ["exam-schedule", "admin", parts[3]]),
     "PUT /v2/admin/exam-schedule/:id": () => handleExamSchedule(request, ["exam-schedule", "admin", parts[3]]),
+    "GET /v2/admin/retake-courses": () => handleRetakes(request, ["retake-courses", "admin"]),
+    "POST /v2/admin/retake-courses": () => handleRetakes(request, ["retake-courses", "admin"]),
+    "PUT /v2/admin/retake-courses/:id": () => handleRetakes(request, ["retake-courses", "admin", parts[3]]),
+    "DELETE /v2/admin/retake-courses/:id": () => handleRetakes(request, ["retake-courses", "admin", parts[3]]),
     "POST /v2/admin/news/:id/approve": () => handleAdminNews(request, ["admin", "news", parts[3], "approve"]),
     "POST /v2/admin/news/:id/reject": () => handleAdminNews(request, ["admin", "news", parts[3], "reject"]),
     "DELETE /v2/admin/news/:id": () => handleAdminNews(request, ["admin", "news", parts[3]]),
@@ -5219,6 +5337,10 @@ async function handleRequest(request: Request): Promise<Response> {
     "GET /exam-schedule": () => handleExamSchedule(request, ["exam-schedule"]),
     "GET /v2/group-schedule": () => handleGroupSchedule(request, ["group-schedule"]),
     "GET /v2/exam-schedule": () => handleExamSchedule(request, ["exam-schedule"]),
+    "GET /v2/my-retakes": () => handleRetakes(request, ["my-retakes"]),
+    "POST /v2/my-retakes": () => handleRetakes(request, ["my-retakes"]),
+    "DELETE /v2/my-retakes/:id": () => handleRetakes(request, ["my-retakes", parts[2]]),
+    "GET /v2/retake-options": () => handleRetakes(request, ["retake-options"]),
 
     // Courses
     "GET /courses": () => handleCoursesList(),
