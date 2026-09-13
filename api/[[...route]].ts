@@ -3630,7 +3630,7 @@ async function handleRetakes(req: Request, parts: string[]): Promise<Response> {
       });
     }
     if (req.method === "DELETE") {
-      return handle(async () => { await sql`DELETE FROM student_retakes WHERE id = ${Number(parts[2])} AND user_id = ${userId}`; return { ok: true }; });
+      return handle(async () => { await sql`DELETE FROM student_retakes WHERE id = ${Number(parts[1])} AND user_id = ${userId}`; return { ok: true }; });
     }
   }
 
