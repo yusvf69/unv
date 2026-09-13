@@ -3484,6 +3484,15 @@ const mapRetakeRow = (r: any) => ({
   room: r.room, instructor: r.instructor, type: r.type,
 });
 
+const normalizeSubject = (t: any) => String(t || "").replace(/\s*\([^)]*\)\s*$/g, "").trim();
+
+const groupRowToBlock = (r: any) => ({
+  id: r.id, courseTitle: r.course_title, sourceYear: r.year_in_college,
+  day: r.day, dayNumber: AR_DAY_TO_NUM[r.day] ?? 0,
+  startTime: r.start_time, endTime: r.end_time,
+  room: r.room, instructor: r.instructor, type: r.type,
+});
+
 async function handleRetakes(req: Request, parts: string[]): Promise<Response> {
   const { userId } = requireAuth(req.headers);
   const user = await getCurrentUser(userId);
@@ -3539,16 +3548,35 @@ async function handleRetakes(req: Request, parts: string[]): Promise<Response> {
 
   if (parts[0] === "retake-options") {
     return handle(async () => {
-      const rows = await sql`SELECT * FROM retake_courses ORDER BY source_year, course_title, day_number, start_time`;
+      const rcRows = await sql`SELECT * FROM retake_courses`;
+      const myGroup = user?.group_name || null;
+      const allGs = await sql`SELECT * FROM group_schedule ORDER BY year_in_college, day, start_time`;
+      const myGs = myGroup ? allGs.filter((r: any) => r.group_name === myGroup) : allGs;
       const my = await sql`SELECT id, course_title, source_year FROM student_retakes WHERE user_id = ${userId}`;
-      const carriedIdByKey = new Map(my.map((s: any) => [`${s.course_title}||${s.source_year}`, s.id]));
-      const map = new Map<string, { courseTitle: string; sourceYear: number; blocks: any[] }>();
-      for (const r of rows) {
-        const key = `${r.course_title}||${r.source_year}`;
-        if (!map.has(key)) map.set(key, { courseTitle: r.course_title, sourceYear: r.source_year, blocks: [] });
-        map.get(key)!.blocks.push(mapRetakeRow(r));
+      const carriedIdByKey = new Map(my.map((s: any) => [`${normalizeSubject(s.course_title)}||${s.source_year}`, s.id]));
+
+      const subjects = new Map<string, { courseTitle: string; sourceYear: number; blocks: any[] }>();
+      const ensureKey = (base: string, year: number) => {
+        const key = `${base}||${year}`;
+        if (!subjects.has(key)) subjects.set(key, { courseTitle: base, sourceYear: year, blocks: [] });
+        return key;
+      };
+      const hisSetup = new Set<string>();
+      for (const r of myGs) {
+        const key = ensureKey(normalizeSubject(r.course_title), Number(r.year_in_college));
+        hisSetup.add(key);
+        subjects.get(key)!.blocks.push(groupRowToBlock(r));
       }
-      return Array.from(map.values()).map((o) => ({
+      for (const r of allGs) {
+        const key = ensureKey(normalizeSubject(r.course_title), Number(r.year_in_college));
+        if (!hisSetup.has(key) && subjects.get(key)!.blocks.length === 0) subjects.get(key)!.blocks.push(groupRowToBlock(r));
+      }
+      for (const r of rcRows) {
+        const key = ensureKey(normalizeSubject(r.course_title), Number(r.source_year));
+        subjects.get(key)!.blocks = [];
+        subjects.get(key)!.blocks.push(mapRetakeRow(r));
+      }
+      return Array.from(subjects.values()).map((o) => ({
         ...o,
         carriedId: carriedIdByKey.get(`${o.courseTitle}||${o.sourceYear}`) ?? null,
         carried: carriedIdByKey.has(`${o.courseTitle}||${o.sourceYear}`),
@@ -3560,10 +3588,28 @@ async function handleRetakes(req: Request, parts: string[]): Promise<Response> {
     if (req.method === "GET") {
       return handle(async () => {
         const carried = await sql`SELECT * FROM student_retakes WHERE user_id = ${userId} ORDER BY source_year, course_title`;
+        const userGroup = user?.group_name || null;
+        const rcAll = await sql`SELECT * FROM retake_courses`;
+        const gsByYear: Record<number, any[]> = {};
         const blocks: any[] = [];
         for (const c of carried) {
-          const rs = await sql`SELECT * FROM retake_courses WHERE course_title = ${c.course_title} AND source_year = ${c.source_year} ORDER BY day_number, start_time`;
-          for (const r of rs) blocks.push({ ...mapRetakeRow(r), retakeId: c.id });
+          const base = normalizeSubject(c.course_title);
+          const rcMatches = rcAll.filter((r: any) => Number(r.source_year) === c.source_year && normalizeSubject(r.course_title) === base);
+          if (rcMatches.length > 0) {
+            for (const r of rcMatches) blocks.push({ ...mapRetakeRow(r), retakeId: c.id });
+          } else {
+            if (!gsByYear[c.source_year]) {
+              const allGy = await sql`SELECT * FROM group_schedule WHERE year_in_college = ${c.source_year}`;
+              const inMy = userGroup ? allGy.filter((r: any) => r.group_name === userGroup) : allGy;
+              gsByYear[c.source_year] = inMy.length > 0 ? inMy : allGy;
+            }
+            let matched = gsByYear[c.source_year].filter((x: any) => normalizeSubject(x.course_title) === base);
+            if (!matched.length) {
+              const allGy = await sql`SELECT * FROM group_schedule WHERE year_in_college = ${c.source_year}`;
+              matched = allGy.filter((x: any) => normalizeSubject(x.course_title) === base);
+            }
+            for (const r of matched) blocks.push({ ...groupRowToBlock(r), retakeId: c.id });
+          }
         }
         return { carried: carried.map((c: any) => ({ id: c.id, courseTitle: c.course_title, sourceYear: c.source_year })), blocks };
       });
@@ -3573,9 +3619,13 @@ async function handleRetakes(req: Request, parts: string[]): Promise<Response> {
         const body = await req.json();
         const { courseTitle, sourceYear } = body;
         if (!courseTitle || !sourceYear) throw Object.assign(new Error("بيانات ناقصة"), { status: 400 });
-        const [exists] = await sql`SELECT 1 FROM retake_courses WHERE course_title = ${courseTitle} AND source_year = ${Number(sourceYear)} LIMIT 1`;
-        if (!exists) throw Object.assign(new Error("المادة دي مش متاحة كمواد معادة"), { status: 400 });
-        const [r] = await sql`INSERT INTO student_retakes (user_id, course_title, source_year) VALUES (${userId}, ${courseTitle}, ${Number(sourceYear)}) ON CONFLICT (user_id, course_title, source_year) DO NOTHING RETURNING *`;
+        const base = normalizeSubject(courseTitle);
+        const yearN = Number(sourceYear);
+        const rcTitles = await sql`SELECT course_title FROM retake_courses WHERE source_year = ${yearN}`;
+        const gsTitles = await sql`SELECT DISTINCT course_title FROM group_schedule WHERE year_in_college = ${yearN}`;
+        const found = [...rcTitles, ...gsTitles].some((x: any) => normalizeSubject(x.course_title) === base);
+        if (!found) throw Object.assign(new Error("المادة دي مش موجوده في السنة دي"), { status: 400 });
+        const [r] = await sql`INSERT INTO student_retakes (user_id, course_title, source_year) VALUES (${userId}, ${base}, ${yearN}) ON CONFLICT (user_id, course_title, source_year) DO NOTHING RETURNING *`;
         return r ? { ok: true, id: r.id } : { ok: true, already: true };
       });
     }
