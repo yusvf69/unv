@@ -1,12 +1,12 @@
 import { useState, useEffect } from "react";
 import { motion } from "framer-motion";
-import { Save, User, Award, Key, Copy, Lock, Calendar, Clock, Target, BookOpen, Trophy, FileText, Medal } from "lucide-react";
+import { Save, User, Award, Key, Copy, Lock, Calendar, Clock, Target, BookOpen, Trophy, FileText, Medal, RefreshCw, Check } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Progress } from "@/components/ui/progress";
 import { Label } from "@/components/ui/label";
 import { useToast } from "@/hooks/use-toast";
-import { useMeV2, useUpdateProfile, useAchievements, useMyGroupSchedule, useMyExamSchedule, useUnlockables, useEquipUnlockable, useFollows } from "@/lib/api";
+import { useMeV2, useUpdateProfile, useAchievements, useMyGroupSchedule, useMyExamSchedule, useUnlockables, useEquipUnlockable, useFollows, useRetakeOptions, useAddMyRetake, useDeleteMyRetake } from "@/lib/api";
 import { useGetDashboard } from "@workspace/api-client-react";
 import FileUpload from "@/components/file-upload";
 import { Link } from "wouter";
@@ -48,6 +48,9 @@ export default function Profile() {
   const equip = useEquipUnlockable();
   const { data: schedule = [] } = useMyGroupSchedule();
   const { data: exams = [] } = useMyExamSchedule();
+  const { data: retakeOptions = [] } = useRetakeOptions();
+  const addRetake = useAddMyRetake();
+  const delRetake = useDeleteMyRetake();
   const { data: dashboard } = useGetDashboard();
   const missions = dashboard?.missions ?? [];
   const { toast } = useToast();
@@ -82,6 +85,15 @@ export default function Profile() {
         groupName,
       });
       toast({ title: t("profileSaved"), description: t("changesApplied") });
+    } catch (e) {
+      toast({ title: t("error"), description: (e as Error).message, variant: "destructive" });
+    }
+  };
+
+  const toggleRetake = async (opt: { courseTitle: string; sourceYear: number; carriedId: number | null; carried: boolean }) => {
+    try {
+      if (opt.carriedId) await delRetake.mutateAsync(opt.carriedId);
+      else await addRetake.mutateAsync({ courseTitle: opt.courseTitle, sourceYear: opt.sourceYear });
     } catch (e) {
       toast({ title: t("error"), description: (e as Error).message, variant: "destructive" });
     }
@@ -210,6 +222,40 @@ export default function Profile() {
 
       {tab === "schedule" && (
         <div className="space-y-4 sm:space-y-6">
+          {retakeOptions.length > 0 && (
+            <div className="bg-card border rounded-2xl p-4 sm:p-6">
+              <h2 className="font-bold text-lg sm:text-xl mb-1 flex items-center gap-2"><RefreshCw className="h-5 w-5 text-primary" /> المواد المعادة</h2>
+              <p className="text-xs sm:text-sm text-muted-foreground mb-4">علّم على المواد اللي معاك (شايلها) من سنين أقدم — مواعيدها هتظهر في جدولك بعلامة «معاد».</p>
+              <div className="grid sm:grid-cols-2 gap-2">
+                {retakeOptions.map((opt) => {
+                  const daysList = Array.from(new Set(opt.blocks.map((b) => b.day))).join("، ");
+                  return (
+                    <label
+                      key={`${opt.courseTitle}|${opt.sourceYear}`}
+                      className={`flex items-start gap-2 p-3 rounded-xl border cursor-pointer transition ${opt.carried ? "bg-amber-500/10 border-amber-500/40" : "bg-muted/40 border-border hover:bg-muted/70"}`}
+                    >
+                      <input
+                        type="checkbox"
+                        checked={opt.carried}
+                        onChange={() => toggleRetake(opt)}
+                        className="mt-0.5 h-4 w-4 accent-amber-500"
+                      />
+                      <div className="flex-1 min-w-0">
+                        <div className="font-bold text-xs sm:text-sm flex items-center gap-1.5 flex-wrap">
+                          {opt.courseTitle}
+                          {opt.carried && <span className="inline-flex items-center gap-0.5 text-[10px] bg-amber-500/20 text-amber-700 dark:text-amber-300 px-1.5 py-0.5 rounded-full font-bold"><Check className="h-3 w-3" /> معاك</span>}
+                        </div>
+                        <div className="text-[10px] sm:text-xs text-muted-foreground mt-0.5">
+                          من سنة {opt.sourceYear} · {opt.blocks.length} موعد · {daysList || "—"}
+                        </div>
+                      </div>
+                    </label>
+                  );
+                })}
+              </div>
+            </div>
+          )}
+
           <div className="bg-card border rounded-2xl p-4 sm:p-6">
             <h2 className="font-bold text-lg sm:text-xl mb-4 flex items-center gap-2"><Clock className="h-5 w-5 text-primary" /> {t("lectureSchedule")}</h2>
             {schedule.length === 0 ? (
