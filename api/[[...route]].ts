@@ -3301,7 +3301,14 @@ async function handleGroupSchedule(req: Request, parts: string[]): Promise<Respo
   if (req.method === "GET") {
     return handle(async () => {
       try {
-        return await sql`SELECT * FROM group_schedule ORDER BY year_in_college, group_name, day`;
+        const rows = await sql`SELECT * FROM group_schedule ORDER BY year_in_college, group_name, day`;
+        return rows.map((r: any) => ({
+          id: r.id, groupName: r.group_name, yearInCollege: r.year_in_college,
+          day: r.day, dayNumber: AR_DAY_TO_NUM[r.day] ?? 0,
+          startTime: r.start_time, endTime: r.end_time,
+          courseTitle: r.course_title, courseCode: r.course_code,
+          instructor: r.instructor, room: r.room, type: r.type,
+        }));
       } catch (err) {
         console.error("handleGroupSchedule admin GET error:", err);
         return [];
