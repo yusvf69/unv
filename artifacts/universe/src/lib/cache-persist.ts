@@ -25,8 +25,9 @@ function isSkippable(key: readonly unknown[]): boolean {
   if (!key || key.length === 0) return true;
   if (key[0] === "v2" && key[1] === "dm") return false;
   if (key[0] === "v2" && key[1] === "quiz" && key[2] === "start") return true;
-  if (key[0] === "v2" && key[1] === "admin" && (key[2] === "group-schedule" || key[2] === "exam-schedule")) return true;
+  if (key[0] === "v2" && key[1] === "admin" && (key[2] === "group-schedule" || key[2] === "exam-schedule" || key[2] === "retake-courses")) return true;
   if (key[0] === "v2" && (key[1] === "group-schedule" || key[1] === "exam-schedule")) return true;
+  if (key[0] === "v2" && (key[1] === "my-retakes" || key[1] === "retake-options")) return true;
   return false;
 }
 

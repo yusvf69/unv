@@ -1,8 +1,8 @@
 import { useMemo, useState, useEffect } from "react";
 import { motion } from "framer-motion";
-import { Calendar, Clock, MapPin, User as UserIcon, ChevronLeft, ChevronRight, FileText, AlertCircle, Award, Bell, Loader2 } from "lucide-react";
+import { Calendar, Clock, MapPin, User as UserIcon, ChevronLeft, ChevronRight, FileText, Award, Bell, Loader2, RefreshCw, Check } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { useMyGroupSchedule, useMyExamSchedule, useMeV2 } from "@/lib/api";
+import { useMyGroupSchedule, useMyExamSchedule, useMeV2, useRetakeOptions, useMyRetakes, useAddMyRetake, useDeleteMyRetake, type RetakeOption } from "@/lib/api";
 import { formatDateFull, formatMonth, formatShortDate, formatShortDateYear } from "@/lib/dates";
 import { useTranslation, globalI18n } from "@/lib/i18n";
 
@@ -30,6 +30,10 @@ export default function Schedule() {
   const { data: me, isLoading: meLoading } = useMeV2();
   const { data: rows = [], isLoading: scheduleLoading } = useMyGroupSchedule(me?.groupName, me?.yearInCollege);
   const { data: exams = [], isLoading: examLoading } = useMyExamSchedule(me?.groupName, me?.yearInCollege);
+  const { data: retakeOptions = [] } = useRetakeOptions();
+  const { data: myRetakes } = useMyRetakes();
+  const addRetake = useAddMyRetake();
+  const delRetake = useDeleteMyRetake();
   const [scheduleView, setScheduleView] = useState<ViewMode>("week");
   const [examView, setExamView] = useState<ViewMode>("week");
   const [tab, setTab] = useState<TabMode>("schedule");
@@ -56,10 +60,19 @@ export default function Schedule() {
     practical: "from-green-500/20 to-green-500/5 border-green-500/30",
   };
 
+  const retakeBlocks = useMemo<any[]>(
+    () => (myRetakes?.blocks ?? []).map((b) => ({ ...b, isRetake: true })),
+    [myRetakes]
+  );
+  const combinedRows = useMemo<any[]>(
+    () => [...rows.map((r) => ({ ...r, isRetake: false })), ...retakeBlocks],
+    [rows, retakeBlocks]
+  );
+
   const byDay = useMemo(() => {
-    const m: Record<string, typeof rows> = {};
+    const m: Record<string, any[]> = {};
     for (const d of days) m[d] = [];
-    for (const r of rows) {
+    for (const r of combinedRows) {
       const dayIndex = r.dayNumber !== undefined ? (r.dayNumber + 1) % 7 : ARABIC_DAYS.indexOf(r.day);
       const dayKey = dayIndex >= 0 ? days[dayIndex] : r.day;
       m[dayKey] ||= [];
@@ -67,7 +80,14 @@ export default function Schedule() {
     }
     for (const d of Object.keys(m)) m[d].sort((a, b) => a.startTime.localeCompare(b.startTime));
     return m;
-  }, [rows, days]);
+  }, [combinedRows, days]);
+
+  const toggleRetake = async (opt: RetakeOption) => {
+    try {
+      if (opt.carriedId) await delRetake.mutateAsync(opt.carriedId);
+      else await addRetake.mutateAsync({ courseTitle: opt.courseTitle, sourceYear: opt.sourceYear });
+    } catch { /* تجاهل */ }
+  };
 
   // Compute upcoming exam alerts (within 24 hours)
   useEffect(() => {
@@ -117,6 +137,43 @@ export default function Schedule() {
           <FileText className="h-3.5 w-3.5 sm:h-4 sm:w-4" /> {t("examSchedule")}
         </button>
       </div>
+
+      {/* المواد المعادة */}
+      {retakeOptions.length > 0 && (
+        <motion.div initial={{ opacity: 0, y: -8 }} animate={{ opacity: 1, y: 0 }} className="mb-4 sm:mb-6 bg-card border rounded-2xl p-3 sm:p-4">
+          <div className="flex items-center justify-between gap-2 mb-3 flex-wrap">
+            <h2 className="font-bold text-sm sm:text-base flex items-center gap-2"><RefreshCw className="h-4 w-4 text-primary" /> المواد المعادة</h2>
+            <p className="text-[10px] sm:text-xs text-muted-foreground">علّم على المواد اللي معاك من سنين أقدم، ومواعيدها هتظهرلَك في جدولك</p>
+          </div>
+          <div className="grid sm:grid-cols-2 gap-2">
+            {retakeOptions.map((opt) => {
+              const daysList = Array.from(new Set(opt.blocks.map((b) => b.day))).join("، ");
+              return (
+                <label
+                  key={`${opt.courseTitle}|${opt.sourceYear}`}
+                  className={`flex items-start gap-2 p-3 rounded-xl border cursor-pointer transition ${opt.carried ? "bg-amber-500/10 border-amber-500/40" : "bg-muted/40 border-border hover:bg-muted/70"}`}
+                >
+                  <input
+                    type="checkbox"
+                    checked={opt.carried}
+                    onChange={() => toggleRetake(opt)}
+                    className="mt-0.5 h-4 w-4 accent-amber-500"
+                  />
+                  <div className="flex-1 min-w-0">
+                    <div className="font-bold text-xs sm:text-sm flex items-center gap-1.5 flex-wrap">
+                      {opt.courseTitle}
+                      {opt.carried && <span className="inline-flex items-center gap-0.5 text-[10px] bg-amber-500/20 text-amber-700 dark:text-amber-300 px-1.5 py-0.5 rounded-full font-bold"><Check className="h-3 w-3" /> معاك</span>}
+                    </div>
+                    <div className="text-[10px] sm:text-xs text-muted-foreground mt-0.5">
+                      {opt.sourceYear > (me?.yearInCollege ?? opt.sourceYear) ? "مادة سنة أقدم" : `من سنة ${opt.sourceYear}`} · {opt.blocks.length} موعد · {daysList || "—"}
+                    </div>
+                  </div>
+                </label>
+              );
+            })}
+          </div>
+        </motion.div>
+      )}
 
       {/* Upcoming Exam Alerts */}
       {tab === "exams" && upcomingAlerts.length > 0 && (
@@ -422,7 +479,7 @@ function MonthView({ isLoading, byDay, cursor, setCursor, days, daysShort, jsToA
 }
 
 function ClassCard({ r, compact, delay, typeLabel, typeColor }: { r: any; compact?: boolean; delay?: number; typeLabel: Record<string, string>; typeColor: Record<string, string> }) {
-  const color = typeColor[r.type] || typeColor.lecture;
+  const color = r.isRetake ? "from-amber-500/25 to-amber-500/5 border-amber-500/40" : typeColor[r.type] || typeColor.lecture;
   return (
     <motion.div
       initial={{ opacity: 0, y: 6 }}
@@ -432,7 +489,10 @@ function ClassCard({ r, compact, delay, typeLabel, typeColor }: { r: any; compac
     >
       <div className="flex items-center justify-between gap-2">
         <div className="font-bold text-sm">{r.courseTitle}</div>
-        <span className="text-[10px] bg-white/60 dark:bg-black/30 px-2 py-0.5 rounded-full font-bold">{typeLabel[r.type] ?? r.type}</span>
+        <div className="flex items-center gap-1.5 shrink-0">
+          {r.isRetake && <span className="text-[10px] bg-amber-500/30 text-amber-800 dark:text-amber-200 px-2 py-0.5 rounded-full font-bold">معاد</span>}
+          <span className="text-[10px] bg-white/60 dark:bg-black/30 px-2 py-0.5 rounded-full font-bold">{typeLabel[r.type] ?? r.type}</span>
+        </div>
       </div>
       {r.courseCode && <div className="text-[10px] text-muted-foreground">{r.courseCode}</div>}
       <div className="text-xs mt-2 flex flex-wrap items-center gap-2 text-muted-foreground">

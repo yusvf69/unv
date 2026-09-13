@@ -9,7 +9,8 @@ import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from "
 import {
   useMeV2, useAdminGroupSchedule, useAddGroupScheduleRow, useDeleteGroupScheduleRow, useUpdateGroupScheduleRow,
   useImportGroupSchedule, useAdminExamSchedule, useAddExamScheduleRow, useDeleteExamScheduleRow, useUpdateExamScheduleRow,
-  useImportExamSchedule, type GroupScheduleRow, type ExamScheduleRow,
+  useImportExamSchedule, useAdminRetakeCourses, useAddRetakeCourse, useUpdateRetakeCourse, useDeleteRetakeCourse,
+  type GroupScheduleRow, type ExamScheduleRow, type RetakeCourseRow,
 } from "@/lib/api";
 import { parseScheduleText, type ScheduleKind } from "@/lib/schedule-parse";
 import { useToast } from "@/hooks/use-toast";
@@ -99,7 +100,7 @@ function ImportScheduleDialog({ open, onOpenChange, mode }: { open: boolean; onO
 
 export default function AdminSchedule() {
   const { data: me } = useMeV2();
-  const [tab, setTab] = useState<"classes" | "exams">("classes");
+  const [tab, setTab] = useState<"classes" | "exams" | "retakes">("classes");
 
   if (!me || (me.role !== "admin" && me.role !== "super_admin")) {
     return <div className="p-12 text-center text-muted-foreground">صلاحياتك غير كافية</div>;
@@ -125,9 +126,15 @@ export default function AdminSchedule() {
         >
           <Award className="h-3.5 w-3.5 sm:h-4 sm:w-4" /> جدول الامتحانات
         </button>
+        <button
+          onClick={() => setTab("retakes")}
+          className={`px-3 sm:px-5 py-1.5 sm:py-2 rounded-full text-xs sm:text-sm font-bold flex items-center gap-2 transition ${tab === "retakes" ? "bg-primary text-primary-foreground" : "bg-muted hover:bg-muted/80"}`}
+        >
+          <RefreshCw className="h-3.5 w-3.5 sm:h-4 sm:w-4" /> مواد معادة
+        </button>
       </div>
 
-      {tab === "classes" ? <ClassScheduleTab /> : <ExamScheduleTab />}
+      {tab === "classes" ? <ClassScheduleTab /> : tab === "exams" ? <ExamScheduleTab /> : <RetakesScheduleTab />}
     </div>
   );
 }
@@ -545,4 +552,160 @@ function ExamScheduleTab() {
       <ImportScheduleDialog open={importOpen} onOpenChange={setImportOpen} mode="exams" />
     </>
   );
+}
+
+function RetakesScheduleTab() {
+  const { data: rows = [], refetch, isFetching, error } = useAdminRetakeCourses();
+  const add = useAddRetakeCourse();
+  const update = useUpdateRetakeCourse();
+  const del = useDeleteRetakeCourse();
+  const { toast } = useToast();
+  const [open, setOpen] = useState(false);
+  const [edit, setEdit] = useState<RetakeCourseRow | null>(null);
+  const [form, setForm] = useState({
+    courseTitle: "", sourceYear: 1, day: "السبت", startTime: "09:00", endTime: "11:00",
+    room: "", instructor: "", type: "lecture",
+  });
+
+  const filterYear = rows.reduce((arr: number[], r) => (arr.includes(r.sourceYear) ? arr : [...arr, r.sourceYear]), [] as number[]).sort();
+
+  const openAdd = () => {
+    setEdit(null);
+    setForm({ courseTitle: "", sourceYear: 1, day: "السبت", startTime: "09:00", endTime: "11:00", room: "", instructor: "", type: "lecture" });
+    setOpen(true);
+  };
+  const openEdit = (r: RetakeCourseRow) => {
+    setEdit(r);
+    setForm({ courseTitle: r.courseTitle, sourceYear: r.sourceYear, day: r.day, startTime: r.startTime, endTime: r.endTime, room: r.room ?? "", instructor: r.instructor ?? "", type: r.type });
+    setOpen(true);
+  };
+
+  const submit = async () => {
+    if (!form.courseTitle || !form.day || !form.startTime || !form.endTime || !form.sourceYear) {
+      toast({ title: "املأ الحقول الأساسية", variant: "destructive" });
+      return;
+    }
+    try {
+      if (edit) {
+        await update.mutateAsync({ id: edit.id, ...form });
+        toast({ title: "تم التعديل" });
+      } else {
+        await add.mutateAsync(form);
+        toast({ title: "أُضيفت المادة المعادة" });
+      }
+      setOpen(false);
+      setEdit(null);
+      setForm({ courseTitle: "", sourceYear: 1, day: "السبت", startTime: "09:00", endTime: "11:00", room: "", instructor: "", type: "lecture" });
+    } catch (e) {
+      toast({ title: "خطأ", description: (e as Error).message, variant: "destructive" });
+    }
+  };
+
+  return (
+    <>
+      <div className="flex items-center justify-between mb-3 sm:mb-4 flex-wrap gap-2">
+        <p className="text-xs sm:text-sm text-muted-foreground">
+          المواعيد المخصوصة للمواد المعادة — بتظهر للطلبة اللي اختاروها بس، مش في أي جدول عادي.
+        </p>
+        <Button className="ms-3 h-8 sm:h-9 text-xs sm:text-sm" onClick={openAdd}><Plus className="me-2 h-3 w-3 sm:h-4 sm:w-4" /> إضافة مادة معادة</Button>
+        <Button variant="outline" className="h-8 sm:h-9 text-xs sm:text-sm" onClick={() => refetch()} disabled={isFetching}><RefreshCw className="me-2 h-3 w-3 sm:h-4 sm:w-4" /> تحديث</Button>
+      </div>
+
+      {error ? (
+        <div className="bg-destructive/10 border border-destructive rounded-xl p-3 text-sm text-destructive mb-3">فشل تحميل المواد المعادة: {(error as Error).message}</div>
+      ) : !rows.length ? (
+        <p className="text-center text-muted-foreground py-8 sm:py-12 text-sm">لا توجد مواد معادة مضافة بعد.</p>
+      ) : null}
+
+      <div className="space-y-2">
+        {filterYear.map((year) => {
+          const yearRows = rows.filter((r) => r.sourceYear === year);
+          const subjects = groupCourses(yearRows);
+          return (
+            <div key={year} className="mb-4">
+              <h3 className="font-bold text-sm mb-2 text-muted-foreground">مواد معادة من سنة {year}</h3>
+              {subjects.map((s) => (
+                <motion.div key={s.title} initial={{ opacity: 0, x: -10 }} animate={{ opacity: 1, x: 0 }} className="bg-card border rounded-xl p-3 mb-2">
+                  <div className="flex items-center justify-between gap-2 flex-wrap mb-2">
+                    <div className="flex items-center gap-2 flex-wrap">
+                      <span className="font-bold text-sm">{s.title}</span>
+                      <span className="text-[10px] bg-accent/30 text-accent-foreground px-2 py-0.5 rounded-full">سنة {year}</span>
+                      <span className="text-[10px] bg-muted px-2 py-0.5 rounded-full">{s.blocks.length} موعد</span>
+                    </div>
+                    <div className="flex gap-1">
+                      <Button size="icon" variant="ghost" onClick={() => openEdit(s.blocks[0])} className="h-7 w-7 sm:h-8 sm:w-8" title="تعديل"><Pencil className="h-3.5 w-3.5 sm:h-4 sm:w-4 text-primary" /></Button>
+                      <Button size="icon" variant="ghost" onClick={() => Promise.all(s.blocks.map((b) => del.mutateAsync(b.id))).then(() => toast({ title: "تم الحذف" }))} className="h-7 w-7 sm:h-8 sm:w-8" title="حذف"><Trash2 className="h-3.5 w-3.5 sm:h-4 sm:w-4 text-destructive" /></Button>
+                    </div>
+                  </div>
+                  <div className="space-y-1 mt-2">
+                    {s.blocks.map((b) => (
+                      <div key={b.id} className="flex items-center gap-2 flex-wrap text-xs">
+                        <span className="bg-amber-500/10 text-amber-600 font-bold px-2 py-0.5 rounded-lg">{b.day}</span>
+                        <span className="font-mono">{b.startTime} - {b.endTime}</span>
+                        {b.room && <span className="text-muted-foreground">📍 {b.room}</span>}
+                        {b.instructor && <span className="text-muted-foreground">👤 {b.instructor}</span>}
+                      </div>
+                    ))}
+                  </div>
+                </motion.div>
+              ))}
+            </div>
+          );
+        })}
+      </div>
+
+      <Dialog open={open} onOpenChange={(v) => { setOpen(v); if (!v) setEdit(null); }}>
+        <DialogContent className="max-w-xl max-h-[90vh]">
+          <DialogHeader><DialogTitle className="text-base sm:text-lg">{edit ? "تعديل مادة معادة" : "إضافة مادة معادة"}</DialogTitle></DialogHeader>
+          <div className="space-y-3">
+            <div className="grid grid-cols-3 gap-2">
+              <div className="col-span-2"><Label className="text-xs">اسم المادة</Label><Input value={form.courseTitle} onChange={(e) => setForm({ ...form, courseTitle: e.target.value })} placeholder="زي ما ظاهرة في الجدول بالظبط" className="h-9 text-sm" /></div>
+              <div>
+                <Label className="text-xs">السنة المعادة</Label>
+                <select value={form.sourceYear} onChange={(e) => setForm({ ...form, sourceYear: Number(e.target.value) })} className="w-full h-9 rounded-md border bg-background px-3 text-sm">
+                  {YEARS.map((y) => <option key={y} value={y}>سنة {y}</option>)}
+                </select>
+              </div>
+            </div>
+            <div className="grid grid-cols-3 gap-2">
+              <div>
+                <Label className="text-xs">اليوم</Label>
+                <select value={form.day} onChange={(e) => setForm({ ...form, day: e.target.value })} className="w-full h-9 rounded-md border bg-background px-3 text-sm">
+                  {DAYS.map((d) => <option key={d} value={d}>{d}</option>)}
+                </select>
+              </div>
+              <div><Label className="text-xs">من</Label><Input type="time" value={form.startTime} onChange={(e) => setForm({ ...form, startTime: e.target.value })} className="h-9 text-sm" /></div>
+              <div><Label className="text-xs">إلى</Label><Input type="time" value={form.endTime} onChange={(e) => setForm({ ...form, endTime: e.target.value })} className="h-9 text-sm" /></div>
+            </div>
+            <div className="grid grid-cols-3 gap-2">
+              <div><Label className="text-xs">القاعة</Label><Input value={form.room} onChange={(e) => setForm({ ...form, room: e.target.value })} className="h-9 text-sm" /></div>
+              <div><Label className="text-xs">الدكتور</Label><Input value={form.instructor} onChange={(e) => setForm({ ...form, instructor: e.target.value })} className="h-9 text-sm" /></div>
+              <div>
+                <Label className="text-xs">النوع</Label>
+                <select value={form.type} onChange={(e) => setForm({ ...form, type: e.target.value })} className="w-full h-9 rounded-md border bg-background px-3 text-sm">
+                  <option value="lecture">محاضرة</option>
+                  <option value="lab">معمل</option>
+                  <option value="tutorial">تمارين</option>
+                  <option value="practical">عملي</option>
+                </select>
+              </div>
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="ghost" onClick={() => setOpen(false)} className="text-xs sm:text-sm">إلغاء</Button>
+            <Button onClick={submit} disabled={add.isPending || update.isPending} className="text-xs sm:text-sm">{add.isPending || update.isPending ? "جاري..." : edit ? <><Pencil className="me-2 h-3.5 w-3.5 sm:h-4 sm:w-4" /> حفظ التعديل</> : <><Plus className="me-2 h-3.5 w-3.5 sm:h-4 sm:w-4" /> إضافة</>}</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+    </>
+  );
+}
+
+function groupCourses(rows: RetakeCourseRow[]): { title: string; blocks: RetakeCourseRow[] }[] {
+  const m = new Map<string, RetakeCourseRow[]>();
+  for (const r of rows) {
+    if (!m.has(r.courseTitle)) m.set(r.courseTitle, []);
+    m.get(r.courseTitle)!.push(r);
+  }
+  return Array.from(m.entries()).map(([title, blocks]) => ({ title, blocks }));
 }

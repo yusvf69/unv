@@ -992,6 +992,87 @@ export function useImportExamSchedule() {
   });
 }
 
+// ===== Retakes (المواد المعادة) =====
+export interface RetakeCourseRow {
+  id: number; courseTitle: string; sourceYear: number; day: string; dayNumber: number;
+  startTime: string; endTime: string; room: string | null; instructor: string | null; type: string;
+}
+export interface RetakeOption {
+  courseTitle: string; sourceYear: number; carriedId: number | null; carried: boolean; blocks: RetakeCourseRow[];
+}
+export interface MyRetakesData {
+  carried: { id: number; courseTitle: string; sourceYear: number }[];
+  blocks: (RetakeCourseRow & { retakeId: number })[];
+}
+export function useAdminRetakeCourses() {
+  return useQuery<RetakeCourseRow[]>({
+    queryKey: ["v2", "admin", "retake-courses"],
+    queryFn: () => api.get("/v2/admin/retake-courses"),
+  });
+}
+export function useAddRetakeCourse() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (body: Omit<RetakeCourseRow, "id" | "dayNumber"> & { dayNumber?: number }) => api.post("/v2/admin/retake-courses", body),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["v2", "admin", "retake-courses"] });
+      qc.invalidateQueries({ queryKey: ["v2", "retake-options"] });
+    },
+  });
+}
+export function useUpdateRetakeCourse() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: ({ id, ...body }: { id: number } & Partial<Omit<RetakeCourseRow, "id">>) => api.put(`/v2/admin/retake-courses/${id}`, body),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["v2", "admin", "retake-courses"] });
+      qc.invalidateQueries({ queryKey: ["v2", "retake-options"] });
+    },
+  });
+}
+export function useDeleteRetakeCourse() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (id: number) => api.del(`/v2/admin/retake-courses/${id}`),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["v2", "admin", "retake-courses"] });
+      qc.invalidateQueries({ queryKey: ["v2", "retake-options"] });
+    },
+  });
+}
+export function useRetakeOptions() {
+  return useQuery<RetakeOption[]>({
+    queryKey: ["v2", "retake-options"],
+    queryFn: () => api.get("/v2/retake-options"),
+  });
+}
+export function useMyRetakes() {
+  return useQuery<MyRetakesData>({
+    queryKey: ["v2", "my-retakes"],
+    queryFn: () => api.get("/v2/my-retakes"),
+  });
+}
+export function useAddMyRetake() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (body: { courseTitle: string; sourceYear: number }) => api.post("/v2/my-retakes", body),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["v2", "my-retakes"] });
+      qc.invalidateQueries({ queryKey: ["v2", "retake-options"] });
+    },
+  });
+}
+export function useDeleteMyRetake() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (id: number) => api.del(`/v2/my-retakes/${id}`),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["v2", "my-retakes"] });
+      qc.invalidateQueries({ queryKey: ["v2", "retake-options"] });
+    },
+  });
+}
+
 // Achievements
 export interface Achievement {
   id: string; title: string; desc: string; target: number; value: number; icon: string; completed: boolean; percent: number;
