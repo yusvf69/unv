@@ -61,6 +61,7 @@ export default function Profile() {
   const [yearInCollege, setYearInCollege] = useState<number>(1);
   const [groupName, setGroupName] = useState("A");
   const [tab, setTab] = useState<ProfileTab>("account");
+  const [retakeSel, setRetakeSel] = useState<Set<string>>(new Set());
 
   useEffect(() => {
     if (!me) return;
@@ -70,6 +71,10 @@ export default function Profile() {
     setYearInCollege(me.yearInCollege || 1);
     setGroupName(me.groupName || "A");
   }, [me?.id]);
+
+  useEffect(() => {
+    setRetakeSel(new Set(retakeOptions.filter((o) => o.carried).map((o) => retakeKey(o))));
+  }, [retakeOptions]);
 
   if (!me) {
     return <div className="container mx-auto px-4 py-12 text-center">{t("loginFirst")}</div>;
@@ -90,10 +95,15 @@ export default function Profile() {
     }
   };
 
-  const toggleRetake = async (opt: { courseTitle: string; sourceYear: number; carriedId: number | null; carried: boolean }) => {
+  const retakeKey = (opt: { courseTitle: string; sourceYear: number }) => `${opt.courseTitle}||${opt.sourceYear}`;
+
+  const confirmRetakes = async () => {
+    const toAdd = retakeOptions.filter((o) => retakeSel.has(retakeKey(o)) && !o.carried);
+    const toRemove = retakeOptions.filter((o) => o.carried && !retakeSel.has(retakeKey(o)));
     try {
-      if (opt.carriedId) await delRetake.mutateAsync(opt.carriedId);
-      else await addRetake.mutateAsync({ courseTitle: opt.courseTitle, sourceYear: opt.sourceYear });
+      if (toAdd.length) await Promise.all(toAdd.map((o) => addRetake.mutateAsync({ courseTitle: o.courseTitle, sourceYear: o.sourceYear })));
+      if (toRemove.length) await Promise.all(toRemove.map((o) => delRetake.mutateAsync(o.carriedId!)));
+      toast({ title: "تم حفظ المواد المعادة" });
     } catch (e) {
       toast({ title: t("error"), description: (e as Error).message, variant: "destructive" });
     }
@@ -225,33 +235,58 @@ export default function Profile() {
           {retakeOptions.length > 0 && (
             <div className="bg-card border rounded-2xl p-4 sm:p-6">
               <h2 className="font-bold text-lg sm:text-xl mb-1 flex items-center gap-2"><RefreshCw className="h-5 w-5 text-primary" /> المواد المعادة</h2>
-              <p className="text-xs sm:text-sm text-muted-foreground mb-4">علّم على المواد اللي معاك (شايلها) من سنين أقدم — مواعيدها هتظهر في جدولك بعلامة «معاد».</p>
-              <div className="grid sm:grid-cols-2 gap-2">
-                {retakeOptions.map((opt) => {
-                  const daysList = Array.from(new Set(opt.blocks.map((b) => b.day))).join("، ");
+              <p className="text-xs sm:text-sm text-muted-foreground mb-4">اختار المادة اللي شايلها من قسم السنه بتاعتها، وبعدين دوس «تأكيد» — مواعيدها هتظهر في جدولك بعلامة «معاد».</p>
+              {(() => {
+                const years = Array.from(new Set(retakeOptions.map((o) => o.sourceYear))).sort((a, b) => a - b);
+                return years.map((year) => {
+                  const opts = retakeOptions.filter((o) => o.sourceYear === year);
                   return (
-                    <label
-                      key={`${opt.courseTitle}|${opt.sourceYear}`}
-                      className={`flex items-start gap-2 p-3 rounded-xl border cursor-pointer transition ${opt.carried ? "bg-amber-500/10 border-amber-500/40" : "bg-muted/40 border-border hover:bg-muted/70"}`}
-                    >
-                      <input
-                        type="checkbox"
-                        checked={opt.carried}
-                        onChange={() => toggleRetake(opt)}
-                        className="mt-0.5 h-4 w-4 accent-amber-500"
-                      />
-                      <div className="flex-1 min-w-0">
-                        <div className="font-bold text-xs sm:text-sm flex items-center gap-1.5 flex-wrap">
-                          {opt.courseTitle}
-                          {opt.carried && <span className="inline-flex items-center gap-0.5 text-[10px] bg-amber-500/20 text-amber-700 dark:text-amber-300 px-1.5 py-0.5 rounded-full font-bold"><Check className="h-3 w-3" /> معاك</span>}
-                        </div>
-                        <div className="text-[10px] sm:text-xs text-muted-foreground mt-0.5">
-                          من سنة {opt.sourceYear} · {opt.blocks.length} موعد · {daysList || "—"}
-                        </div>
+                    <div key={year} className="mb-4 last:mb-2">
+                      <h3 className="font-bold text-sm text-muted-foreground mb-2 flex items-center gap-2">
+                        <span className="bg-primary/10 text-primary text-[10px] px-2 py-0.5 rounded-full">سنة {year}</span>
+                        {opts.length} مادة
+                      </h3>
+                      <div className="grid sm:grid-cols-2 gap-2">
+                        {opts.map((opt) => {
+                          const daysList = Array.from(new Set(opt.blocks.map((b) => b.day))).join("، ");
+                          const checked = retakeSel.has(retakeKey(opt));
+                          return (
+                            <label
+                              key={retakeKey(opt)}
+                              className={`flex items-start gap-2 p-3 rounded-xl border cursor-pointer transition ${checked ? "bg-amber-500/10 border-amber-500/40" : "bg-muted/40 border-border hover:bg-muted/70"}`}
+                            >
+                              <input
+                                type="checkbox"
+                                checked={checked}
+                                onChange={() => {
+                                  const next = new Set(retakeSel);
+                                  if (next.has(retakeKey(opt))) next.delete(retakeKey(opt));
+                                  else next.add(retakeKey(opt));
+                                  setRetakeSel(next);
+                                }}
+                                className="mt-0.5 h-4 w-4 accent-amber-500"
+                              />
+                              <div className="flex-1 min-w-0">
+                                <div className="font-bold text-xs sm:text-sm flex items-center gap-1.5 flex-wrap">
+                                  {opt.courseTitle}
+                                  {checked && <span className="inline-flex items-center gap-0.5 text-[10px] bg-amber-500/20 text-amber-700 dark:text-amber-300 px-1.5 py-0.5 rounded-full font-bold"><Check className="h-3 w-3" /> معاك</span>}
+                                </div>
+                                <div className="text-[10px] sm:text-xs text-muted-foreground mt-0.5">
+                                  {opt.blocks.length} موعد · {daysList || "—"}
+                                </div>
+                              </div>
+                            </label>
+                          );
+                        })}
                       </div>
-                    </label>
+                    </div>
                   );
-                })}
+                });
+              })()}
+              <div className="flex justify-end mt-2">
+                <Button onClick={confirmRetakes} disabled={addRetake.isPending || delRetake.isPending} className="text-xs sm:text-sm">
+                  {addRetake.isPending || delRetake.isPending ? "جاري الحفظ..." : <><Check className="me-2 h-3.5 w-3.5 sm:h-4 sm:w-4" /> تأكيد</>}
+                </Button>
               </div>
             </div>
           )}
