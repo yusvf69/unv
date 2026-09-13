@@ -1,6 +1,6 @@
 import { useMemo, useState } from "react";
 import { motion } from "framer-motion";
-import { Plus, Trash2, Calendar, FileText, Clock, Award, Upload, Pencil } from "lucide-react";
+import { Plus, Trash2, Calendar, FileText, Clock, Award, Upload, Pencil, RefreshCw } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
@@ -133,7 +133,7 @@ export default function AdminSchedule() {
 }
 
 function ClassScheduleTab() {
-  const { data: rows = [] } = useAdminGroupSchedule();
+  const { data: rows = [], refetch, isFetching, error } = useAdminGroupSchedule();
   const add = useAddGroupScheduleRow();
   const del = useDeleteGroupScheduleRow();
   const update = useUpdateGroupScheduleRow();
@@ -226,9 +226,14 @@ function ClassScheduleTab() {
         </div>
         <Button className="ms-3 h-8 sm:h-9 text-xs sm:text-sm" onClick={openAdd}><Plus className="me-2 h-3 w-3 sm:h-4 sm:w-4" /> محاضرة جديدة</Button>
         <Button variant="outline" className="h-8 sm:h-9 text-xs sm:text-sm" onClick={() => { setImportOpen(true); setOpen(false); }}><FileText className="me-2 h-3 w-3 sm:h-4 sm:w-4" /> استيراد من نص</Button>
+        <Button variant="outline" className="h-8 sm:h-9 text-xs sm:text-sm" onClick={() => refetch()} disabled={isFetching}><RefreshCw className="me-2 h-3 w-3 sm:h-4 sm:w-4" /> تحديث</Button>
       </div>
 
-      {!grouped.length && <p className="text-center text-muted-foreground py-8 sm:py-12 text-sm">لا توجد محاضرات في الجدول.</p>}
+      {error ? (
+        <div className="bg-destructive/10 border border-destructive rounded-xl p-3 text-sm text-destructive mb-3">فشل تحميل الجدول: {(error as Error).message}</div>
+      ) : !grouped.length ? (
+        <p className="text-center text-muted-foreground py-8 sm:py-12 text-sm">لا توجد محاضرات في الجدول.</p>
+      ) : null}
 
       <div className="space-y-2">
         {grouped.map((g, i) => {
@@ -338,7 +343,7 @@ function ClassScheduleTab() {
 }
 
 function ExamScheduleTab() {
-  const { data: rows = [] } = useAdminExamSchedule();
+  const { data: rows = [], refetch, isFetching, error } = useAdminExamSchedule();
   const add = useAddExamScheduleRow();
   const del = useDeleteExamScheduleRow();
   const update = useUpdateExamScheduleRow();
@@ -419,9 +424,14 @@ function ExamScheduleTab() {
         </div>
         <Button className="ms-3 h-8 sm:h-9 text-xs sm:text-sm" onClick={() => { setEditTargets(null); setForm({ groupName: "A", yearInCollege: 1, day: "السبت", date: "", time: "09:00", courseTitle: "", courseCode: "", room: "", type: "midterm", allGroups: false, allYears: false }); setOpen(true); }}><Plus className="me-2 h-3 w-3 sm:h-4 sm:w-4" /> امتحان جديد</Button>
         <Button variant="outline" className="h-8 sm:h-9 text-xs sm:text-sm" onClick={() => { setImportOpen(true); setOpen(false); }}><FileText className="me-2 h-3 w-3 sm:h-4 sm:w-4" /> استيراد من نص</Button>
+        <Button variant="outline" className="h-8 sm:h-9 text-xs sm:text-sm" onClick={() => refetch()} disabled={isFetching}><RefreshCw className="me-2 h-3 w-3 sm:h-4 sm:w-4" /> تحديث</Button>
       </div>
 
-      {!filtered.length && <p className="text-center text-muted-foreground py-8 sm:py-12 text-sm">لا توجد امتحانات في الجدول.</p>}
+      {error ? (
+        <div className="bg-destructive/10 border border-destructive rounded-xl p-3 text-sm text-destructive mb-3">فشل تحميل الجدول: {(error as Error).message}</div>
+      ) : !filtered.length ? (
+        <p className="text-center text-muted-foreground py-8 sm:py-12 text-sm">لا توجد امتحانات في الجدول.</p>
+      ) : null}
 
       <div className="space-y-2">
         {grouped.map((g, i) => {

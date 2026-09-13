@@ -872,7 +872,12 @@ export function useMyGroupSchedule(group?: string | null, year?: number | null) 
   });
 }
 export function useAdminGroupSchedule() {
-  return useQuery<GroupScheduleRow[]>({ queryKey: ["v2", "admin", "group-schedule"], queryFn: () => api.get("/v2/admin/group-schedule") });
+  return useQuery<GroupScheduleRow[]>({
+    queryKey: ["v2", "admin", "group-schedule"],
+    queryFn: () => api.get("/v2/admin/group-schedule"),
+    refetchOnMount: "always",
+    refetchOnWindowFocus: true,
+  });
 }
 export function useAddGroupScheduleRow() {
   const qc = useQueryClient();
@@ -939,7 +944,12 @@ export function useMyExamSchedule(group?: string | null, year?: number | null) {
   });
 }
 export function useAdminExamSchedule() {
-  return useQuery<ExamScheduleRow[]>({ queryKey: ["v2", "admin", "exam-schedule"], queryFn: () => api.get("/v2/admin/exam-schedule") });
+  return useQuery<ExamScheduleRow[]>({
+    queryKey: ["v2", "admin", "exam-schedule"],
+    queryFn: () => api.get("/v2/admin/exam-schedule"),
+    refetchOnMount: "always",
+    refetchOnWindowFocus: true,
+  });
 }
 export function useAddExamScheduleRow() {
   const qc = useQueryClient();
