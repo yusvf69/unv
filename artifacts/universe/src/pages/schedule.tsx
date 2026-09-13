@@ -1,9 +1,9 @@
 import { useMemo, useState, useEffect } from "react";
 import { motion } from "framer-motion";
-import { Calendar, Clock, MapPin, User as UserIcon, ChevronLeft, ChevronRight, FileText, Award, Bell, Loader2, RefreshCw, Check, Settings } from "lucide-react";
+import { Calendar, Clock, MapPin, User as UserIcon, ChevronLeft, ChevronRight, FileText, Award, Bell, Loader2, RefreshCw, Settings } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Link } from "wouter";
-import { useMyGroupSchedule, useMyExamSchedule, useMeV2, useRetakeOptions, useMyRetakes, useAddMyRetake, useDeleteMyRetake, type RetakeOption } from "@/lib/api";
+import { useMyGroupSchedule, useMyExamSchedule, useMeV2, useRetakeOptions, useMyRetakes } from "@/lib/api";
 import { formatDateFull, formatMonth, formatShortDate, formatShortDateYear } from "@/lib/dates";
 import { useTranslation, globalI18n } from "@/lib/i18n";
 
@@ -33,8 +33,6 @@ export default function Schedule() {
   const { data: exams = [], isLoading: examLoading } = useMyExamSchedule(me?.groupName, me?.yearInCollege);
   const { data: retakeOptions = [] } = useRetakeOptions();
   const { data: myRetakes } = useMyRetakes();
-  const addRetake = useAddMyRetake();
-  const delRetake = useDeleteMyRetake();
   const [scheduleView, setScheduleView] = useState<ViewMode>("week");
   const [examView, setExamView] = useState<ViewMode>("week");
   const [tab, setTab] = useState<TabMode>("schedule");
@@ -82,13 +80,6 @@ export default function Schedule() {
     for (const d of Object.keys(m)) m[d].sort((a, b) => a.startTime.localeCompare(b.startTime));
     return m;
   }, [combinedRows, days]);
-
-  const toggleRetake = async (opt: RetakeOption) => {
-    try {
-      if (opt.carriedId) await delRetake.mutateAsync(opt.carriedId);
-      else await addRetake.mutateAsync({ courseTitle: opt.courseTitle, sourceYear: opt.sourceYear });
-    } catch { /* تجاهل */ }
-  };
 
   // Compute upcoming exam alerts (within 24 hours)
   useEffect(() => {
@@ -141,53 +132,18 @@ export default function Schedule() {
 
       {/* المواد المعادة */}
       {retakeOptions.length > 0 && (
-        <motion.div initial={{ opacity: 0, y: -8 }} animate={{ opacity: 1, y: 0 }} className="mb-4 sm:mb-6 bg-card border rounded-2xl p-3 sm:p-4">
-          <div className="flex items-center justify-between gap-2 mb-3 flex-wrap">
+        <div className="mb-4 sm:mb-6 bg-card border rounded-2xl p-3 sm:p-4 flex items-center justify-between gap-2 flex-wrap">
+          <div className="flex items-center gap-2 flex-wrap">
             <h2 className="font-bold text-sm sm:text-base flex items-center gap-2"><RefreshCw className="h-4 w-4 text-primary" /> المواد المعادة</h2>
-            {retakeOptions.filter((o) => o.carried).length === 0 && (
-              <p className="text-[10px] sm:text-xs text-muted-foreground">علّم على المواد اللي معاك من سنين أقدم، ومواعيدها هتظهرلَك في جدولك</p>
-            )}
+            {(() => {
+              const n = retakeOptions.filter((o) => o.carried).length;
+              return n > 0 ? <span className="text-[10px] bg-amber-500/20 text-amber-700 dark:text-amber-300 px-2 py-0.5 rounded-full font-bold">{n} مواد معاد</span> : null;
+            })()}
           </div>
-
-          {retakeOptions.some((o) => o.carried) ? (
-            <div className="flex items-center justify-between gap-2 flex-wrap">
-              <p className="text-xs sm:text-sm text-muted-foreground">
-                عندك <span className="font-bold text-foreground">{retakeOptions.filter((o) => o.carried).length} مواد معاد</span> — مواعيدها ظاهرة في جدولك بعلامة «معاد».
-              </p>
-              <Button asChild size="sm" variant="outline" className="text-xs">
-                <Link href="/profile"><Settings className="me-1 h-3.5 w-3.5" /> تعديل من حسابك الشخصي</Link>
-              </Button>
-            </div>
-          ) : (
-            <div className="grid sm:grid-cols-2 gap-2">
-              {retakeOptions.map((opt) => {
-                const daysList = Array.from(new Set(opt.blocks.map((b) => b.day))).join("، ");
-                return (
-                  <label
-                    key={`${opt.courseTitle}|${opt.sourceYear}`}
-                    className={`flex items-start gap-2 p-3 rounded-xl border cursor-pointer transition ${opt.carried ? "bg-amber-500/10 border-amber-500/40" : "bg-muted/40 border-border hover:bg-muted/70"}`}
-                  >
-                    <input
-                      type="checkbox"
-                      checked={opt.carried}
-                      onChange={() => toggleRetake(opt)}
-                      className="mt-0.5 h-4 w-4 accent-amber-500"
-                    />
-                    <div className="flex-1 min-w-0">
-                      <div className="font-bold text-xs sm:text-sm flex items-center gap-1.5 flex-wrap">
-                        {opt.courseTitle}
-                        {opt.carried && <span className="inline-flex items-center gap-0.5 text-[10px] bg-amber-500/20 text-amber-700 dark:text-amber-300 px-1.5 py-0.5 rounded-full font-bold"><Check className="h-3 w-3" /> معاك</span>}
-                      </div>
-                      <div className="text-[10px] sm:text-xs text-muted-foreground mt-0.5">
-                        {opt.sourceYear > (me?.yearInCollege ?? opt.sourceYear) ? "مادة سنة أقدم" : `من سنة ${opt.sourceYear}`} · {opt.blocks.length} موعد · {daysList || "—"}
-                      </div>
-                    </div>
-                  </label>
-                );
-              })}
-            </div>
-          )}
-        </motion.div>
+          <Button asChild size="sm" variant="outline" className="text-xs">
+            <Link href="/profile?tab=schedule#retakes"><Settings className="me-1 h-3.5 w-3.5" /> {retakeOptions.some((o) => o.carried) ? "تعديل المواد المعادة" : "اختيار المواد المعادة"}</Link>
+          </Button>
+        </div>
       )}
 
       {/* Upcoming Exam Alerts */}

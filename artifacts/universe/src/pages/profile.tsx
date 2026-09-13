@@ -9,7 +9,7 @@ import { useToast } from "@/hooks/use-toast";
 import { useMeV2, useUpdateProfile, useAchievements, useMyGroupSchedule, useMyExamSchedule, useUnlockables, useEquipUnlockable, useFollows, useRetakeOptions, useAddMyRetake, useDeleteMyRetake } from "@/lib/api";
 import { useGetDashboard } from "@workspace/api-client-react";
 import FileUpload from "@/components/file-upload";
-import { Link } from "wouter";
+import { Link, useLocation } from "wouter";
 import { useTranslation, globalI18n } from "@/lib/i18n";
 
 const SPECIALIZATIONS = [
@@ -60,8 +60,21 @@ export default function Profile() {
   const [specialization, setSpecialization] = useState("");
   const [yearInCollege, setYearInCollege] = useState<number>(1);
   const [groupName, setGroupName] = useState("A");
-  const [tab, setTab] = useState<ProfileTab>("account");
+  const [location] = useLocation();
+  const [tab, setTab] = useState<ProfileTab>(() => {
+    if (typeof location === "string" && location.includes("?tab=")) {
+      const t = new URLSearchParams((location.split("?")[1] || "").split("#")[0]).get("tab");
+      if (t === "account" || t === "schedule" || t === "tasks" || t === "progress" || t === "goals") return t;
+    }
+    return "account";
+  });
   const [retakeSel, setRetakeSel] = useState<Set<string>>(new Set());
+
+  useEffect(() => {
+    if (!location.includes("#retakes")) return () => {};
+    const id = setTimeout(() => document.getElementById("retakes")?.scrollIntoView({ behavior: "smooth", block: "start" }), 150);
+    return () => clearTimeout(id);
+  }, [location]);
 
   useEffect(() => {
     if (!me) return;
@@ -233,7 +246,7 @@ export default function Profile() {
       {tab === "schedule" && (
         <div className="space-y-4 sm:space-y-6">
           {retakeOptions.length > 0 && (
-            <div className="bg-card border rounded-2xl p-4 sm:p-6">
+            <div id="retakes" className="bg-card border rounded-2xl p-4 sm:p-6 scroll-mt-20">
               <h2 className="font-bold text-lg sm:text-xl mb-1 flex items-center gap-2"><RefreshCw className="h-5 w-5 text-primary" /> المواد المعادة</h2>
               <p className="text-xs sm:text-sm text-muted-foreground mb-4">اختار المادة اللي شايلها من قسم السنه بتاعتها، وبعدين دوس «تأكيد» — مواعيدها هتظهر في جدولك بعلامة «معاد».</p>
               {(() => {
