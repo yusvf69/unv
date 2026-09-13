@@ -9,7 +9,7 @@ import { useToast } from "@/hooks/use-toast";
 import { useMeV2, useUpdateProfile, useAchievements, useMyGroupSchedule, useMyExamSchedule, useUnlockables, useEquipUnlockable, useFollows, useRetakeOptions, useAddMyRetake, useDeleteMyRetake } from "@/lib/api";
 import { useGetDashboard } from "@workspace/api-client-react";
 import FileUpload from "@/components/file-upload";
-import { Link, useLocation } from "wouter";
+import { Link, useSearch } from "wouter";
 import { useTranslation, globalI18n } from "@/lib/i18n";
 
 const SPECIALIZATIONS = [
@@ -60,21 +60,19 @@ export default function Profile() {
   const [specialization, setSpecialization] = useState("");
   const [yearInCollege, setYearInCollege] = useState<number>(1);
   const [groupName, setGroupName] = useState("A");
-  const [location] = useLocation();
+  const search = useSearch();
   const [tab, setTab] = useState<ProfileTab>(() => {
-    if (typeof location === "string" && location.includes("?tab=")) {
-      const t = new URLSearchParams((location.split("?")[1] || "").split("#")[0]).get("tab");
-      if (t === "account" || t === "schedule" || t === "tasks" || t === "progress" || t === "goals") return t;
-    }
+    const t = new URLSearchParams((search || "").replace(/^\?/, "")).get("tab");
+    if (t === "account" || t === "schedule" || t === "tasks" || t === "progress" || t === "goals") return t;
     return "account";
   });
   const [retakeSel, setRetakeSel] = useState<Set<string>>(new Set());
 
   useEffect(() => {
-    if (!location.includes("#retakes")) return () => {};
+    if (window.location.hash !== "#retakes") return () => {};
     const id = setTimeout(() => document.getElementById("retakes")?.scrollIntoView({ behavior: "smooth", block: "start" }), 150);
     return () => clearTimeout(id);
-  }, [location]);
+  }, []);
 
   useEffect(() => {
     if (!me) return;
