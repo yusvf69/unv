@@ -3576,11 +3576,14 @@ async function handleRetakes(req: Request, parts: string[]): Promise<Response> {
         subjects.get(key)!.blocks = [];
         subjects.get(key)!.blocks.push(mapRetakeRow(r));
       }
-      return Array.from(subjects.values()).map((o) => ({
-        ...o,
-        carriedId: carriedIdByKey.get(`${o.courseTitle}||${o.sourceYear}`) ?? null,
-        carried: carriedIdByKey.has(`${o.courseTitle}||${o.sourceYear}`),
-      }));
+      const myYear = user?.year_in_college != null ? Number(user.year_in_college) : null;
+      return Array.from(subjects.values())
+        .filter((o) => myYear == null || o.sourceYear < myYear)
+        .map((o) => ({
+          ...o,
+          carriedId: carriedIdByKey.get(`${o.courseTitle}||${o.sourceYear}`) ?? null,
+          carried: carriedIdByKey.has(`${o.courseTitle}||${o.sourceYear}`),
+        }));
     });
   }
 
@@ -3621,6 +3624,7 @@ async function handleRetakes(req: Request, parts: string[]): Promise<Response> {
         if (!courseTitle || !sourceYear) throw Object.assign(new Error("بيانات ناقصة"), { status: 400 });
         const base = normalizeSubject(courseTitle);
         const yearN = Number(sourceYear);
+        if (user?.year_in_college != null && yearN >= Number(user.year_in_college)) throw Object.assign(new Error("مش ممكن تشيل مادة من سنتك أو سنة أصغر"), { status: 400 });
         const rcTitles = await sql`SELECT course_title FROM retake_courses WHERE source_year = ${yearN}`;
         const gsTitles = await sql`SELECT DISTINCT course_title FROM group_schedule WHERE year_in_college = ${yearN}`;
         const found = [...rcTitles, ...gsTitles].some((x: any) => normalizeSubject(x.course_title) === base);
