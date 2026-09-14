@@ -9,6 +9,7 @@ import { Badge } from "@/components/ui/badge";
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { useAdminEbooks, useAddEbook, useUpdateEbook, useDeleteEbook, useMeV2, useAdminPermissions } from "@/lib/api";
 import { useToast } from "@/hooks/use-toast";
+import FileUpload from "@/components/file-upload";
 
 const YEARS = [1, 2, 3, 4];
 
@@ -136,8 +137,12 @@ export default function AdminEbooks() {
               <Input dir="ltr" value={form.bookUrl} onChange={(e) => setForm({ ...form, bookUrl: e.target.value })} placeholder="https://…" />
             </div>
             <div className="space-y-1.5">
-              <Label className="text-xs">رابط صورة الغلاف</Label>
-              <Input dir="ltr" value={form.coverUrl} onChange={(e) => setForm({ ...form, coverUrl: e.target.value })} placeholder="https://… (اختياري)" />
+              <Label className="text-xs">صورة الغلاف</Label>
+              <FileUpload value={form.coverUrl || null} onChange={(d) => setForm({ ...form, coverUrl: d || "" })} maxSizeKb={600} />
+            </div>
+            <div className="space-y-1.5">
+              <Label className="text-xs">أو حط لينك صورة من النت (اختياري)</Label>
+              <Input dir="ltr" value={form.coverUrl.startsWith("data:") ? "" : form.coverUrl} onChange={(e) => setForm({ ...form, coverUrl: e.target.value })} placeholder="https://…" />
             </div>
             <div className="space-y-1.5">
               <Label className="text-xs">وصف قصير</Label>
