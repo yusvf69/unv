@@ -26,6 +26,10 @@ export default function Messages() {
         <p className="text-xs sm:text-sm text-muted-foreground mt-1">{t("privateChats")}</p>
       </motion.div>
 
+      <div className="mb-4 rounded-xl bg-amber-500/10 border border-amber-500/30 p-3 text-[11px] sm:text-xs text-amber-700 dark:text-amber-300 leading-relaxed">
+        ⚠️ تنبيه: الرسايل اللي على السايت <b>غير مشفّرة</b>، والجهة المسؤولة عنها حقها الكامل تطلع على المحادثات في أي وقت يلمّ فيه كده للمراجعة أو التحقيق.
+      </div>
+
       {isLoading && <p className="text-center text-muted-foreground py-8 sm:py-12 text-sm">{t("loading")}</p>}
 
       {isError && (
