@@ -1,6 +1,6 @@
 import type { QueryClient } from "@tanstack/react-query";
 
-const CACHE_PREFIX = "unv-qcache:v4:";
+const CACHE_PREFIX = "unv-qcache:v5:";
 const MAX_ENTRIES = 80;
 const MAX_ENTRY_BYTES = 2 * 1024 * 1024;
 const MAX_TOTAL_BYTES = 3.5 * 1024 * 1024;

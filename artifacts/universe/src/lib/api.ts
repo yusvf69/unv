@@ -1059,6 +1059,7 @@ export function useAddMyRetake() {
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ["v2", "my-retakes"] });
       qc.invalidateQueries({ queryKey: ["v2", "retake-options"] });
+      qc.invalidateQueries({ queryKey: ["v2", "courses"] });
     },
   });
 }
@@ -1069,6 +1070,7 @@ export function useDeleteMyRetake() {
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ["v2", "my-retakes"] });
       qc.invalidateQueries({ queryKey: ["v2", "retake-options"] });
+      qc.invalidateQueries({ queryKey: ["v2", "courses"] });
     },
   });
 }
