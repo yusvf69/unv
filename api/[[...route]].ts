@@ -3888,6 +3888,7 @@ async function handleAdminCrud(req: Request, parts: string[]): Promise<Response>
         id: c.id, title: c.title, code: c.code, description: c.description,
         credits: c.credits, department: c.department, instructor: c.instructor,
         coverUrl: c.cover_url, enrolled: c.enrolled, semester: c.semester,
+        yearInCollege: c.year_in_college ?? null,
       }));
     });
   }
@@ -4624,7 +4625,7 @@ async function handleCoursesList(): Promise<Response> {
       id: c.id, title: c.title, code: c.code, description: c.description,
       credits: c.credits, department: c.department, instructor: c.instructor,
       coverUrl: c.cover_url, progress: c.progress, enrolled: c.enrolled,
-      semester: c.semester ?? 1,
+      semester: c.semester ?? 1, yearInCollege: c.year_in_college ?? null,
     }));
   });
 }

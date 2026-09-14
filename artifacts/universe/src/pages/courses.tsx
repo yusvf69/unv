@@ -9,8 +9,30 @@ export default function Courses() {
 
   if (isPending || isError) return <div className="p-8 text-center flex items-center justify-center gap-2"><Loader2 className="h-5 w-5 animate-spin" /> {t("loading")}</div>;
 
-  const firstSemester = courses.filter(c => c.semester === 1);
-  const secondSemester = courses.filter(c => c.semester === 2);
+  const byYear = new Map<number, typeof courses>();
+  for (const c of courses) {
+    const y = c.yearInCollege || 0;
+    if (!byYear.has(y)) byYear.set(y, []);
+    byYear.get(y)!.push(c);
+  }
+  const years = Array.from(byYear.keys()).sort((a, b) => (b === 0 ? -1 : a === 0 ? 1 : a - b));
+  const yearName = (y: number) => (y === 0 ? "عام" : `سنة ${y}`);
+
+  function renderSection(year: number, semester: number) {
+    const list = byYear.get(year)!.filter((c) => (c.semester || 1) === semester);
+    if (!list.length) return null;
+    return (
+      <div className="mb-5">
+        <h3 className="text-sm sm:text-lg font-bold mb-3 flex items-center gap-2">
+          <span className={`w-1.5 h-1.5 sm:w-2 sm:h-2 rounded-full ${semester === 1 ? "bg-primary" : "bg-secondary"}`} />
+          {semester === 1 ? t("firstSemester") : t("secondSemester")}
+        </h3>
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 sm:gap-6">
+          {list.map(renderCourse)}
+        </div>
+      </div>
+    );
+  }
 
   function renderCourse(course: any) {
     return (
@@ -26,6 +48,11 @@ export default function Courses() {
           <div className="absolute top-3 sm:top-4 start-3 sm:start-4 bg-background/90 backdrop-blur-sm px-2 py-1 rounded-md text-[10px] sm:text-xs font-bold shadow-sm">
             {course.code}
           </div>
+          {course.yearInCollege && (
+            <div className="absolute bottom-3 start-3 max-w-[calc(100%-24px)] bg-background/90 backdrop-blur-sm px-2 py-1 rounded-md text-[10px] sm:text-xs font-bold shadow-sm">
+              {yearName(course.yearInCollege)}
+            </div>
+          )}
         </div>
 
         <div className="p-4 sm:p-6 flex flex-col flex-1">
@@ -52,29 +79,16 @@ export default function Courses() {
       <h1 className="text-2xl sm:text-4xl font-serif font-bold text-primary mb-1 sm:mb-2">{t("coursesPageTitle")}</h1>
       <p className="text-muted-foreground text-xs sm:text-sm mb-4 sm:mb-8">{t("coursesSubtitle")}</p>
 
-      {firstSemester.length > 0 && (
-        <div className="mb-6 sm:mb-8">
+      {years.map((year) => (
+        <section key={year} className="mb-6 sm:mb-10">
           <h2 className="text-lg sm:text-2xl font-bold mb-3 sm:mb-4 flex items-center gap-2">
             <span className="w-2 h-2 sm:w-3 sm:h-3 rounded-full bg-primary" />
-            {t("firstSemester")}
+            {yearName(year)}
           </h2>
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 sm:gap-6">
-            {firstSemester.map(renderCourse)}
-          </div>
-        </div>
-      )}
-
-      {secondSemester.length > 0 && (
-        <div className="mb-6 sm:mb-8">
-          <h2 className="text-lg sm:text-2xl font-bold mb-3 sm:mb-4 flex items-center gap-2">
-            <span className="w-2 h-2 sm:w-3 sm:h-3 rounded-full bg-secondary" />
-            {t("secondSemester")}
-          </h2>
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 sm:gap-6">
-            {secondSemester.map(renderCourse)}
-          </div>
-        </div>
-      )}
+          {renderSection(year, 1)}
+          {renderSection(year, 2)}
+        </section>
+      ))}
 
       {!courses.length && (
         <div className="text-center text-muted-foreground py-10 sm:py-12">

@@ -152,7 +152,7 @@ export default function AdminCourses() {
             )}
             <div className="p-3 sm:p-4">
               <div className="flex items-start justify-between gap-2">
-                <div className="text-[10px] sm:text-xs text-secondary font-bold">{c.code} · {c.credits} ساعات</div>
+                <div className="text-[10px] sm:text-xs text-secondary font-bold">{c.code} · {c.credits} ساعات · {c.yearInCollege ? `سنة ${c.yearInCollege}` : "عام"}</div>
                 <button onClick={(e) => { e.stopPropagation(); remove1(c.id); }} className="p-1 rounded hover:bg-destructive/10"><Trash2 className="h-3.5 w-3.5 sm:h-4 sm:w-4 text-destructive" /></button>
               </div>
               <h3 className="font-bold text-sm sm:text-base mt-1">{c.title}</h3>
