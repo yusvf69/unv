@@ -35,6 +35,7 @@ export const globalI18n = {
   students: { ar: "الطلاب", en: "Students" },
   events: { ar: "الأحداث", en: "Events" },
   materials: { ar: "ملفات المواد", en: "Materials" },
+  ebooks: { ar: "الكتب الإلكترونية", en: "E-books" },
   summaries: { ar: "ملخصات الطلبة", en: "Student Summaries" },
   exams: { ar: "الامتحانات", en: "Exams" },
   settings: { ar: "الإعدادات", en: "Settings" },

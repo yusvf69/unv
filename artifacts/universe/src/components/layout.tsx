@@ -56,6 +56,7 @@ export default function Layout({ children }: { children: ReactNode }) {
     { href: "/schedule", label: t("schedule") },
     { href: "/courses", label: t("courses") },
     { href: "/materials", label: t("materials") },
+    { href: "/ebooks", label: t("ebooks") },
     { href: "/summaries", label: t("summaries") },
     { href: "/events", label: t("events") },
     { href: "/quizzes", label: t("quizzes") },

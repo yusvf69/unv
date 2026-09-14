@@ -54,6 +54,8 @@ import AdminEvents from "@/pages/admin-events";
 import StudentSummaries from "@/pages/student-summaries";
 import Schedule from "@/pages/schedule";
 import StudentProfile from "@/pages/student-profile";
+import Ebooks from "@/pages/ebooks";
+import AdminEbooks from "@/pages/admin-ebooks";
 import FAQ from "@/pages/faq";
 import Guide from "@/pages/guide";
 import Report from "@/pages/report";
@@ -131,6 +133,7 @@ function Router() {
         <ProtectedRoute path="/courses" component={Courses} />
         <ProtectedRoute path="/courses/:id" component={CourseDetail} />
         <ProtectedRoute path="/materials" component={Materials} />
+        <ProtectedRoute path="/ebooks" component={Ebooks} />
         <ProtectedRoute path="/quizzes" component={Quizzes} />
         <ProtectedRoute path="/quizzes/:id" component={QuizTakePage} />
         <ProtectedRoute path="/forum" component={Forum} />
@@ -159,6 +162,7 @@ function Router() {
         <ProtectedRoute path="/admin/courses" component={AdminCourses} />
         <ProtectedRoute path="/admin/courses/:id" component={AdminCourseDetail} />
         <ProtectedRoute path="/admin/materials" component={AdminMaterials} />
+        <ProtectedRoute path="/admin/ebooks" component={AdminEbooks} />
         <ProtectedRoute path="/admin/dm" component={AdminDmMonitor} />
         <ProtectedRoute path="/admin/schedule" component={AdminSchedule} />
         <ProtectedRoute path="/events" component={Events} />

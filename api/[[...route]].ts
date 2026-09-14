@@ -3641,6 +3641,70 @@ async function handleRetakes(req: Request, parts: string[]): Promise<Response> {
   return jsonError("Not Found", 404);
 }
 
+const mapEbookRow = (r: any) => ({
+  id: r.id,
+  title: r.title,
+  subject: r.subject,
+  yearInCollege: r.year_in_college,
+  coverUrl: r.cover_url,
+  bookUrl: r.book_url,
+  description: r.description,
+  createdAt: r.created_at?.toISOString?.() ?? null,
+});
+
+async function handleEbooks(req: Request, parts: string[]): Promise<Response> {
+  if (parts[1] === "admin") {
+    const { userId } = requireAuth(req.headers);
+    const user = await getCurrentUser(userId);
+    requireRole(user, ["admin", "super_admin"]);
+
+    if (req.method === "GET") {
+      return handle(async () => {
+        const rows = await sql`SELECT * FROM ebooks ORDER BY year_in_college NULLS LAST, title`;
+        return rows.map(mapEbookRow);
+      });
+    }
+    if (req.method === "POST") {
+      return handle(async () => {
+        const { title, subject, yearInCollege, coverUrl, bookUrl, description } = await req.json();
+        if (!title?.trim()) throw Object.assign(new Error("اكتب اسم الكتاب"), { status: 400 });
+        if (!bookUrl?.trim()) throw Object.assign(new Error("حط رابط الكتاب"), { status: 400 });
+        const [row] = await sql`
+          INSERT INTO ebooks (title, subject, year_in_college, cover_url, book_url, description, added_by_id)
+          VALUES (${title.trim()}, ${subject?.trim() || ""}, ${yearInCollege ? Number(yearInCollege) : null}, ${coverUrl?.trim() || null}, ${bookUrl.trim()}, ${description?.trim() || ""}, ${userId})
+          RETURNING *`;
+        return mapEbookRow(row);
+      });
+    }
+    if (req.method === "PUT") {
+      return handle(async () => {
+        const id = Number(parts[2]);
+        const { title, subject, yearInCollege, coverUrl, bookUrl, description } = await req.json();
+        const [row] = await sql`
+          UPDATE ebooks SET
+            title = ${title?.trim() ?? sql`title`},
+            subject = ${subject?.trim() ?? sql`subject`},
+            year_in_college = ${yearInCollege ? Number(yearInCollege) : null},
+            cover_url = ${coverUrl?.trim() || null},
+            book_url = ${bookUrl?.trim() ?? sql`book_url`},
+            description = ${description?.trim() ?? sql`description`}
+          WHERE id = ${id} RETURNING *`;
+        if (!row) throw Object.assign(new Error("الكتاب مش موجود"), { status: 404 });
+        return mapEbookRow(row);
+      });
+    }
+    if (req.method === "DELETE") {
+      return handle(async () => { await sql`DELETE FROM ebooks WHERE id = ${Number(parts[2])}`; return { ok: true }; });
+    }
+    return jsonError("Not Found", 404);
+  }
+
+  return handle(async () => {
+    const rows = await sql`SELECT * FROM ebooks ORDER BY year_in_college NULLS LAST, title`;
+    return rows.map(mapEbookRow);
+  });
+}
+
 function argsDayNumber(day: string): number {
   return AR_DAY_TO_NUM[day] ?? 0;
 }
@@ -5415,6 +5479,13 @@ async function handleRequest(request: Request): Promise<Response> {
     "POST /v2/my-retakes": () => handleRetakes(request, ["my-retakes"]),
     "DELETE /v2/my-retakes/:id": () => handleRetakes(request, ["my-retakes", parts[2]]),
     "GET /v2/retake-options": () => handleRetakes(request, ["retake-options"]),
+
+    // E-books
+    "GET /v2/ebooks": () => handleEbooks(request, ["ebooks"]),
+    "GET /v2/admin/ebooks": () => handleEbooks(request, ["ebooks", "admin"]),
+    "POST /v2/admin/ebooks": () => handleEbooks(request, ["ebooks", "admin"]),
+    "PUT /v2/admin/ebooks/:id": () => handleEbooks(request, ["ebooks", "admin", parts[3]]),
+    "DELETE /v2/admin/ebooks/:id": () => handleEbooks(request, ["ebooks", "admin", parts[3]]),
 
     // Courses
     "GET /courses": () => handleCoursesList(),

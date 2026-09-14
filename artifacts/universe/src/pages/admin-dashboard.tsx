@@ -45,6 +45,7 @@ const ADMIN_MODULES_ALL = [
   { href: "/admin/quizzes", icon: ClipboardList, title: "إدارة الاختبارات", desc: "فتح/إغلاق + المحاولات", color: "from-indigo-500 to-indigo-600", permKey: "manage_quizzes" },
   { href: "/admin/materials", icon: FolderUp, title: "ملفات المواد", desc: "رفع PDF وملفات للطلاب", color: "from-cyan-500 to-cyan-600", permKey: "manage_materials" },
   { href: "/admin/schedule", icon: Calendar, title: "جداول المجموعات", desc: "محاضرات لكل مجموعة + سنة", color: "from-purple-500 to-purple-600", permKey: "manage_schedule" },
+  { href: "/admin/ebooks", icon: BookOpen, title: "الكتب الإلكترونية", desc: "إضافة الكتب والصور للطلاب", color: "from-emerald-500 to-green-600", permKey: "manage_materials" },
   { href: "/admin/talents", icon: Sparkles, title: "مراجعة المواهب", desc: "حذف وتحذير المخالف", color: "from-rose-500 to-rose-600", permKey: "manage_talents" },
   { href: "/admin/proposals", icon: ShieldCheck, title: "الاقتراحات", desc: "موافقة السوبر أدمن", color: "from-violet-500 to-violet-600", permKey: "manage_proposals" },
   { href: "/admin/dm", icon: MessageSquare, title: "مراقبة المحادثات", desc: "عرض محادثات الطلاب", color: "from-pink-500 to-pink-600", permKey: "manage_dm" },

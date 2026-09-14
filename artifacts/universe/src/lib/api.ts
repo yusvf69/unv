@@ -1324,6 +1324,45 @@ export function useImportCourses() {
   });
 }
 
+// ===== E-books =====
+export interface Ebook {
+  id: number; title: string; subject: string; yearInCollege: number | null;
+  coverUrl: string | null; bookUrl: string; description: string; createdAt: string | null;
+}
+export function useEbooks() {
+  return useQuery({
+    queryKey: ["v2", "ebooks"],
+    queryFn: () => api.get<Ebook[]>("/v2/ebooks"),
+  });
+}
+export function useAdminEbooks() {
+  return useQuery({
+    queryKey: ["v2", "ebooks", "admin"],
+    queryFn: () => api.get<Ebook[]>("/v2/admin/ebooks"),
+  });
+}
+export function useAddEbook() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (body: { title: string; subject?: string; yearInCollege?: number | null; coverUrl?: string; bookUrl: string; description?: string }) => api.post<Ebook>("/v2/admin/ebooks", body),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ["v2", "ebooks"] }),
+  });
+}
+export function useUpdateEbook() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: ({ id, ...body }: { id: number; title: string; subject?: string; yearInCollege?: number | null; coverUrl?: string; bookUrl?: string; description?: string }) => api.put<Ebook>(`/v2/admin/ebooks/${id}`, body),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ["v2", "ebooks"] }),
+  });
+}
+export function useDeleteEbook() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (id: number) => api.del(`/v2/admin/ebooks/${id}`),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ["v2", "ebooks"] }),
+  });
+}
+
 // ===== Course Lectures & Sections =====
 export interface LectureVideo {
   id: number; lectureId: number; title: string; youtubeUrl: string; youtubeId: string; ord: number;
