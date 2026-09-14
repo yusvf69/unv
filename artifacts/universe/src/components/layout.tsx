@@ -18,6 +18,7 @@ import {
   Trophy,
   ClipboardList,
   GraduationCap,
+  Scale,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
@@ -170,6 +171,7 @@ export default function Layout({ children }: { children: ReactNode }) {
                   <DropdownMenuItem asChild><Link href="/leaderboard" className="cursor-pointer w-full flex items-center"><Trophy className="me-2 h-4 w-4" /><span>{t("leaderboard")}</span></Link></DropdownMenuItem>
                   <DropdownMenuItem asChild><Link href="/complaints" className="cursor-pointer w-full flex items-center"><ClipboardList className="me-2 h-4 w-4" /><span>{t("complaints")}</span></Link></DropdownMenuItem>
                   <DropdownMenuItem asChild><Link href="/students" className="cursor-pointer w-full flex items-center"><GraduationCap className="me-2 h-4 w-4" /><span>{t("students")}</span></Link></DropdownMenuItem>
+                  <DropdownMenuItem asChild><Link href="/rights" className="cursor-pointer w-full flex items-center"><Scale className="me-2 h-4 w-4" /><span>حقوق وتحذير</span></Link></DropdownMenuItem>
                   <DropdownMenuSeparator />
                   <DropdownMenuItem onClick={handleLogout} className="text-destructive focus:text-destructive cursor-pointer">
                     <LogOut className="me-2 h-4 w-4" /><span>{t("logout")}</span>

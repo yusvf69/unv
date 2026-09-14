@@ -56,6 +56,7 @@ import Schedule from "@/pages/schedule";
 import StudentProfile from "@/pages/student-profile";
 import Ebooks from "@/pages/ebooks";
 import AdminEbooks from "@/pages/admin-ebooks";
+import Rights from "@/pages/rights";
 import FAQ from "@/pages/faq";
 import Guide from "@/pages/guide";
 import Report from "@/pages/report";
@@ -170,6 +171,7 @@ function Router() {
         <ProtectedRoute path="/admin/skills" component={AdminSkills} />
         <ProtectedRoute path="/summaries" component={StudentSummaries} />
         <ProtectedRoute path="/schedule" component={Schedule} />
+        <Route path="/rights" component={Rights} />
         <ProtectedRoute path="/students/:id" component={StudentProfile} />
         <ProtectedRoute path="/faq" component={FAQ} />
         <ProtectedRoute path="/guide" component={Guide} />
