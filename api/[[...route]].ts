@@ -4783,6 +4783,25 @@ async function handleAdminCourses(req: Request, parts: string[]): Promise<Respon
   const user = await getCurrentUser(userId);
   requireRole(user, ["admin", "super_admin"]);
 
+  if (parts[2] === "import") {
+    return handle(async () => {
+      const body = await req.json();
+      const list = Array.isArray(body?.rows) ? body.rows : [];
+      if (!list.length) throw Object.assign(new Error("لا توجد بيانات لاستيرادها"), { status: 400 });
+      let inserted = 0;
+      for (const r of list) {
+        const { title, code, description, credits, department, instructorId, yearInCollege, semester, coverUrl } = r;
+        if (!title || !code) throw Object.assign(new Error("كل سطر محتاج كود وعنوان"), { status: 400 });
+        const [instructor] = instructorId ? await sql`SELECT name FROM users WHERE id = ${Number(instructorId)}` : [null];
+        await sql`
+          INSERT INTO courses (title, code, description, credits, department, instructor, instructor_id, cover_url, year_in_college, semester)
+          VALUES (${title}, ${code}, ${description || ""}, ${credits || 3}, ${department || ""}, ${instructor?.name || ""}, ${instructorId ? Number(instructorId) : null}, ${coverUrl || null}, ${yearInCollege ? Number(yearInCollege) : null}, ${semester || 1})`;
+        inserted++;
+      }
+      return { ok: true, inserted };
+    });
+  }
+
   if (req.method === "POST") {
     return handle(async () => {
       const body = await req.json();
@@ -5131,6 +5150,7 @@ async function handleRequest(request: Request): Promise<Response> {
     "DELETE /v2/admin/talent-comments/:id": () => handleAdminCrud(request, ["", "admin", "talent-comments", parts[3]]),
     "DELETE /v2/admin/material-comments/:id": () => handleAdminCrud(request, ["", "admin", "material-comments", parts[3]]),
     "POST /v2/admin/courses": () => handleAdminCourses(request, ["admin", "courses"]),
+    "POST /v2/admin/courses/import": () => handleAdminCourses(request, ["admin", "courses", "import"]),
     "DELETE /v2/admin/courses/:id": () => handleAdminCourses(request, ["admin", "courses", parts[3]]),
     "POST /v2/admin/quizzes": () => handleAdminQuizzes(request, ["admin", "quizzes"]),
     "PUT /v2/admin/quizzes/:id": () => handleAdminQuizzes(request, ["admin", "quizzes", parts[3]]),

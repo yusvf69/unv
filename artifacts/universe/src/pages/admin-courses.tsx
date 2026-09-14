@@ -1,6 +1,6 @@
 import { useMemo, useState } from "react";
 import { motion } from "framer-motion";
-import { Plus, BookOpen, Send, Trash2 } from "lucide-react";
+import { Plus, BookOpen, Send, Trash2, FileText } from "lucide-react";
 import { useLocation } from "wouter";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -13,9 +13,11 @@ import {
   useDoctorsList,
   useCreateAdminCourse,
   useDeleteAdminCourse,
+  useImportCourses,
 } from "@/lib/api";
 import { useToast } from "@/hooks/use-toast";
 import FileUpload from "@/components/file-upload";
+import { parseCoursesText } from "@/lib/schedule-parse";
 
 const YEARS = [1, 2, 3, 4];
 const DEPARTMENTS = [
@@ -39,9 +41,12 @@ export default function AdminCourses() {
   const { data: doctors = [] } = useDoctorsList();
   const create = useCreateAdminCourse();
   const remove = useDeleteAdminCourse();
+  const importCourses = useImportCourses();
   const { toast } = useToast();
   const [, navigate] = useLocation();
   const [open, setOpen] = useState(false);
+  const [importOpen, setImportOpen] = useState(false);
+  const [importText, setImportText] = useState("");
   const [form, setForm] = useState({
     title: "",
     code: "",
@@ -88,6 +93,23 @@ export default function AdminCourses() {
     }
   };
 
+  const parsed = useMemo(() => parseCoursesText(importText), [importText]);
+
+  const submitImport = async () => {
+    if (!parsed.rows.length) {
+      toast({ title: "مفيش مقررات مفهومة من النص", variant: "destructive" });
+      return;
+    }
+    try {
+      const r = await importCourses.mutateAsync(parsed.rows);
+      toast({ title: `أُضيف ${r.inserted} مقرر` });
+      setImportOpen(false);
+      setImportText("");
+    } catch (e) {
+      toast({ title: "خطأ", description: (e as Error).message, variant: "destructive" });
+    }
+  };
+
   const remove1 = async (id: number) => {
     if (!confirm("حذف المقرر نهائيًا؟")) return;
     try {
@@ -112,7 +134,10 @@ export default function AdminCourses() {
           <h1 className="text-xl sm:text-3xl font-serif font-bold flex items-center gap-2"><BookOpen className="h-5 w-5 sm:h-7 sm:w-7" /> إدارة المقررات</h1>
           <p className="text-xs sm:text-sm text-muted-foreground mt-1">اختر دكتور المقرر من قائمة الأعضاء المسجلين</p>
         </div>
-        <Button onClick={() => setOpen(true)} className="h-9 sm:h-10 text-xs sm:text-sm"><Plus className="me-2 h-3.5 w-3.5 sm:h-4 sm:w-4" /> مقرر جديد</Button>
+        <div className="flex items-center gap-2 flex-wrap">
+          <Button variant="outline" onClick={() => setImportOpen(true)} className="h-9 sm:h-10 text-xs sm:text-sm"><FileText className="me-2 h-3.5 w-3.5 sm:h-4 sm:w-4" /> استيراد من نص</Button>
+          <Button onClick={() => setOpen(true)} className="h-9 sm:h-10 text-xs sm:text-sm"><Plus className="me-2 h-3.5 w-3.5 sm:h-4 sm:w-4" /> مقرر جديد</Button>
+        </div>
       </div>
 
       {!courses.length && <p className="text-center text-muted-foreground py-8 sm:py-12 text-sm">لا توجد مقررات بعد.</p>}
@@ -225,6 +250,29 @@ export default function AdminCourses() {
           <DialogFooter>
             <Button variant="ghost" onClick={() => setOpen(false)} className="text-xs sm:text-sm">إلغاء</Button>
             <Button onClick={submit} className="text-xs sm:text-sm"><Send className="me-2 h-3.5 w-3.5 sm:h-4 sm:w-4" /> إضافة المقرر</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={importOpen} onOpenChange={(v) => { setImportOpen(v); if (!v) setImportText(""); }}>
+        <DialogContent className="max-w-xl">
+          <DialogHeader><DialogTitle className="text-base sm:text-lg">استيراد مقررات من نص</DialogTitle></DialogHeader>
+          <p className="text-xs sm:text-sm text-muted-foreground">
+            كل سطر مقرر: <span className="font-bold">الكود | العنوان | السنة | الترم | الساعات | القسم</span> — السنة والترم والساعات والقسم اختياريين.
+          </p>
+          <Textarea value={importText} onChange={(e) => setImportText(e.target.value)} rows={10} className="text-sm font-mono" placeholder={"AGR101 | كيمياء عضوية | 1 | 1 | 2 | النبات\nAGR102 | فيزياء حيوية | 1 | 1 | 2 | النبات"} />
+          <div className="flex items-center justify-between gap-2 flex-wrap">
+            <div className="text-xs">
+              {parsed.rows.length > 0 ? <span className="font-bold text-primary">{parsed.rows.length} مقرر جاهز</span> : <span className="text-destructive font-bold">مفيش مقررات مفهومة</span>}
+              {parsed.skipped.length > 0 && <span className="text-muted-foreground ms-2">{parsed.skipped.length} سطر متخطى</span>}
+            </div>
+            {parsed.rows.length > 0 && parsed.rows.length <= 3 && (
+              <div className="text-[10px] text-muted-foreground font-mono">{parsed.rows.map((r) => `${r.code} · ${r.title} · سنة ${r.yearInCollege}`).join(" / ")}</div>
+            )}
+          </div>
+          <DialogFooter>
+            <Button variant="ghost" onClick={() => setImportOpen(false)} className="text-xs sm:text-sm">إلغاء</Button>
+            <Button onClick={submitImport} disabled={importCourses.isPending || !parsed.rows.length} className="text-xs sm:text-sm">{importCourses.isPending ? "جاري الاستيراد..." : <><FileText className="me-2 h-3.5 w-3.5" /> استيراد</>}</Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>

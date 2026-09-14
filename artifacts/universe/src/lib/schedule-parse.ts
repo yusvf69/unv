@@ -33,6 +33,54 @@ export interface ImportResult {
   groupCounts: Record<string, number>;
 }
 
+export interface CourseImportRow {
+  title: string;
+  code: string;
+  description?: string;
+  credits: number;
+  department: string;
+  yearInCollege: number;
+  semester: number;
+}
+
+export interface CourseImportResult {
+  rows: CourseImportRow[];
+  errors: string[];
+  skipped: string[];
+}
+
+const COURSE_DEPT_HINTS = /القسم|السنة|الترم|الساعات|الكود|العنوان|المقرر|الماده|المادة|نوع/;
+
+export function parseCoursesText(text: string): CourseImportResult {
+  const res: CourseImportResult = { rows: [], errors: [], skipped: [] };
+  const lines = text.split(/\r?\n/);
+
+  for (let idx = 0; idx < lines.length; idx++) {
+    const raw = lines[idx];
+    if (!raw.trim()) continue;
+    if (SEP_LINE.test(raw)) continue;
+    if (/^[#/]/.test(raw.trim())) continue;
+    const parts = splitLine(raw);
+    if (parts.length >= 2 && COURSE_DEPT_HINTS.test(parts[0] + " " + (parts[1] || "")) && parts.length >= 5) continue;
+    const lineNo = idx + 1;
+    if (parts.length < 2) {
+      res.skipped.push(`سطر ${lineNo}: مش مكتمل — محتاج كود وعنوان على الأقل`);
+      continue;
+    }
+    const code = normCode(parts[0]);
+    const title = str(parts[1]);
+    if (!code) { res.skipped.push(`سطر ${lineNo}: الكود غلط ("${parts[0]}")`); continue; }
+    if (!title) { res.skipped.push(`سطر ${lineNo}: اكتب عنوان المقرر`); continue; }
+    const year = Number(String(parts[2] ?? "").replace(/^سنة\s*/i, "")) || 1;
+    const semester = Number(parts[3] ?? "") || 1;
+    const credits = Number(parts[4] ?? "") || 3;
+    const department = str(parts[5]);
+    res.rows.push({ title, code, credits, department, yearInCollege: Math.min(4, Math.max(1, year)), semester: semester === 2 ? 2 : 1 });
+  }
+
+  return res;
+}
+
 const GROUPS = ["A", "B", "C", "D", "E"];
 const YEARS = [1, 2, 3, 4];
 const DAY_NORMAL: Record<string, string> = {

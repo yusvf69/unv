@@ -1316,6 +1316,13 @@ export function useDeleteAdminCourse() {
     onSuccess: () => qc.invalidateQueries({ queryKey: ["v2", "admin", "courses"] }),
   });
 }
+export function useImportCourses() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (rows: { title: string; code: string; description?: string; credits?: number; department?: string; yearInCollege?: number; semester?: number }[]) => api.post<{ ok: true; inserted: number }>("/v2/admin/courses/import", { rows }),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ["v2", "admin", "courses"] }),
+  });
+}
 
 // ===== Course Lectures & Sections =====
 export interface LectureVideo {
