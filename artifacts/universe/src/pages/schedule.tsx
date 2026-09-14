@@ -435,12 +435,11 @@ function MonthView({ isLoading, byDay, cursor, setCursor, days, daysShort, jsToA
           const items = byDay[dayName] ?? [];
           const isToday = c.date.toDateString() === new Date().toDateString();
           return (
-            <div key={i} className={`aspect-square p-1.5 rounded-lg border bg-card text-xs flex flex-col gap-0.5 ${isToday ? "border-primary border-2" : ""}`}>
+            <div key={i} className={`min-h-[3.5rem] p-1.5 rounded-lg border bg-card text-xs flex flex-col gap-0.5 ${isToday ? "border-primary border-2" : ""}`}>
               <div className={`text-end font-bold ${isToday ? "text-primary" : "text-muted-foreground"}`}>{c.date.getDate()}</div>
-              {items.slice(0, 2).map((r) => (
+              {items.map((r) => (
                 <div key={r.id} className="text-[9px] truncate bg-primary/10 text-primary px-1 rounded">{r.courseTitle}</div>
               ))}
-              {items.length > 2 && <div className="text-[9px] text-muted-foreground">+{items.length - 2}</div>}
             </div>
           );
         })}
