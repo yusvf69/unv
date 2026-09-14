@@ -4619,15 +4619,29 @@ async function handleStaff(req: Request, parts: string[]): Promise<Response> {
   return jsonError("Not Found", 404);
 }
 
-async function handleCoursesList(): Promise<Response> {
+async function handleCoursesList(req: Request | null): Promise<Response> {
   return handle(async () => {
+    const allowedYears: number[] = [];
+    if (req) {
+      try {
+        const { userId } = requireAuth(req.headers);
+        const [me] = await sql`SELECT year_in_college FROM users WHERE id = ${userId} LIMIT 1`;
+        if (me?.year_in_college) allowedYears.push(me.year_in_college);
+        const retakeYears = await sql`SELECT DISTINCT source_year FROM student_retakes WHERE user_id = ${userId}`;
+        for (const r of retakeYears) {
+          if (r.source_year) allowedYears.push(r.source_year);
+        }
+      } catch {}
+    }
     const rows = await sql`SELECT * FROM courses ORDER BY semester, code`;
-    return rows.map((c: any) => ({
-      id: c.id, title: c.title, code: c.code, description: c.description,
-      credits: c.credits, department: c.department, instructor: c.instructor,
-      coverUrl: c.cover_url, progress: c.progress, enrolled: c.enrolled,
-      semester: c.semester ?? 1, yearInCollege: c.year_in_college ?? null,
-    }));
+    return rows
+      .filter((c: any) => c.year_in_college == null || allowedYears.includes(c.year_in_college))
+      .map((c: any) => ({
+        id: c.id, title: c.title, code: c.code, description: c.description,
+        credits: c.credits, department: c.department, instructor: c.instructor,
+        coverUrl: c.cover_url, progress: c.progress, enrolled: c.enrolled,
+        semester: c.semester ?? 1, yearInCollege: c.year_in_college ?? null,
+      }));
   });
 }
 
@@ -5490,7 +5504,7 @@ async function handleRequest(request: Request): Promise<Response> {
     "DELETE /v2/admin/ebooks/:id": () => handleEbooks(request, ["ebooks", "admin", parts[3]]),
 
     // Courses
-    "GET /courses": () => handleCoursesList(),
+    "GET /courses": () => handleCoursesList(request),
     "GET /courses/:id": () => handleCourseById(parts[1]),
     "GET /courses/:id/materials": () => handleCourses(request, ["", "courses", parts[1], "materials"]),
     "GET /courses/:id/all-files": () => handleCourses(request, ["", "courses", parts[1], "all-files"]),
@@ -5498,7 +5512,7 @@ async function handleRequest(request: Request): Promise<Response> {
     "GET /courses/:id/video-progress": () => handleCourses(request, ["", "courses", parts[1], "video-progress"]),
     "GET /courses/:id/progress": () => handleCourses(request, ["", "courses", parts[1], "progress"]),
     "GET /courses/:id/student-summaries": () => handleCourseSummaries(request, ["courses", parts[1], "student-summaries"]),
-    "GET /v2/courses": () => handleCoursesList(),
+    "GET /v2/courses": () => handleCoursesList(request),
     "GET /v2/courses/:id": () => handleCourseById(parts[2]),
     "GET /v2/courses/:id/materials": () => handleCourses(request, ["", "courses", parts[2], "materials"]),
     "GET /v2/courses/:id/all-files": () => handleCourses(request, ["", "courses", parts[2], "all-files"]),
