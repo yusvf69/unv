@@ -119,6 +119,7 @@ export default function Login() {
   const [specialization, setSpecialization] = useState(SPECIALIZATIONS[0]);
   const [groupName, setGroupName] = useState("A");
   const [avatarUrl, setAvatarUrl] = useState<string | null>(null);
+  const [termsAgreed, setTermsAgreed] = useState(false);
   const [done, setDone] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
 
@@ -169,6 +170,10 @@ export default function Login() {
     }
     if (password.length < 6) {
       toast({ title: t("passwordMinLength"), variant: "destructive" });
+      return;
+    }
+    if (!termsAgreed) {
+      toast({ title: "لازم توافق على الشروط والأحكام الأول", variant: "destructive" });
       return;
     }
 
@@ -231,7 +236,7 @@ export default function Login() {
         const res = await fetch(API + "/v2/auth/signup", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ name, username, email, phone, password, yearInCollege, specialization, groupName, avatarUrl }),
+          body: JSON.stringify({ name, username, email, phone, password, yearInCollege, specialization, groupName, avatarUrl, termsAccepted: true }),
         });
         const data = await res.json();
         if (!res.ok) throw new Error(data.error || data.message);
@@ -431,6 +436,15 @@ export default function Login() {
                     </button>
                   ))}
                 </div>
+              </div>
+
+              <div className="md:col-span-2">
+                <label className={`flex items-start gap-2 p-3 rounded-xl border-2 cursor-pointer transition ${termsAgreed ? "border-primary/50 bg-primary/5" : "border-input"}`}>
+                  <input type="checkbox" checked={termsAgreed} onChange={(e) => setTermsAgreed(e.target.checked)} className="mt-0.5 h-4 w-4 accent-primary" />
+                  <span className="text-xs sm:text-sm text-muted-foreground leading-relaxed">
+                    أوافق على <a href="/terms" target="_blank" rel="noopener noreferrer" className="text-primary font-bold underline" onClick={(e) => e.stopPropagation()}>الشروط والأحكام</a> وأعلم إنني مسؤول مسؤولية كاملة عن كل أفعال استخدامي للسايت، وإن السايت بريء من أي مسؤولية عن نتيجتها.
+                  </span>
+                </label>
               </div>
 
               {verifyStep === "idle" ? (

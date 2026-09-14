@@ -555,10 +555,11 @@ async function handleAuth(req: Request, parts: string[]): Promise<Response> {
   if (action === "signup") {
     return handle(async () => {
       const body = await req.json();
-      const { name, username, email, phone, password, yearInCollege, specialization, groupName, avatarUrl } = body;
+      const { name, username, email, phone, password, yearInCollege, specialization, groupName, avatarUrl, termsAccepted } = body;
       if (!name || !username || !email || !phone || !password) throw Object.assign(new Error("كل الحقول مطلوبة"), { status: 400 });
       if (username.length < 4) throw Object.assign(new Error("اليوزر لازم يكون 4 حروف على الأقل"), { status: 400 });
       if (password.length < 6) throw Object.assign(new Error("كلمة المرور لازم تكون 6 حروف على الأقل"), { status: 400 });
+      if (termsAccepted !== true) throw Object.assign(new Error("لازم توافق على الشروط والأحكام قبل ما تسجل"), { status: 400 });
 
       const [usernameTaken] = await sql`SELECT id FROM users WHERE username = ${username} LIMIT 1`;
       if (usernameTaken) throw Object.assign(new Error("اليوزر ده مأخوذ"), { status: 409 });
@@ -580,8 +581,8 @@ async function handleAuth(req: Request, parts: string[]): Promise<Response> {
       }
 
       const [created] = await sql`
-        INSERT INTO users (name, username, email, phone, password, role, department, specialization, year_in_college, group_name, avatar_url, unique_code, email_verified, phone_verified)
-        VALUES (${name}, ${username}, ${email}, ${phone}, ${hashedPassword}, 'student', ${specialization || "غير محدد"}, ${specialization || null}, ${yearInCollege || null}, ${groupName || null}, ${avatarUrl || null}, ${uniqueCode}, true, true)
+        INSERT INTO users (name, username, email, phone, password, role, department, specialization, year_in_college, group_name, avatar_url, unique_code, email_verified, phone_verified, terms_accepted_at)
+        VALUES (${name}, ${username}, ${email}, ${phone}, ${hashedPassword}, 'student', ${specialization || "غير محدد"}, ${specialization || null}, ${yearInCollege || null}, ${groupName || null}, ${avatarUrl || null}, ${uniqueCode}, true, true, now())
         RETURNING *`;
 
       await sql`INSERT INTO notifications (user_id, title, body, type) VALUES (${created.id}, ${`أهلاً ${name} في UniVerse`}, ${`كودك الخاص: ${uniqueCode}. احفظه لأنه مهم.`}, 'success')`;
