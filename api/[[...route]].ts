@@ -1141,6 +1141,7 @@ async function handleAdminOverview(req: Request): Promise<Response> {
     const [{ totalStudents }] = await sql`SELECT count(*)::int AS "totalStudents" FROM users WHERE role = 'student'`;
     const [{ totalStaff }] = await sql`SELECT count(*)::int AS "totalStaff" FROM users WHERE role IN ('doctor', 'ta', 'admin', 'super_admin')`;
     const [{ activeExams }] = await sql`SELECT count(*)::int AS "activeExams" FROM quizzes`;
+    const [{ totalVisits }] = await sql`SELECT count(*)::int AS "totalVisits" FROM visits WHERE created_at > now() - interval '24 hours'`;
 
     const today = new Date();
     const weekAgo = new Date(today);
@@ -1182,7 +1183,7 @@ async function handleAdminOverview(req: Request): Promise<Response> {
     alerts.push({ id: 5, title: "النظام يعمل بشكل طبيعي", body: `إجمالي ${totalStudents} طالب و ${totalStaff} عضو هيئة تدريس. ${unreadNotifs} إشعار غير مقروء.`, severity: "info", kind: "system", createdAt: new Date().toISOString() });
 
     return {
-      totalStudents, totalStaff, activeExams, todayActivity: weeklyEngagement[6].activeUsers,
+      totalStudents, totalStaff, activeExams, totalVisits, todayActivity: weeklyEngagement[6].activeUsers,
       aiUsageToday, weeklyEngagement, departmentBreakdown: deptRows, pointsDistribution, alerts,
     };
   });
