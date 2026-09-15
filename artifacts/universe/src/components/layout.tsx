@@ -32,6 +32,7 @@ import {
 import { Sheet, SheetContent, SheetTrigger } from "@/components/ui/sheet";
 import NotificationsBell from "@/components/notifications-bell";
 import { useTheme } from "@/components/theme-provider";
+import OnboardingTour from "@/components/onboarding-tour";
 import { useMeV2 } from "@/lib/api";
 
 export default function Layout({ children }: { children: ReactNode }) {
@@ -196,6 +197,8 @@ export default function Layout({ children }: { children: ReactNode }) {
           </motion.div>
         </Link>
       )}
+
+      {user && <OnboardingTour />}
 
       <footer className="border-t bg-gradient-to-b from-background to-muted/40 mt-8 sm:mt-12">
         <div className="container mx-auto px-3 sm:px-4 py-6 sm:py-8 flex flex-col sm:flex-row items-center justify-between gap-4 text-xs sm:text-sm text-muted-foreground">

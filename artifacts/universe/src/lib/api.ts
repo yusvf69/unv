@@ -111,6 +111,7 @@ export interface MeV2 {
   username: string | null;
   uniqueCode: string | null;
   adminPermissions: string | null;
+  onboarded: boolean;
 }
 
 export function useMeV2(opts?: Partial<UseQueryOptions<MeV2>>) {
@@ -118,6 +119,14 @@ export function useMeV2(opts?: Partial<UseQueryOptions<MeV2>>) {
     queryKey: ["v2", "me"],
     queryFn: () => api.get<MeV2>("/v2/me"),
     ...opts,
+  });
+}
+
+export function useMarkOnboardingSeen() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: () => api.post("/v2/onboarding/seen"),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ["v2", "me"] }),
   });
 }
 

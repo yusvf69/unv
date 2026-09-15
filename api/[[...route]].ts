@@ -924,6 +924,7 @@ async function handleMe(req: Request): Promise<Response> {
       uniqueCode: user.unique_code, adminPermissions: user.admin_permissions,
       emailVerified: user.email_verified, phoneVerified: user.phone_verified,
       unreadCount, unreadDmCount,
+      onboarded: !!user.onboarded_at,
     };
   });
 }
@@ -960,6 +961,14 @@ async function handleMeGroup(req: Request): Promise<Response> {
     const { groupName } = body;
     if (!["A", "B", "C", "D", "E"].includes(groupName)) throw Object.assign(new Error("اختر مجموعة صحيحة"), { status: 400 });
     await sql`UPDATE users SET group_name = ${groupName} WHERE id = ${userId}`;
+    return { ok: true };
+  });
+}
+
+async function handleOnboardingSeen(req: Request): Promise<Response> {
+  return handle(async () => {
+    const { userId } = requireAuth(req.headers);
+    await sql`UPDATE users SET onboarded_at = now() WHERE id = ${userId}`;
     return { ok: true };
   });
 }
@@ -5154,6 +5163,7 @@ async function handleRequest(request: Request): Promise<Response> {
     "POST /me/group": () => handleMeGroup(request),
     "GET /v2/me": () => handleMe(request),
     "PATCH /v2/me/profile": () => handleMeProfile(request),
+    "POST /v2/onboarding/seen": () => handleOnboardingSeen(request),
     "POST /v2/me/group": () => handleMeGroup(request),
 
     // Dashboard
