@@ -1,6 +1,6 @@
 import { useMemo, useState } from "react";
 import { motion } from "framer-motion";
-import { Plus, BookOpen, Send, Trash2, FileText } from "lucide-react";
+import { Plus, BookOpen, Send, Trash2, FileText, Pencil } from "lucide-react";
 import { useLocation } from "wouter";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -12,6 +12,7 @@ import {
   useMeV2,
   useDoctorsList,
   useCreateAdminCourse,
+  useUpdateAdminCourse,
   useDeleteAdminCourse,
   useImportCourses,
 } from "@/lib/api";
@@ -40,11 +41,13 @@ export default function AdminCourses() {
   const { data: courses = [] } = useAdminCourses();
   const { data: doctors = [] } = useDoctorsList();
   const create = useCreateAdminCourse();
+  const update = useUpdateAdminCourse();
   const remove = useDeleteAdminCourse();
   const importCourses = useImportCourses();
   const { toast } = useToast();
   const [, navigate] = useLocation();
   const [open, setOpen] = useState(false);
+  const [editingId, setEditingId] = useState<number | null>(null);
   const [importOpen, setImportOpen] = useState(false);
   const [importText, setImportText] = useState("");
   const [form, setForm] = useState({
@@ -72,25 +75,49 @@ export default function AdminCourses() {
       toast({ title: "العنوان والكود واختيار الدكتور مطلوب", variant: "destructive" });
       return;
     }
+    const payload = {
+      title: form.title,
+      code: form.code,
+      description: form.description,
+      credits: Number(form.credits),
+      department: form.department,
+      instructorId: form.instructorId,
+      taIds: form.taIds,
+      yearInCollege: form.yearInCollege,
+      semester: form.semester,
+      coverUrl: form.coverUrl || undefined,
+    };
     try {
-      await create.mutateAsync({
-        title: form.title,
-        code: form.code,
-        description: form.description,
-        credits: Number(form.credits),
-        department: form.department,
-        instructorId: form.instructorId,
-        taIds: form.taIds,
-        yearInCollege: form.yearInCollege,
-        semester: form.semester,
-        coverUrl: form.coverUrl || undefined,
-      });
-      toast({ title: "تم إضافة المقرر" });
+      if (editingId) {
+        await update.mutateAsync({ id: editingId, ...payload });
+        toast({ title: "تم حفظ التعديلات" });
+      } else {
+        await create.mutateAsync(payload);
+        toast({ title: "تم إضافة المقرر" });
+      }
       setOpen(false);
+      setEditingId(null);
       setForm({ title: "", code: "", description: "", credits: 3, department: "", instructorId: 0, taIds: [], yearInCollege: 1, semester: 1, coverUrl: "" });
     } catch (e) {
       toast({ title: "خطأ", description: (e as Error).message, variant: "destructive" });
     }
+  };
+
+  const startEdit = (c: (typeof courses)[number]) => {
+    setEditingId(c.id);
+    setForm({
+      title: c.title,
+      code: c.code,
+      description: c.description,
+      credits: c.credits,
+      department: c.department,
+      instructorId: c.instructorId ?? 0,
+      taIds: c.taIds ?? [],
+      yearInCollege: c.yearInCollege ?? 1,
+      semester: c.semester || 1,
+      coverUrl: c.coverUrl ?? "",
+    });
+    setOpen(true);
   };
 
   const parsed = useMemo(() => parseCoursesText(importText), [importText]);
@@ -153,7 +180,10 @@ export default function AdminCourses() {
             <div className="p-3 sm:p-4">
               <div className="flex items-start justify-between gap-2">
                 <div className="text-[10px] sm:text-xs text-secondary font-bold">{c.code} · {c.credits} ساعات · {c.yearInCollege ? `سنة ${c.yearInCollege}` : "عام"}</div>
-                <button onClick={(e) => { e.stopPropagation(); remove1(c.id); }} className="p-1 rounded hover:bg-destructive/10"><Trash2 className="h-3.5 w-3.5 sm:h-4 sm:w-4 text-destructive" /></button>
+                <div className="flex items-center gap-1">
+                  <button onClick={(e) => { e.stopPropagation(); startEdit(c); }} className="p-1 rounded hover:bg-primary/10" title="تعديل"><Pencil className="h-3.5 w-3.5 sm:h-4 sm:w-4 text-primary" /></button>
+                  <button onClick={(e) => { e.stopPropagation(); remove1(c.id); }} className="p-1 rounded hover:bg-destructive/10"><Trash2 className="h-3.5 w-3.5 sm:h-4 sm:w-4 text-destructive" /></button>
+                </div>
               </div>
               <h3 className="font-bold text-sm sm:text-base mt-1">{c.title}</h3>
               <p className="text-xs text-muted-foreground line-clamp-2 mt-1">{c.description}</p>
@@ -164,9 +194,9 @@ export default function AdminCourses() {
         ))}
       </div>
 
-      <Dialog open={open} onOpenChange={setOpen}>
+      <Dialog open={open} onOpenChange={(v) => { setOpen(v); if (!v) setEditingId(null); }}>
         <DialogContent className="max-w-xl max-h-[90vh]">
-          <DialogHeader><DialogTitle className="text-base sm:text-lg">إضافة مقرر جديد</DialogTitle></DialogHeader>
+          <DialogHeader><DialogTitle className="text-base sm:text-lg">{editingId ? `تعديل: ${form.code}` : "إضافة مقرر جديد"}</DialogTitle></DialogHeader>
           <div className="space-y-3 max-h-[60vh] overflow-y-auto pe-2">
             <div className="grid grid-cols-2 gap-2">
               <div><Label className="text-xs">الكود</Label><Input value={form.code} onChange={(e) => setForm({ ...form, code: e.target.value })} placeholder="AGR101" className="h-9 text-sm" /></div>
@@ -248,8 +278,8 @@ export default function AdminCourses() {
             </div>
           </div>
           <DialogFooter>
-            <Button variant="ghost" onClick={() => setOpen(false)} className="text-xs sm:text-sm">إلغاء</Button>
-            <Button onClick={submit} className="text-xs sm:text-sm"><Send className="me-2 h-3.5 w-3.5 sm:h-4 sm:w-4" /> إضافة المقرر</Button>
+            <Button variant="ghost" onClick={() => { setOpen(false); setEditingId(null); }} className="text-xs sm:text-sm">إلغاء</Button>
+            <Button onClick={submit} disabled={create.isPending || update.isPending} className="text-xs sm:text-sm"><Send className="me-2 h-3.5 w-3.5 sm:h-4 sm:w-4" /> {editingId ? "حفظ التعديلات" : "إضافة المقرر"}</Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>

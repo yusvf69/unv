@@ -3888,6 +3888,7 @@ async function handleAdminCrud(req: Request, parts: string[]): Promise<Response>
       return rows.map((c: any) => ({
         id: c.id, title: c.title, code: c.code, description: c.description,
         credits: c.credits, department: c.department, instructor: c.instructor,
+        instructorId: c.instructor_id ?? null, taIds: c.ta_ids ?? [],
         coverUrl: c.cover_url, enrolled: c.enrolled, semester: c.semester,
         yearInCollege: c.year_in_college ?? null,
       }));
@@ -4896,6 +4897,32 @@ async function handleAdminCourses(req: Request, parts: string[]): Promise<Respon
     });
   }
 
+  if (req.method === "PUT" && parts[2] && parts[2] !== "import") {
+    return handle(async () => {
+      const body = await req.json();
+      const id = Number(parts[2]);
+      const { title, code, description, credits, department, instructorId, taIds, yearInCollege, semester, coverUrl } = body;
+      if (!title || !code) throw Object.assign(new Error("العنوان والكود مطلوب"), { status: 400 });
+      const [instructor] = instructorId ? await sql`SELECT name FROM users WHERE id = ${Number(instructorId)}` : [null];
+      const [c] = await sql`
+        UPDATE courses SET
+          title = ${title}, code = ${code},
+          description = ${description || ""},
+          credits = ${credits || 3},
+          department = ${department || ""},
+          instructor = ${instructor?.name || ""},
+          instructor_id = ${instructorId ? Number(instructorId) : null},
+          cover_url = ${coverUrl || null},
+          year_in_college = ${yearInCollege ? Number(yearInCollege) : null},
+          semester = ${semester || 1},
+          ta_ids = ${taIds?.length ? taIds.map(Number) : null}
+        WHERE id = ${id}
+        RETURNING *`;
+      if (!c) throw Object.assign(new Error("المقرر غير موجود"), { status: 404 });
+      return c;
+    });
+  }
+
   if (req.method === "DELETE" && parts[2]) {
     return handle(async () => {
       await sql`DELETE FROM courses WHERE id = ${Number(parts[2])}`;
@@ -5230,6 +5257,7 @@ async function handleRequest(request: Request): Promise<Response> {
     "DELETE /v2/admin/talent-comments/:id": () => handleAdminCrud(request, ["", "admin", "talent-comments", parts[3]]),
     "DELETE /v2/admin/material-comments/:id": () => handleAdminCrud(request, ["", "admin", "material-comments", parts[3]]),
     "POST /v2/admin/courses": () => handleAdminCourses(request, ["admin", "courses"]),
+    "PUT /v2/admin/courses/:id": () => handleAdminCourses(request, ["admin", "courses", parts[3]]),
     "POST /v2/admin/courses/import": () => handleAdminCourses(request, ["admin", "courses", "import"]),
     "DELETE /v2/admin/courses/:id": () => handleAdminCourses(request, ["admin", "courses", parts[3]]),
     "POST /v2/admin/quizzes": () => handleAdminQuizzes(request, ["admin", "quizzes"]),

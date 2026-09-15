@@ -773,6 +773,7 @@ export interface AdminCourseRow {
   id: number; title: string; code: string; description: string; credits: number;
   department: string; instructor: string; coverUrl: string | null; enrolled: number;
   semester: number; yearInCollege: number | null;
+  instructorId: number | null; taIds: number[];
 }
 export function useAdminCourses() {
   return useQuery<AdminCourseRow[]>({ queryKey: ["v2", "admin", "courses"], queryFn: () => api.get("/v2/admin/all-courses") });
@@ -1308,6 +1309,21 @@ export function useCreateAdminCourse() {
       department?: string; instructorId: number; taIds?: number[];
       yearInCollege?: number; semester?: number; coverUrl?: string;
     }) => api.post("/v2/admin/courses", body),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["v2", "admin", "courses"] });
+      qc.invalidateQueries({ queryKey: ["v2", "courses"] });
+    },
+  });
+}
+export interface AdminCourseInput {
+  title: string; code: string; description?: string; credits?: number;
+  department?: string; instructorId: number; taIds?: number[];
+  yearInCollege?: number; semester?: number; coverUrl?: string;
+}
+export function useUpdateAdminCourse() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: ({ id, ...body }: { id: number } & Partial<AdminCourseInput>) => api.put(`/v2/admin/courses/${id}`, body),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ["v2", "admin", "courses"] });
       qc.invalidateQueries({ queryKey: ["v2", "courses"] });
