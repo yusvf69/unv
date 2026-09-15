@@ -44,7 +44,7 @@ export default function OnboardingTour() {
     { icon: <ShieldAlert className="h-5 w-5" />, title: "تحذير مهم: المراسلات", tone: "warn", body: "الرسايل والمراسلات اللي على السايت غير مشفّرة، والجهة المسؤولة ليها الحق الكامل تطلع على المحادثات في أي وقت يلزم فيه للمراجعة أو التحقيق." },
     { icon: <Ban className="h-5 w-5" />, title: "تحذير صارم: ممنوع التداول", tone: "danger", body: "ممنوع نهائيًا تداول أو مشاركة أي حاجة من السايت — محاضرات، ملفات، ملخصات، كتب — برا السايت. اللي بيعمل كده بيبقى عرضة للمساءلة القانونية وحسابه بيتشال نهائيًا." },
     { icon: <PhoneCall className="h-5 w-5" />, title: "تحذير: مضايقة أو إساءة", tone: "danger", body: "ممنوع مضايقة أو سب أو إهانة أي حد في السايت (في الرسايل أو المنتدى). أي إساءة بتتحاسب قانونيًا وحسابك في خطر." },
-    { icon: <CheckCircle2 className="h-5 w-5" />, title: "دي كل حاجة!", tone: "success", body: "كده عرفت كل الأقسام والتحذيرات. افتح أي قسم وسافر بفلان، وإنت في أي وقت تقدر تدخل على أي صفحة من القايمة. نتمنى لك سنة حلوة!" },
+    { icon: <CheckCircle2 className="h-5 w-5" />, title: "دي كل حاجة!", tone: "success", body: "كده عرفت كل الأقسام والتحذيرات. افتح أي قسم وخد وقتك، وإنت في أي وقت تقدر ترجع لأي صفحة من القايمة. نتمنى لك سنة حلوة!" },
   ];
 
   const last = steps.length - 1;
@@ -87,24 +87,27 @@ export default function OnboardingTour() {
 
           <p className="text-xs sm:text-sm text-muted-foreground leading-relaxed">{s.body}</p>
 
-          <div className="flex items-center justify-between gap-2 mt-4">
-            <div className="flex items-center gap-1">
-              {steps.map((_, i) => (
-                <span key={i} className={`h-1.5 rounded-full transition-all ${i === step ? "w-4 bg-primary" : "w-1.5 bg-muted"}`} />
-              ))}
-            </div>
-            <div className="flex items-center gap-1.5">
+          <div className="mt-4 space-y-2.5">
+            <div className="flex flex-wrap items-center justify-end gap-1.5">
               {step > 0 && (
-                <Button variant="ghost" size="sm" onClick={() => go(-1)} className="text-xs px-2"><ChevronRight className="h-4 w-4" /></Button>
+                <Button variant="ghost" size="sm" onClick={() => go(-1)} className="text-xs px-2" title="السابق"><ChevronRight className="h-4 w-4" /></Button>
               )}
               {s.route && !["warn", "danger", "success"].includes(s.tone ?? "") && (
-                <Button variant="outline" size="sm" onClick={() => navigate(s.route!)} className="text-xs px-2.5">افتح القسم</Button>
+                <Button variant="outline" size="sm" onClick={() => navigate(s.route!)} className="text-xs px-2.5 whitespace-nowrap">افتح القسم</Button>
               )}
               {step < last ? (
-                <Button size="sm" onClick={() => go(1)} className="text-xs px-3">{step === 0 ? "يلا بينا" : "التالي"} <ChevronLeft className="h-4 w-4" /></Button>
+                <Button size="sm" onClick={() => go(1)} className="text-xs px-3 whitespace-nowrap">{step === 0 ? "يلا بينا" : "التالي"} <ChevronLeft className="h-4 w-4" /></Button>
               ) : (
-                <Button size="sm" onClick={finish} className="text-xs px-3"><CheckCircle2 className="me-1.5 h-4 w-4" /> تمام! ابدأ السايت</Button>
+                <Button size="sm" onClick={finish} className="text-xs px-3 whitespace-nowrap"><CheckCircle2 className="me-1.5 h-4 w-4" /> ابدأ السايت</Button>
               )}
+            </div>
+            <div className="flex items-center justify-between gap-2">
+              <div className="flex items-center gap-1">
+                {steps.map((_, i) => (
+                  <span key={i} className={`h-1 rounded-full transition-all ${i === step ? "w-4 bg-primary" : "w-1.5 bg-muted"}`} />
+                ))}
+              </div>
+              <span className="text-[10px] text-muted-foreground">خطوة {step + 1} من {last + 1}</span>
             </div>
           </div>
         </motion.div>
