@@ -1139,7 +1139,7 @@ async function handleAdminOverview(req: Request): Promise<Response> {
     const user = await getCurrentUser(userId);
     requireRole(user, ["admin", "super_admin"]);
     const [{ totalStudents }] = await sql`SELECT count(*)::int AS "totalStudents" FROM users WHERE role = 'student'`;
-    const [{ totalStaff }] = await sql`SELECT count(*)::int AS "totalStaff" FROM users WHERE role IN ('doctor', 'ta')`;
+    const [{ totalStaff }] = await sql`SELECT count(*)::int AS "totalStaff" FROM users WHERE role IN ('doctor', 'ta', 'admin', 'super_admin')`;
     const [{ activeExams }] = await sql`SELECT count(*)::int AS "activeExams" FROM quizzes`;
 
     const today = new Date();
