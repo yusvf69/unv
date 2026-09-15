@@ -4622,21 +4622,26 @@ async function handleStaff(req: Request, parts: string[]): Promise<Response> {
 
 async function handleCoursesList(req: Request | null): Promise<Response> {
   return handle(async () => {
-    const allowedYears: number[] = [];
+    let myYear: number | null = null;
+    const retakeKeys = new Set<string>();
     if (req) {
       try {
         const { userId } = requireAuth(req.headers);
         const [me] = await sql`SELECT year_in_college FROM users WHERE id = ${userId} LIMIT 1`;
-        if (me?.year_in_college) allowedYears.push(me.year_in_college);
-        const retakeYears = await sql`SELECT DISTINCT source_year FROM student_retakes WHERE user_id = ${userId}`;
-        for (const r of retakeYears) {
-          if (r.source_year) allowedYears.push(r.source_year);
+        if (me?.year_in_college) myYear = me.year_in_college;
+        const retakeRows = await sql`SELECT source_year, course_title FROM student_retakes WHERE user_id = ${userId}`;
+        for (const r of retakeRows) {
+          if (r.source_year && r.course_title) retakeKeys.add(`${r.source_year}|${r.course_title}`);
         }
       } catch {}
     }
     const rows = await sql`SELECT * FROM courses ORDER BY semester, code`;
     return rows
-      .filter((c: any) => c.year_in_college == null || allowedYears.includes(c.year_in_college))
+      .filter((c: any) =>
+        c.year_in_college == null ||
+        (myYear != null && c.year_in_college === myYear) ||
+        retakeKeys.has(`${c.year_in_college}|${c.title}`)
+      )
       .map((c: any) => ({
         id: c.id, title: c.title, code: c.code, description: c.description,
         credits: c.credits, department: c.department, instructor: c.instructor,
