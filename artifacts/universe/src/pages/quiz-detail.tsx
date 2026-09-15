@@ -121,7 +121,7 @@ export default function QuizDetail() {
   const question = quiz.questions[currentIndex];
   const progress = ((currentIndex) / quiz.questions.length) * 100;
   const isLast = currentIndex === quiz.questions.length - 1;
-  const canSubmit = Object.keys(answers).length === quiz.questions.length;
+  const canSubmit = true;
 
   return (
     <div className="container mx-auto px-3 sm:px-4 py-4 sm:py-8 max-w-3xl flex flex-col min-h-[calc(100vh-4rem)]">

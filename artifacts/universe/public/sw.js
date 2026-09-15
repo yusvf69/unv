@@ -42,19 +42,46 @@ self.addEventListener("fetch", (e) => {
     return;
   }
 
-  e.respondWith(
-    caches.match(e.request).then(
-      (cached) =>
-        cached ||
-        fetch(e.request)
-          .then((res) => {
-            if (res.ok && res.type === "basic") {
-              const clone = res.clone();
-              caches.open(CACHE).then((c) => c.put(e.request, clone));
-            }
-            return res;
-          })
-          .catch(() => Response.error())
-    )
-  );
-});
+    e.respondWith(
+      caches.match(e.request).then(
+        (cached) =>
+          cached ||
+          fetch(e.request)
+            .then((res) => {
+              if (res.ok && res.type === "basic") {
+                const clone = res.clone();
+                caches.open(CACHE).then((c) => c.put(e.request, clone));
+              }
+              return res;
+            })
+            .catch(() => Response.error())
+      )
+    );
+  });
+
+  self.addEventListener("push", (e) => {
+    const data = e.data?.json() ?? { title: "UniVerse", body: "إشعار جديد" };
+    e.waitUntil(
+      self.registration.showNotification(data.title ?? "UniVerse", {
+        body: data.body ?? "",
+        icon: "/favicon.svg",
+        badge: "/favicon.svg",
+        data: { url: data.url ?? "/" },
+        dir: "rtl",
+        lang: "ar",
+      })
+    );
+  });
+
+  self.addEventListener("notificationclick", (e) => {
+    e.notification.close();
+    const url = e.notification.data?.url ?? "/";
+    e.waitUntil(
+      clients.matchAll({ type: "window", includeUncontrolled: true }).then((list) => {
+        for (const c of list) {
+          if ("focus" in c) return c.navigate(url), c.focus();
+        }
+        return clients.openWindow(url);
+      })
+    );
+  });

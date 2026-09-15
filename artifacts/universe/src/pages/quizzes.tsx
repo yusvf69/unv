@@ -342,7 +342,7 @@ export function QuizTakePage() {
             {!allAnswered && <span className="flex items-center gap-1 justify-center"><AlertCircle className="h-3.5 w-3.5" /> {t("unansweredQuestions").replace("{count}", String(questions.length - answeredCount))}</span>}
             {allAnswered && <span className="flex items-center gap-1 text-emerald-600 font-bold justify-center"><CheckCircle className="h-3.5 w-3.5" /> تمت الإجابة على الكل</span>}
           </div>
-          <Button onClick={() => setShowConfirm(true)} disabled={!allAnswered && !timeUp} className="h-9 text-sm flex-shrink-0">
+          <Button onClick={() => setShowConfirm(true)} disabled={false} className="h-9 text-sm flex-shrink-0">
             {submitting ? <Loader2 className="h-4 w-4 animate-spin" /> : <><CheckCircle className="me-2 h-4 w-4" /> {t("submit")}</>}
           </Button>
         </div>

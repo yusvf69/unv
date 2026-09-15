@@ -4,8 +4,71 @@ import { handle, jsonResponse, jsonError, corsResponse } from "./lib/handler.js"
 import { getUserId, getCurrentUser, requireAuth, requireRole, ensureSuper, generateToken } from "./lib/auth.js";
 import bcrypt from "bcryptjs";
 import nodemailer from "nodemailer";
+import webPushPkg from "web-push";
+const webPush = (webPushPkg as any).default ?? webPushPkg;
 
 export const config = { runtime: "nodejs", maxDuration: 60 };
+
+async function getVapidKeys(): Promise<{ publicKey: string; privateKey: string }> {
+  const rows = await sql`SELECT v.k, v.v FROM unnest(ARRAY['vapid_public','vapid_private']::text[]) k LEFT JOIN app_settings v ON v.key = k.k`;
+  const map: Record<string, string> = {};
+  for (const r of rows) if (r.v) map[r.k] = r.v;
+  if (map.vapid_public && map.vapid_private) {
+    webPush.setVapidDetails(
+      process.env.PUSH_SUBJECT || "mailto:admin@unv.vercel.app",
+      map.vapid_public,
+      map.vapid_private
+    );
+    return { publicKey: map.vapid_public, privateKey: map.vapid_private };
+  }
+  const keys = webPush.generateVAPIDKeys();
+  await sql`INSERT INTO app_settings (key, value) VALUES ('vapid_public', ${keys.publicKey}), ('vapid_private', ${keys.privateKey}) ON CONFLICT (key) DO UPDATE SET value = EXCLUDED.value`;
+  webPush.setVapidDetails(
+    process.env.PUSH_SUBJECT || "mailto:admin@unv.vercel.app",
+    keys.publicKey,
+    keys.privateKey
+  );
+  return keys;
+}
+
+async function sendPushToUser(userId: number, title: string, body: string, url: string): Promise<void> {
+  try {
+    const keys = await getVapidKeys();
+    const subs = await sql`SELECT endpoint, p256dh, auth FROM push_subscriptions WHERE user_id = ${userId}`;
+    if (!subs.length) return;
+    const payload = JSON.stringify({ title, body, url });
+    const results = await Promise.allSettled(
+      subs.map((s) =>
+        webPush.sendNotification(
+          { endpoint: s.endpoint, keys: { p256dh: s.p256dh, auth: s.auth } },
+          payload
+        )
+      )
+    );
+    results.forEach((r, i) => {
+      if (r.status === "fulfilled") return;
+      const err: any = r.reason;
+      if (err?.statusCode === 404 || err?.statusCode === 410) {
+        sql`DELETE FROM push_subscriptions WHERE user_id = ${userId} AND endpoint = ${subs[i].endpoint}`.catch(() => {});
+      }
+    });
+  } catch {
+    // pushes are best-effort; never break the main flow
+  }
+}
+
+async function ensurePushTables(): Promise<void> {
+  await sql`CREATE TABLE IF NOT EXISTS app_settings (key text PRIMARY KEY, value text NOT NULL)`;
+  await sql`CREATE TABLE IF NOT EXISTS push_subscriptions (
+    id serial PRIMARY KEY,
+    user_id integer NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    endpoint text NOT NULL,
+    p256dh text NOT NULL,
+    auth text NOT NULL,
+    created_at timestamptz NOT NULL DEFAULT now(),
+    UNIQUE (user_id, endpoint)
+  )`;
+}
 
 function getMailer() {
   const user = process.env.GMAIL_USER;
@@ -347,6 +410,39 @@ async function updateStreak(userId: number): Promise<void> {
 }
 
 // --- Route Handlers by Domain ---
+
+async function handlePush(req: Request, parts: string[]): Promise<Response> {
+  return handle(async () => {
+    if (req.method === "GET" && parts[1] === "vapid") {
+      const { publicKey } = await getVapidKeys();
+      return { publicKey };
+    }
+
+    if (parts[1] !== "subscribe" && parts[1] !== "unsubscribe") {
+      throw Object.assign(new Error("Not Found"), { status: 404 });
+    }
+
+    const { userId } = requireAuth(req.headers);
+    const body = await req.json();
+    if (req.method === "POST" && parts[1] === "subscribe") {
+      const { endpoint, p256dh, auth } = body;
+      if (!endpoint || !p256dh || !auth) {
+        throw Object.assign(new Error("بيانات الاشتراك غير مكتملة"), { status: 400 });
+      }
+      await sql`INSERT INTO push_subscriptions (user_id, endpoint, p256dh, auth)
+        VALUES (${userId}, ${endpoint}, ${p256dh}, ${auth})
+        ON CONFLICT (user_id, endpoint) DO UPDATE SET p256dh = EXCLUDED.p256dh, auth = EXCLUDED.auth`;
+      return { ok: true };
+    }
+
+    if (req.method === "DELETE" && parts[1] === "unsubscribe") {
+      await sql`DELETE FROM push_subscriptions WHERE user_id = ${userId}`;
+      return { ok: true };
+    }
+
+    throw Object.assign(new Error("Method Not Allowed"), { status: 405 });
+  });
+}
 
 async function handleDashboard(req: Request): Promise<Response> {
   return handle(async () => {
@@ -1471,7 +1567,7 @@ async function handleAdminQuizzes(req: Request, parts: string[]): Promise<Respon
       const body = await req.json();
       const { title, description, courseId, courseTitle, durationMinutes, totalPoints, difficulty, groupOnly, yearOnly, randomize, passPercent } = body;
       if (!title || !courseId) throw Object.assign(new Error("العنوان والمادة مطلوبان"), { status: 400 });
-      const [q] = await sql`INSERT INTO quizzes (title, description, course_id, course_title, duration_minutes, total_points, difficulty, group_only, year_only, randomize, pass_percent) VALUES (${title}, ${description || ""}, ${courseId}, ${courseTitle || ""}, ${durationMinutes ?? 15}, ${totalPoints ?? 100}, ${difficulty || "medium"}, ${groupOnly || null}, ${yearOnly || null}, ${randomize ?? true}, ${passPercent ?? 50}) RETURNING *`;
+      const [q] = await sql`INSERT INTO quizzes (title, description, course_id, course_title, duration_minutes, total_points, difficulty, group_only, year_only, randomize, pass_percent, is_open) VALUES (${title}, ${description || ""}, ${courseId}, ${courseTitle || ""}, ${durationMinutes ?? 15}, ${totalPoints ?? 100}, ${difficulty || "medium"}, ${groupOnly || null}, ${yearOnly || null}, ${randomize ?? true}, ${passPercent ?? 50}, true) RETURNING *`;
       return { ...q, createdAt: q.created_at?.toISOString() };
     });
   }
@@ -4852,6 +4948,10 @@ async function handleAdminNews(req: Request, parts: string[]): Promise<Response>
   if (parts[2] && parts[3] === "approve") {
     return handle(async () => {
       await sql`UPDATE news SET status = 'approved', published_at = ${new Date()} WHERE id = ${Number(parts[2])}`;
+      const students = await sql`SELECT id FROM users WHERE role = 'student'`;
+      for (const u of students) {
+        await sql`INSERT INTO notifications (user_id, title, body, type) VALUES (${u.id}, 'خبر جديد', ${`تم نشر خبر جديد في الأخبار`}, 'news')`;
+      }
       return { ok: true };
     });
   }
@@ -5643,6 +5743,11 @@ async function handleRequest(request: Request): Promise<Response> {
     "DELETE /admin/forum/replies/:id": () => handleAdminCrud(request, ["", "admin", "forum", "replies", parts[3]]),
     "DELETE /v2/admin/forum/posts/:id": () => handleAdminCrud(request, ["", "admin", "forum", "posts", parts[4]]),
     "DELETE /v2/admin/forum/replies/:id": () => handleAdminCrud(request, ["", "admin", "forum", "replies", parts[4]]),
+
+    // Web Push (device notifications)
+    "GET /v2/push/vapid": () => handlePush(request, ["push", "vapid"]),
+    "POST /v2/push/subscribe": () => handlePush(request, ["push", "subscribe"]),
+    "POST /v2/push/unsubscribe": () => handlePush(request, ["push", "unsubscribe"]),
   };
 
   // Try exact match first
