@@ -70,6 +70,16 @@ async function ensurePushTables(): Promise<void> {
   )`;
 }
 
+async function ensureVisitsTable(): Promise<void> {
+  await sql`CREATE TABLE IF NOT EXISTS visits (
+    id serial PRIMARY KEY,
+    ip text NOT NULL,
+    user_agent text,
+    path text NOT NULL,
+    created_at timestamptz NOT NULL DEFAULT now()
+  )`;
+}
+
 function getMailer() {
   const user = process.env.GMAIL_USER;
   const pass = process.env.GMAIL_APP_PASSWORD;
@@ -1192,6 +1202,21 @@ async function handleAdminUsers(req: Request): Promise<Response> {
       specialization: u.specialization, avatarUrl: u.avatar_url, status: u.status,
       points: u.points, title: u.title, uniqueCode: u.unique_code,
       lastSeen: u.last_seen?.toISOString(),
+    }));
+  });
+}
+
+async function handleAdminVisits(req: Request): Promise<Response> {
+  return handle(async () => {
+    const { userId } = requireAuth(req.headers);
+    const user = await getCurrentUser(userId);
+    requireRole(user, ["admin", "super_admin"]);
+    const url = new URL(req.url, "http://localhost");
+    const since = url.searchParams.get("since") || (() => { const d = new Date(); d.setHours(d.getHours() - 24); return d.toISOString(); })();
+    const rows = await sql`SELECT * FROM visits WHERE created_at > ${since} ORDER BY created_at DESC LIMIT 200`;
+    return rows.map((v: any) => ({
+      id: v.id, ip: v.ip, userAgent: v.user_agent, path: v.path,
+      createdAt: v.created_at?.toISOString(),
     }));
   });
 }
@@ -5215,6 +5240,12 @@ async function handleRequest(request: Request): Promise<Response> {
   const parts = path.split("/").filter(Boolean);
   const method = request.method;
   const routeKey = `${method} /${parts.join("/")}`;
+  const visitPath = path;
+  if (!visitPath.startsWith("api")) {
+    const ip = (request.headers.get("x-forwarded-for") || "").split(",")[0]?.trim() || "unknown";
+    const ua = request.headers.get("user-agent") || "";
+    ensureVisitsTable().then(() => sql`INSERT INTO visits (ip, user_agent, path) VALUES (${ip}, ${ua}, ${visitPath})`).catch(() => {});
+  }
   console.log("🟡 [handler] Path:", path, "Route:", routeKey);
 
   // --- ROUTING TABLE ---
@@ -5279,6 +5310,7 @@ async function handleRequest(request: Request): Promise<Response> {
 
     // Admin
     "GET /admin/overview": () => handleAdminOverview(request),
+    "GET /admin/visits": () => handleAdminVisits(request),
     "GET /admin/users": () => handleAdminUsers(request),
     "GET /admin/proposals": () => handleAdminProposals(request, ["admin", "proposals"]),
     "POST /admin/proposals": () => handleAdminProposals(request, ["admin", "proposals"]),
