@@ -159,6 +159,42 @@ export function useMarkAllRead() {
   });
 }
 
+export function usePushSubscription() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async () => {
+      if (!("Notification" in window)) throw new Error("غير مدعوم");
+      if (Notification.permission !== "granted") {
+        const p = await Notification.requestPermission();
+        if (p !== "granted") throw new Error("تم الرفض");
+      }
+      const reg = await navigator.serviceWorker.ready;
+      const { publicKey } = await api.get<{ publicKey: string }>("/v2/push/vapid");
+      const sub = await reg.pushManager.subscribe({
+        userVisibleOnly: true,
+        applicationServerKey: urlBase64ToUint8Array(publicKey),
+      });
+      await api.post<{ ok: true }>("/v2/push/subscribe", {
+        endpoint: sub.endpoint,
+        p256dh: sub.getKeys("p256dh"),
+        auth: sub.getKeys("auth"),
+      });
+      localStorage.setItem("uv_push_asked", Date.now().toString());
+      return { ok: true };
+    },
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["v2", "me"] });
+    },
+  });
+}
+
+function urlBase64ToUint8Array(base64String: string) {
+  const padding = "=".repeat((4 - (base64String.length % 4)) % 4);
+  const base64 = (base64String + padding).replace(/-/g, "+").replace(/_/g, "/");
+  const raw = atob(base64);
+  return Uint8Array.from([...raw].map((c) => c.charCodeAt(0)));
+}
+
 export function useMarkNotificationRead() {
   const qc = useQueryClient();
   return useMutation({

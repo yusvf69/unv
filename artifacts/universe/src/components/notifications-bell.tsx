@@ -7,7 +7,7 @@ import {
   DropdownMenuContent,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
-import { useNotifications, useMarkAllRead, type NotificationItem } from "@/lib/api";
+import { useNotifications, useMarkAllRead, usePushSubscription, type NotificationItem } from "@/lib/api";
 import { globalI18n, useTranslation } from "@/lib/i18n";
 import { formatISODateTime } from "@/lib/dates";
 
@@ -23,6 +23,7 @@ export default function NotificationsBell() {
   const { data: notes = [] } = useNotifications();
   const markAll = useMarkAllRead();
   const [open, setOpen] = useState(false);
+  const pushSub = usePushSubscription();
   const unread = notes.filter((n) => !n.read).length;
 
   return (
@@ -59,6 +60,14 @@ export default function NotificationsBell() {
             </Button>
           )}
         </div>
+        <button
+          onClick={() => pushSub.mutate()}
+          disabled={pushSub.isPending}
+          className="w-full text-left px-3 py-2 text-xs bg-emerald-50 text-emerald-700 hover:bg-emerald-100 border-b flex items-center justify-between"
+        >
+          <span>🔔 فعّل تنبيهات الجهاز</span>
+          {pushSub.isPending ? "...جاري" : <span className="text-[10px] underline">اضغط هنا</span>}
+        </button>
         {notes.length === 0 ? (
           <div className="p-8 text-center text-sm text-muted-foreground">{t("noNotifications")}</div>
         ) : (
