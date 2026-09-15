@@ -699,6 +699,7 @@ export const AiChatResponse = zod.object({
 export const GetAdminOverviewResponse = zod.object({
   totalStudents: zod.number(),
   totalStaff: zod.number(),
+  totalVisits: zod.number().optional(),
   activeExams: zod.number(),
   todayActivity: zod.number(),
   aiUsageToday: zod.number(),

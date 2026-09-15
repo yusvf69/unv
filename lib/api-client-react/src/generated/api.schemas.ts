@@ -552,6 +552,7 @@ export type AdminOverviewPointsDistributionItem = {
 export interface AdminOverview {
   totalStudents: number;
   totalStaff: number;
+  totalVisits?: number;
   activeExams: number;
   todayActivity: number;
   aiUsageToday: number;
