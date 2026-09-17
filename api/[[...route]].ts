@@ -1245,6 +1245,14 @@ async function handleAdminLikes(req: Request): Promise<Response> {
       ORDER BY fpl.created_at DESC LIMIT 50
     `;
 
+    const forumReplies = await sql`
+      SELECT fr.id, fr.created_at, u.name AS user_name, u.username, fr.body, fp.title AS post_title, fp.category
+      FROM forum_replies fr
+      JOIN users u ON u.id = fr.author_id
+      JOIN forum_posts fp ON fp.id = fr.post_id
+      ORDER BY fr.created_at DESC LIMIT 50
+    `;
+
     return {
       talentLikes: talentLikes.map((l: any) => ({
         id: l.id, user_name: l.user_name, username: l.username,
@@ -1255,6 +1263,12 @@ async function handleAdminLikes(req: Request): Promise<Response> {
         id: l.id, user_name: l.user_name, username: l.username,
         post_title: l.post_title, category: l.category,
         createdAt: l.created_at?.toISOString(),
+      })),
+      forumReplies: forumReplies.map((r: any) => ({
+        id: r.id, user_name: r.user_name, username: r.username,
+        post_title: r.post_title, category: r.category,
+        body: r.body,
+        createdAt: r.created_at?.toISOString(),
       })),
     };
   });
