@@ -1222,6 +1222,43 @@ async function handleAdminVisits(req: Request): Promise<Response> {
   });
 }
 
+async function handleAdminLikes(req: Request): Promise<Response> {
+  return handle(async () => {
+    const { userId } = requireAuth(req.headers);
+    const user = await getCurrentUser(userId);
+    requireRole(user, ["admin", "super_admin"]);
+
+    const talentLikes = await sql`
+      SELECT tl.id, tl.created_at, u.name AS user_name, u.username, t.title AS post_title, t.category
+      FROM talent_likes tl
+      JOIN users u ON u.id = tl.user_id
+      JOIN talents t ON t.id = tl.talent_id
+      ORDER BY tl.created_at DESC LIMIT 50
+    `;
+
+    const forumLikes = await sql`
+      SELECT fpl.id, fpl.created_at, u.name AS user_name, u.username, fp.title AS post_title, fp.category
+      FROM forum_post_likes fpl
+      JOIN users u ON u.id = fpl.user_id
+      JOIN forum_posts fp ON fp.id = fpl.post_id
+      ORDER BY fpl.created_at DESC LIMIT 50
+    `;
+
+    return {
+      talentLikes: talentLikes.map((l: any) => ({
+        id: l.id, user_name: l.user_name, username: l.username,
+        post_title: l.post_title, category: l.category,
+        createdAt: l.created_at?.toISOString(),
+      })),
+      forumLikes: forumLikes.map((l: any) => ({
+        id: l.id, user_name: l.user_name, username: l.username,
+        post_title: l.post_title, category: l.category,
+        createdAt: l.created_at?.toISOString(),
+      })),
+    };
+  });
+}
+
 async function handleAdminProposals(req: Request, parts: string[]): Promise<Response> {
   const { userId } = requireAuth(req.headers);
   const user = await getCurrentUser(userId);
@@ -5312,6 +5349,7 @@ async function handleRequest(request: Request): Promise<Response> {
     // Admin
     "GET /admin/overview": () => handleAdminOverview(request),
     "GET /admin/visits": () => handleAdminVisits(request),
+    "GET /admin/likes": () => handleAdminLikes(request),
     "GET /admin/users": () => handleAdminUsers(request),
     "GET /admin/proposals": () => handleAdminProposals(request, ["admin", "proposals"]),
     "POST /admin/proposals": () => handleAdminProposals(request, ["admin", "proposals"]),
