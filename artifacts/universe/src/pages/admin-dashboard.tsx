@@ -8,6 +8,7 @@ import {
   Activity,
   Brain,
   Eye,
+  ThumbsUp,
   AlertTriangle,
   ArrowLeft,
   Newspaper,
@@ -160,6 +161,7 @@ export default function AdminDashboard() {
           { icon: GraduationCap, value: overview.totalStaff, label: "هيئة التدريس", color: "secondary" },
           { icon: ClipboardCheck, value: overview.activeExams, label: "اختبارات نشطة", color: "accent" },
           { icon: Eye, value: overview.totalVisits ?? 0, label: "زوار اليوم", color: "chart-4" },
+          { icon: ThumbsUp, value: overview.totalLikes ?? 0, label: "الإعجابات", color: "accent" },
           { icon: Brain, value: overview.aiUsageToday, label: "استخدام AI اليوم", color: "chart-4" },
         ].map((s, i) => (
           <motion.div

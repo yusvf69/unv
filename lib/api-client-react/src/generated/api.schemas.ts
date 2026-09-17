@@ -553,6 +553,7 @@ export interface AdminOverview {
   totalStudents: number;
   totalStaff: number;
   totalVisits?: number;
+  totalLikes?: number;
   activeExams: number;
   todayActivity: number;
   aiUsageToday: number;
