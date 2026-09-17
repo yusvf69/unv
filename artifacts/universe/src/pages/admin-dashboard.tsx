@@ -51,6 +51,7 @@ const ADMIN_MODULES_ALL = [
   { href: "/admin/talents", icon: Sparkles, title: "مراجعة المواهب", desc: "حذف وتحذير المخالف", color: "from-rose-500 to-rose-600", permKey: "manage_talents" },
   { href: "/admin/proposals", icon: ShieldCheck, title: "الاقتراحات", desc: "موافقة السوبر أدمن", color: "from-violet-500 to-violet-600", permKey: "manage_proposals" },
   { href: "/admin/dm", icon: MessageSquare, title: "مراقبة المحادثات", desc: "عرض محادثات الطلاب", color: "from-pink-500 to-pink-600", permKey: "manage_dm" },
+  { href: "/admin/likes", icon: ThumbsUp, title: "الإعجابات", desc: "من عمل لايك أو رد", color: "from-orange-500 to-orange-600", permKey: "manage_likes" },
 ];
 
 function getAdminPerms(user: { role: string; adminPermissions: string | null } | undefined): string[] {

@@ -49,6 +49,7 @@ import AdminCourseDetail from "@/pages/admin-course-detail";
 import AdminMaterials from "@/pages/admin-materials";
 import AdminSchedule from "@/pages/admin-schedule";
 import AdminSkills from "@/pages/admin-skills";
+import AdminLikes from "@/pages/admin-likes";
 import Events from "@/pages/events";
 import AdminEvents from "@/pages/admin-events";
 import StudentSummaries from "@/pages/student-summaries";
@@ -166,6 +167,7 @@ function Router() {
         <ProtectedRoute path="/admin/materials" component={AdminMaterials} />
         <ProtectedRoute path="/admin/ebooks" component={AdminEbooks} />
         <ProtectedRoute path="/admin/dm" component={AdminDmMonitor} />
+        <ProtectedRoute path="/admin/likes" component={AdminLikes} />
         <ProtectedRoute path="/admin/schedule" component={AdminSchedule} />
         <ProtectedRoute path="/events" component={Events} />
         <ProtectedRoute path="/admin/events" component={AdminEvents} />

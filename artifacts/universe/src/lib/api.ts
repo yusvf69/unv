@@ -350,6 +350,29 @@ export function useMySkills() {
   });
 }
 
+export interface AdminLikeItem {
+  id: number;
+  user_name: string;
+  username: string;
+  post_title: string;
+  category: string;
+  body?: string;
+  createdAt: string;
+}
+
+export interface AdminLikesData {
+  talentLikes: AdminLikeItem[];
+  forumLikes: AdminLikeItem[];
+  forumReplies: AdminLikeItem[];
+}
+
+export function useAdminLikes() {
+  return useQuery<AdminLikesData>({
+    queryKey: ["admin", "likes"],
+    queryFn: () => api.get<AdminLikesData>("/admin/likes"),
+  });
+}
+
 // ===== Recommendations =====
 export interface SkillRecommendation {
   trackId: number;
