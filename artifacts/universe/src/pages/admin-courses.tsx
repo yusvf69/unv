@@ -274,7 +274,7 @@ export default function AdminCourses() {
             </div>
             <div>
               <Label className="text-xs">صورة الغلاف (اختياري)</Label>
-              <FileUpload value={form.coverUrl || null} onChange={(d) => setForm({ ...form, coverUrl: d || "" })} maxSizeKb={500} />
+              <FileUpload value={form.coverUrl || null} onChange={(d) => setForm({ ...form, coverUrl: d || "" })} maxSizeKb={1000000} />
             </div>
           </div>
           <DialogFooter>
