@@ -357,18 +357,24 @@ function LectureCard({ lecture, isSuper, videoProgress }: { lecture: LectureFull
       toast({ title: "تم إضافة السؤال" });
     } catch (e) { toast({ title: "خطأ", description: (e as Error).message, variant: "destructive" }); }
   };
+  const TYPE_MAP: Record<string, "mc" | "tf" | "complete"> = {
+    "اختيار من متعدد": "mc", "mc": "mc",
+    "صح وخطأ": "tf", "tf": "tf", "صح/خطأ": "tf",
+    "املأ الفراغ": "complete", "complete": "complete", "إكمال": "complete",
+  };
   const handleBulkAdd = async (quizId: number) => {
-    const lines = bulkText.trim().split("\n").filter((l) => l.trim());
-    if (!lines.length) { toast({ title: "اكتب الأسئلة أولاً", variant: "destructive" }); return; }
+    const raw = bulkText.trim().split("\n").filter((l) => l.trim() && !l.includes("---") && !l.startsWith("| النوع") && !l.startsWith("|---"));
+    if (!raw.length) { toast({ title: "اكتب الأسئلة أولاً", variant: "destructive" }); return; }
     const questions: { text: string; type?: string; options: string[]; correctIndex: number; points?: number; explanation?: string }[] = [];
-    for (const line of lines) {
-      const parts = line.split("|").map((s) => s.trim()).filter(Boolean);
+    for (const line of raw) {
+      const parts = line.split("|").map((s) => s.trim()).filter((s) => s && s !== "-");
       if (parts.length < 3) continue;
-      const type = parts[0].toLowerCase();
+      const typeRaw = parts[0];
+      const type = TYPE_MAP[typeRaw] || typeRaw.toLowerCase();
       if (!["mc", "tf", "complete"].includes(type)) continue;
       const text = parts[1];
       if (!text) continue;
-      // first numeric after index 1 = correctIndex
+      // find first numeric index after the text
       let correctIndex = -1;
       let correctIdxPos = -1;
       for (let i = 2; i < parts.length; i++) {
@@ -376,14 +382,14 @@ function LectureCard({ lecture, isSuper, videoProgress }: { lecture: LectureFull
         if (!isNaN(n)) { correctIndex = n; correctIdxPos = i; break; }
       }
       if (correctIdxPos === -1) continue;
-      const options = parts.slice(2, correctIdxPos);
+      const options = parts.slice(2, correctIdxPos).filter((o) => o && o !== "-");
       if (!options.length) continue;
       const trailing = parts.slice(correctIdxPos + 1);
       let explanation: string | undefined;
       let points: number | undefined;
       if (trailing.length >= 2) { explanation = trailing[0]; const p = parseInt(trailing[1], 10); if (!isNaN(p)) points = p; }
       else if (trailing.length === 1) { const p = parseInt(trailing[0], 10); if (isNaN(p)) explanation = trailing[0]; else points = p; }
-      questions.push({ text, type: type as "mc" | "tf" | "complete", options, correctIndex, points, explanation });
+      questions.push({ text, type, options, correctIndex, points, explanation });
     }
     if (!questions.length) { toast({ title: "لم تُستخرج أسئلة صالحة. استخدم: النوع | نص السؤال | خيار1 | ... | رقم_الإجابة | شرح | نقاط", variant: "destructive" }); return; }
     try {
@@ -619,17 +625,17 @@ function LectureCard({ lecture, isSuper, videoProgress }: { lecture: LectureFull
         <DialogContent className="max-w-xl">
           <DialogHeader><DialogTitle>إضافة عدة أسئلة دفعة واحدة</DialogTitle></DialogHeader>
           <div className="text-xs text-muted-foreground mb-2">
-            اضغط (Paste) أو اكتب كل سؤال في سطر بالشكل:
+            اضغط (Paste) جدول أو اكتب كل سؤال في سطر بالشكل:
             <code className="block mt-1 p-2 bg-muted rounded text-[11px] dir-rtl">
-{`النوع | نص السؤال | خيار1 | خيار2 | ... | رقم_الإجابة_من_1 | شرح(اختياري) | نقاط`}
+{`النوع | نص السؤال | خيار1 | خيار2 | ... | رقم_الإجابة_من_1 | شرح(اختياري) | نقاط(اختياري)`}
             </code>
-            <span className="mt-1 block">الأنواع: <b>mc</b> (اختر) · <b>tf</b> (صح/خطأ) · <b>complete</b> (أكمل)</span>
-            <span className="mt-0.5 block">الشرح والنقاط اختياريين. مثال:</span>
+            <span className="mt-1 block">الأنواع بالعربي: <b>اختيار من متعدد</b> · <b>صح وخطأ</b> · <b>ملأ الفراغ</b></span>
+            <span className="mt-0.5 block">تجاهل سطور `|---|` والـ header. مثال:</span>
             <code className="block mt-0.5 p-1 bg-muted rounded text-[11px] dir-rtl">
-{`mc | ما عاصمة مصر؟ | القاهرة | الجيزة | الإسكندرية | 1 | عاصمة مصر هي القاهرة | 5`}
+{`اختيار من متعدد | ما عاصمة مصر؟ | القاهرة | الجيزة | الإسكندرية | 1\nصح وخطأ | الأرض كروية؟ | صح | خطأ | 0\nملأ الفراغ | أكمل: ٢+٢ = ؟ | ٤ | 0`}
             </code>
           </div>
-          <textarea className="w-full border rounded-lg p-2 font-mono text-sm dir-rtl" rows={14} placeholder={'مثال:\nmc | ما عاصمة مصر؟ | القاهرة | الجيزة | الإسكندرية | 1 | عاصمة مصر هي القاهرة | 5\ntf | الأرض كروية؟ | صح | خطأ | 0\ncomplete | أكمل: ٢+٢ = ؟ | ٤ | 0'} value={bulkText} onChange={(e) => setBulkText(e.target.value)} />
+          <textarea className="w-full border rounded-lg p-2 font-mono text-sm dir-rtl" rows={14} placeholder={'مثال:\nاختيار من متعدد | ما عاصمة مصر؟ | القاهرة | الجيزة | الإسكندرية | 1 | عاصمة مصر هي القاهرة | 5\nصح وخطأ | الأرض كروية؟ | صح | خطأ | 0\nاملأ الفراغ | أكمل: ٢+٢ = ؟ | ٤ | 0'} value={bulkText} onChange={(e) => setBulkText(e.target.value)} />
           <div className="text-xs text-muted-foreground mt-1">عدد الأسئلة المستخرجة: <b>{bulkText.trim().split("\n").filter((l) => l.trim()).length}</b></div>
           <DialogFooter>
             <Button variant="ghost" onClick={() => { setBulkDialog(false); setBulkText(""); }}>إلغاء</Button>
