@@ -357,15 +357,18 @@ function LectureCard({ lecture, isSuper, videoProgress }: { lecture: LectureFull
     for (const line of lines) {
       const parts = line.split("|").map((s) => s.trim()).filter(Boolean);
       if (parts.length < 3) continue;
-      const text = parts[0];
+      const type = parts[0].toLowerCase();
+      if (!["mc", "tf", "complete"].includes(type)) continue;
+      const text = parts[1];
+      if (!text) continue;
       const correctRaw = parts[parts.length - 1];
       const ci = parseInt(correctRaw, 10);
-      if (isNaN(ci) || ci < 0 || ci >= parts.length - 1) continue;
-      const type = parts.length === 3 ? "tf" : parts[parts.length - 2]?.toLowerCase()?.includes("صح") ? "tf" : "mc";
-      const options = parts.slice(1, parts.length - 1);
-      questions.push({ text, type, options, correctIndex: ci, points: 1 });
+      if (isNaN(ci) || ci < 0 || ci >= parts.length - 2) continue;
+      const options = parts.slice(2, parts.length - 1);
+      if (!options.length) continue;
+      questions.push({ text, type: type as "mc" | "tf" | "complete", options, correctIndex: ci, points: 1 });
     }
-    if (!questions.length) { toast({ title: "لم تُستخرج أسئلة صالحة. استخدم: نص السؤال | خيار1 | خيار2 | ... | رقم_الإجابة", variant: "destructive" }); return; }
+    if (!questions.length) { toast({ title: "لم تُستخرج أسئلة صالحة. استخدم: النوع | نص السؤال | خيار1 | ... | رقم_الإجابة", variant: "destructive" }); return; }
     try {
       await bulkAddQuestions.mutateAsync({ quizId, questions });
       setBulkDialog(false);
@@ -598,9 +601,21 @@ function LectureCard({ lecture, isSuper, videoProgress }: { lecture: LectureFull
       <Dialog open={bulkDialog} onOpenChange={(o) => { setBulkDialog(o); if (!o) setBulkText(""); }}>
         <DialogContent className="max-w-xl">
           <DialogHeader><DialogTitle>إضافة عدة أسئلة دفعة واحدة</DialogTitle></DialogHeader>
-          <div className="text-xs text-muted-foreground mb-2">اكتب سؤالًا في كل سطر بالشكل: <code>نص السؤال | خيار1 | خيار2 | رقم_الإجابة</code></div>
-          <textarea className="w-full border rounded-lg p-2 font-mono text-sm" rows={10} placeholder={'مثال:\nهل الأرض كروية؟ | نعم | لا | 0\nما ثابت الضوء؟ | 3e8 | 3e7 | 0\nأكمل: ٢+٢ = ? | 4 | 0'} value={bulkText} onChange={(e) => setBulkText(e.target.value)} />
-          <DialogFooter><Button variant="ghost" onClick={() => { setBulkDialog(false); setBulkText(""); }}>إلغاء</Button><Button onClick={() => questionDialog && handleBulkAdd(questionDialog)} disabled={bulkAddQuestions.isPending}>{bulkAddQuestions.isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : <><Plus className="me-2 h-4 w-4" /> إضافة الكل</>}</Button></DialogFooter>
+          <div className="text-xs text-muted-foreground mb-2">
+            اضغط (Paste) أو اكتب كل سؤال في سطر بالشكل:
+            <code className="block mt-1 p-2 bg-muted rounded text-[11px] dir-rtl">
+{`النوع | نص السؤال | الخيار1 | الخيار2 | ... | رقم_الإجابة_من_1`}
+            </code>
+            <span className="mt-1 block">الأنواع: <b>mc</b> (اختر) · <b>tf</b> (صح/خطأ) · <b>complete</b> (أكمل)</span>
+          </div>
+          <textarea className="w-full border rounded-lg p-2 font-mono text-sm dir-rtl" rows={12} placeholder={'مثال:\nmc | ما عاصمة مصر؟ | القاهرة | الجيزة | الإسكندرية | 1\ntf | الأرض كروية؟ | صح | خطأ | 0\ncomplete | أكمل: ٢+٢ = ؟ | ٤ | 0'} value={bulkText} onChange={(e) => setBulkText(e.target.value)} />
+          <div className="text-xs text-muted-foreground mt-1">عدد الأسئلة المستخرجة: <b>{bulkText.trim().split("\n").filter((l) => l.trim()).length}</b></div>
+          <DialogFooter>
+            <Button variant="ghost" onClick={() => { setBulkDialog(false); setBulkText(""); }}>إلغاء</Button>
+            <Button onClick={() => questionDialog && handleBulkAdd(questionDialog)} disabled={bulkAddQuestions.isPending}>
+              {bulkAddQuestions.isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : <><Plus className="me-2 h-4 w-4" /> إضافة الكل</>}
+            </Button>
+          </DialogFooter>
         </DialogContent>
       </Dialog>
 
