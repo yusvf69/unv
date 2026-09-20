@@ -362,6 +362,13 @@ function LectureCard({ lecture, isSuper, videoProgress }: { lecture: LectureFull
     "صح وخطأ": "tf", "tf": "tf", "صح/خطأ": "tf",
     "ملأ الفراغ": "complete", "املأ الفراغ": "complete", "complete": "complete", "إكمال": "complete",
   };
+  function detectType(t: string): "mc" | "tf" | "complete" {
+    if (TYPE_MAP[t]) return TYPE_MAP[t];
+    if (t.includes("صح") || t.includes("خطأ") || t.includes("صحيح") || t.includes("خطأ")) return "tf";
+    if (t.includes("اختيار") || t.includes("متعدد") || t.includes("اختر")) return "mc";
+    if (t.includes("فراغ") || t.includes("املأ") || t.includes("ملأ") || t.includes("إكمال")) return "complete";
+    return t.toLowerCase() as any;
+  }
   const handleBulkAdd = async (quizId: number) => {
     const raw = bulkText.trim().split("\n").filter((l) => l.trim() && !l.includes("---") && !l.trim().startsWith("| النوع") && !l.trim().startsWith("|---") && !l.trim().startsWith("```") && !l.includes("eof"));
     if (!raw.length) { toast({ title: "اكتب الأسئلة أولاً", variant: "destructive" }); return; }
@@ -370,7 +377,7 @@ function LectureCard({ lecture, isSuper, videoProgress }: { lecture: LectureFull
       const parts = line.split("|").map((s) => s.trim()).filter((s) => s && s !== "-");
       if (parts.length < 3) continue;
       const typeRaw = parts[0];
-      const type = TYPE_MAP[typeRaw] || typeRaw.toLowerCase();
+      const type = detectType(typeRaw);
       if (!["mc", "tf", "complete"].includes(type)) continue;
       const text = parts[1];
       if (!text) continue;
@@ -392,12 +399,13 @@ function LectureCard({ lecture, isSuper, videoProgress }: { lecture: LectureFull
       questions.push({ text, type, options, correctIndex, points, explanation });
     }
     if (!questions.length) { toast({ title: "لم تُستخرج أسئلة صالحة. استخدم: النوع | نص السؤال | خيار1 | ... | رقم_الإجابة | شرح | نقاط", variant: "destructive" }); return; }
+    console.log("BULK_QUESTIONS:", JSON.stringify(questions.slice(0, 3), null, 2));
     try {
       await bulkAddQuestions.mutateAsync({ quizId, questions });
       setBulkDialog(false);
       setBulkText("");
       toast({ title: `تم إضافة ${questions.length} سؤال` });
-    } catch (e) { toast({ title: "خطأ", description: (e as Error).message, variant: "destructive" }); }
+    } catch (e: any) { toast({ title: "خطأ", description: e?.message || String(e), variant: "destructive" }); }
   };
 
   const handleDeleteLecture = async () => {
