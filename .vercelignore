@@ -1,3 +1,6 @@
+node_modules/
+artifacts/app/
+artifacts/UniVerse-native.apk
 api/server.ts
 api/vercel.ts
 api/.DS_Store
