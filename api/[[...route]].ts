@@ -5095,6 +5095,7 @@ async function handleAdminCourses(req: Request, parts: string[]): Promise<Respon
       const body = await req.json();
       const id = Number(parts[2]);
       const { title, code, description, credits, department, instructorId, taIds, yearInCollege, semester, coverUrl } = body;
+      console.log("[PUT /courses/:id]", { id, title, code, description: description?.slice(0, 50), coverUrl: coverUrl ? coverUrl.slice(0, 30) : null });
       if (!title || !code) throw Object.assign(new Error("العنوان والكود مطلوب"), { status: 400 });
       const [instructor] = instructorId ? await sql`SELECT name FROM users WHERE id = ${Number(instructorId)}` : [null];
       const [c] = await sql`
@@ -5112,6 +5113,7 @@ async function handleAdminCourses(req: Request, parts: string[]): Promise<Respon
         WHERE id = ${id}
         RETURNING *`;
       if (!c) throw Object.assign(new Error("المقرر غير موجود"), { status: 404 });
+      console.log("[PUT /courses/:id] Updated:", { id, description: c.description?.slice(0, 50), cover_url: c.cover_url });
       return c;
     });
   }
