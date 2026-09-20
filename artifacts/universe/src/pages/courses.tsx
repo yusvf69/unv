@@ -150,7 +150,7 @@ export default function Courses() {
                     <div key={`${y}|${r.courseTitle}`} className={`flex items-center justify-between gap-2 border rounded-lg px-3 py-2 ${r.carried ? "bg-primary/10 border-primary/40" : "bg-card"}`}>
                       <div className="min-w-0">
                         <div className="text-sm font-bold truncate">{r.courseTitle}</div>
-                        <div className="text-[10px] text-muted-foreground truncate">{r.blocks.map((b) => `${b.day} ${b.startTime}`).join(" · ") || "مقرر معاد"}</div>
+                        <div className="text-[10px] text-muted-foreground truncate">{(r.blocks || []).map((b) => `${b.day} ${b.startTime}`).join(" · ") || "مقرر معاد"}</div>
                       </div>
                       <button
                         onClick={() => toggleRetake(r.courseTitle, r.sourceYear, r.carried, r.carriedId)}
