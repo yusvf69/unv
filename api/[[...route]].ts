@@ -4479,7 +4479,8 @@ const questions = await sql`SELECT * FROM lecture_quiz_questions WHERE quiz_id =
         await sql`INSERT INTO lecture_quiz_attempts (user_id, quiz_id, score, total, answers) VALUES (${userId}, ${quizId}, ${score}, ${total}, ${ansArr})`;
       } catch (e: any) {
         if (e?.message?.includes("relation") || e?.message?.includes("does not exist")) {
-          await sql`CREATE TABLE IF NOT EXISTS lecture_quiz_attempts (id SERIAL PRIMARY KEY, user_id INT, quiz_id INT, score INT, total INT, answers text[], completed_at TIMESTAMP DEFAULT now())`;
+          await sql`CREATE TABLE IF NOT EXISTS lecture_quiz_attempts (id SERIAL PRIMARY KEY, user_id INT, quiz_id INT, score INT, total INT, answers text[], passed BOOLEAN DEFAULT false, completed_at TIMESTAMP DEFAULT now())`;
+          
           await sql`INSERT INTO lecture_quiz_attempts (user_id, quiz_id, score, total, answers) VALUES (${userId}, ${quizId}, ${score}, ${total}, 
 ${ansArr})`;
         } else {
@@ -4498,7 +4499,8 @@ async function handleLectureQuizAttempts(req: Request, parts: string[]): Promise
   return handle(async () => {
     const { userId } = requireAuth(req.headers);
     const quizId = Number(parts[2]);
-    try { await sql`CREATE TABLE IF NOT EXISTS lecture_quiz_attempts (id SERIAL PRIMARY KEY, user_id INT, quiz_id INT, score INT, total INT, answers text[], completed_at TIMESTAMP DEFAULT now())`; } catch {}
+    try { await sql`CREATE TABLE IF NOT EXISTS lecture_quiz_attempts (id SERIAL PRIMARY KEY, user_id INT, quiz_id INT, score INT, total INT, answers text[], passed BOOLEAN DEFAULT false, completed_at TIMESTAMP DEFAULT now())`; } catch {}
+    try { await sql`ALTER TABLE lecture_quiz_attempts ADD COLUMN IF NOT EXISTS passed BOOLEAN DEFAULT false`; } catch {}
     const attempts = await sql`SELECT id, user_id, quiz_id, score, total, passed, answers, completed_at FROM lecture_quiz_attempts WHERE user_id = ${userId} AND quiz_id = ${quizId} ORDER BY completed_at DESC`;
     return attempts.map((a: any) => ({ ...a, completedAt: a.completed_at?.toISOString() }));
   });

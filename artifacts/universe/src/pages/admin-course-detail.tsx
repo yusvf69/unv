@@ -360,7 +360,7 @@ function LectureCard({ lecture, isSuper, videoProgress }: { lecture: LectureFull
   const TYPE_MAP: Record<string, "mc" | "tf" | "complete"> = {
     "اختيار من متعدد": "mc", "mc": "mc",
     "صح وخطأ": "tf", "tf": "tf", "صح/خطأ": "tf",
-    "املأ الفراغ": "complete", "complete": "complete", "إكمال": "complete",
+    "ملأ الفراغ": "complete", "املأ الفراغ": "complete", "complete": "complete", "إكمال": "complete",
   };
   const handleBulkAdd = async (quizId: number) => {
     const raw = bulkText.trim().split("\n").filter((l) => l.trim() && !l.includes("---") && !l.startsWith("| النوع") && !l.startsWith("|---") && !l.trim().startsWith("```") && !l.includes("eof"));
