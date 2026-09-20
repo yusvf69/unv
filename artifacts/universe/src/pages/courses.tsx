@@ -19,7 +19,8 @@ export default function Courses() {
   const t = useTranslation(globalI18n);
 
   useEffect(() => {
-    queryClient.invalidateQueries({ queryKey: ["v2", "courses"] });
+    const query = queryClient.getQueryCache().find(["v2", "courses"]);
+    if (query) query.refetch();
   }, []);
 
   if (isPending || isError) return <div className="p-8 text-center flex items-center justify-center gap-2"><Loader2 className="h-5 w-5 animate-spin" /> {t("loading")}</div>;
