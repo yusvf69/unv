@@ -2028,3 +2028,65 @@ export function useDeleteAdminSkillLesson() {
   });
 }
 
+// ===== Course Exams =====
+export interface CourseExam { id: number; course_id: number; course_title: string; title: string; description: string; duration_minutes: number; total_points: number; is_open: boolean; createdAt: string; }
+export interface CourseExamQuestion { id: number; course_exam_id: number; text: string; options: string[]; correct_index: number; points: number; type: string; explanation: string; ord: number; }
+export interface CourseExamWithQuestions extends CourseExam { questions: CourseExamQuestion[]; }
+
+export function useCourseExams(courseId: number) {
+  return useQuery<CourseExam[]>({
+    queryKey: ["v2", "course-exams", courseId],
+    queryFn: () => api.get(`/v2/courses/${courseId}/exams`),
+    enabled: courseId > 0,
+  });
+}
+export function useCreateCourseExam(courseId: number) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (body: { title: string; description?: string; durationMinutes?: number; totalPoints?: number }) => api.post(`/v2/courses/${courseId}/exams`, body),
+    onSuccess: () => { qc.invalidateQueries({ queryKey: ["v2", "course-exams", courseId] }); },
+  });
+}
+export function useCourseExamDetail(courseId: number, examId: number) {
+  return useQuery<CourseExamWithQuestions>({
+    queryKey: ["v2", "course-exam", courseId, examId],
+    queryFn: () => api.get(`/v2/courses/${courseId}/exams/${examId}`),
+    enabled: courseId > 0 && examId > 0,
+  });
+}
+export function useAddCourseExamQuestion(courseId: number, examId: number) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (body: { text: string; options: string[]; correctIndex: number; points?: number; type?: string }) => api.post(`/v2/courses/${courseId}/exams/${examId}/questions`, body),
+    onSuccess: () => { qc.invalidateQueries({ queryKey: ["v2", "course-exam", courseId, examId] }); },
+  });
+}
+export function useUpdateCourseExamQuestion(courseId: number, examId: number, questionId: number) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (body: { text?: string; options?: string[]; correctIndex?: number; points?: number; type?: string }) => api.put(`/v2/courses/${courseId}/exams/${examId}/questions/${questionId}`, body),
+    onSuccess: () => { qc.invalidateQueries({ queryKey: ["v2", "course-exam", courseId, examId] }); },
+  });
+}
+export function useDeleteCourseExamQuestion(courseId: number, examId: number) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (questionId: number) => api.del(`/v2/courses/${courseId}/exams/${examId}/questions/${questionId}`),
+    onSuccess: () => { qc.invalidateQueries({ queryKey: ["v2", "course-exam", courseId, examId] }); },
+  });
+}
+export function useSubmitCourseExamAttempt(courseId: number, examId: number) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (body: { answers: any[]; score: number; total: number }) => api.post(`/v2/courses/${courseId}/exams/${examId}/attempts`, body),
+    onSuccess: () => { qc.invalidateQueries({ queryKey: ["v2", "course-exam", courseId, examId] }); },
+  });
+}
+export function useCourseExamAttempts(courseId: number, examId: number) {
+  return useQuery({
+    queryKey: ["v2", "course-exam-attempts", courseId, examId],
+    queryFn: () => api.get(`/v2/courses/${courseId}/exams/${examId}/attempts`),
+    enabled: courseId > 0 && examId > 0,
+  });
+}
+

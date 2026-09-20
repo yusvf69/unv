@@ -46,6 +46,7 @@ import AdminQuizzes from "@/pages/admin-quizzes";
 import AdminCourses from "@/pages/admin-courses";
 import AdminDmMonitor from "@/pages/admin-dm-monitor";
 import AdminCourseDetail from "@/pages/admin-course-detail";
+import AdminCourseExams from "@/pages/admin-course-exams";
 import AdminMaterials from "@/pages/admin-materials";
 import AdminSchedule from "@/pages/admin-schedule";
 import AdminSkills from "@/pages/admin-skills";
@@ -164,6 +165,7 @@ function Router() {
         <ProtectedRoute path="/admin/quizzes" component={AdminQuizzes} />
         <ProtectedRoute path="/admin/courses" component={AdminCourses} />
         <ProtectedRoute path="/admin/courses/:id" component={AdminCourseDetail} />
+        <ProtectedRoute path="/admin/courses/:id/exams" component={AdminCourseExams} />
         <ProtectedRoute path="/admin/materials" component={AdminMaterials} />
         <ProtectedRoute path="/admin/ebooks" component={AdminEbooks} />
         <ProtectedRoute path="/admin/dm" component={AdminDmMonitor} />

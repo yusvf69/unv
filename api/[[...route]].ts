@@ -4991,6 +4991,93 @@ async function handleCourseSummaries(req: Request, parts: string[]): Promise<Res
   });
 }
 
+async function handleCourseExams(req: Request, parts: string[]): Promise<Response> {
+  return handle(async () => {
+    const { userId } = requireAuth(req.headers);
+    const user = await getCurrentUser(userId);
+    const role = user?.role || null;
+    const courseId = Number(parts[1]);
+
+    if (parts[3] === "exams" && !parts[4]) {
+      if (req.method === "POST") {
+        ensureRole(user, ["admin", "super_admin"]);
+        const body = await req.json();
+        const { title, description, durationMinutes, totalPoints } = body;
+        if (!title) throw Object.assign(new Error("العنوان مطلوب"), { status: 400 });
+        const [c] = await sql`SELECT title FROM courses WHERE id = ${courseId}`;
+        const [exam] = await sql`
+          INSERT INTO course_exams (course_id, course_title, title, description, duration_minutes, total_points)
+          VALUES (${courseId}, ${c?.title || ""}, ${title}, ${description || ""}, ${durationMinutes || 30}, ${totalPoints || 100})
+          RETURNING *`;
+        return { ...exam, createdAt: exam.created_at?.toISOString() };
+      }
+      const rows = await sql`SELECT * FROM course_exams WHERE course_id = ${courseId} ORDER BY created_at DESC`;
+      return rows.map((e: any) => ({ ...e, createdAt: e.created_at?.toISOString() }));
+    }
+
+    if (parts[3] === "exams" && parts[4] && !parts[5]) {
+      const examId = Number(parts[4]);
+      const [exam] = await sql`SELECT * FROM course_exams WHERE id = ${examId}`;
+      if (!exam) throw Object.assign(new Error("الامتحان غير موجود"), { status: 404 });
+      const questions = await sql`SELECT * FROM course_exam_questions WHERE course_exam_id = ${examId} ORDER BY ord`;
+      return { ...exam, createdAt: exam.created_at?.toISOString(), questions };
+    }
+
+    if (parts[3] === "exams" && parts[4] && parts[5] === "questions") {
+      if (req.method === "POST") {
+        ensureRole(user, ["admin", "super_admin"]);
+        const examId = Number(parts[4]);
+        const body = await req.json();
+        const { text, options, correctIndex, points, type } = body;
+        if (!text) throw Object.assign(new Error("نص السؤال مطلوب"), { status: 400 });
+        const [qq] = await sql`
+          INSERT INTO course_exam_questions (course_exam_id, text, options, correct_index, points, type)
+          VALUES (${examId}, ${text}, ${JSON.stringify(options || [])}, ${correctIndex ?? 0}, ${points ?? 10}, ${type || "mc"})
+          RETURNING *`;
+        return { ...qq };
+      }
+    }
+
+    if (parts[3] === "exams" && parts[4] && parts[5] === "questions" && parts[6]) {
+      const examId = Number(parts[4]);
+      const questionId = Number(parts[6]);
+      if (req.method === "PUT") {
+        ensureRole(user, ["admin", "super_admin"]);
+        const body = await req.json();
+        const { text, options, correctIndex, points, type } = body;
+        const [qq] = await sql`
+          UPDATE course_exam_questions SET
+            text = ${text || ""}, options = ${options || '{}'}, correct_index = ${correctIndex ?? 0}, points = ${points ?? 10}, type = ${type || "mc"}
+          WHERE id = ${questionId} AND course_exam_id = ${examId}
+          RETURNING *`;
+        if (!qq) throw Object.assign(new Error("السؤال غير موجود"), { status: 404 });
+        return { ...qq };
+      }
+      if (req.method === "DELETE") {
+        ensureRole(user, ["admin", "super_admin"]);
+        await sql`DELETE FROM course_exam_questions WHERE id = ${questionId} AND course_exam_id = ${examId}`;
+        return { ok: true };
+      }
+    }
+
+    if (parts[3] === "exams" && parts[4] && parts[5] === "attempts") {
+      const examId = Number(parts[4]);
+      if (req.method === "POST") {
+        const body = await req.json();
+        const { answers, score, total } = body;
+        await sql`
+          INSERT INTO course_exam_attempts (user_id, course_exam_id, score, total, answers)
+          VALUES (${userId}, ${examId}, ${score ?? 0}, ${total ?? 0}, ${JSON.stringify(answers || [])})`;
+        return { ok: true };
+      }
+      const attempts = await sql`SELECT * FROM course_exam_attempts WHERE course_exam_id = ${examId} ORDER BY completed_at DESC`;
+      return attempts;
+    }
+
+    throw Object.assign(new Error("Route not found"), { status: 404 });
+  });
+}
+
 async function handleAdminNews(req: Request, parts: string[]): Promise<Response> {
   const { userId } = requireAuth(req.headers);
   const user = await getCurrentUser(userId);
@@ -5752,6 +5839,14 @@ async function handleRequest(request: Request): Promise<Response> {
     "GET /v2/courses/:id/video-progress": () => handleCourses(request, ["", "courses", parts[2], "video-progress"]),
     "GET /v2/courses/:id/progress": () => handleCourses(request, ["", "courses", parts[2], "progress"]),
     "GET /v2/courses/:id/student-summaries": () => handleCourseSummaries(request, ["courses", parts[2], "student-summaries"]),
+    "GET /v2/courses/:id/exams": () => handleCourseExams(request, ["courses", parts[2], "exams"]),
+    "POST /v2/courses/:id/exams": () => handleCourseExams(request, ["courses", parts[2], "exams"]),
+    "GET /v2/courses/:id/exams/:examId": () => handleCourseExams(request, ["courses", parts[2], "exams", parts[3]]),
+    "POST /v2/courses/:id/exams/:examId/questions": () => handleCourseExams(request, ["courses", parts[2], "exams", parts[3], "questions"]),
+    "PUT /v2/courses/:id/exams/:examId/questions/:questionId": () => handleCourseExams(request, ["courses", parts[2], "exams", parts[3], "questions", parts[4]]),
+    "DELETE /v2/courses/:id/exams/:examId/questions/:questionId": () => handleCourseExams(request, ["courses", parts[2], "exams", parts[3], "questions", parts[4]]),
+    "GET /v2/courses/:id/exams/:examId/attempts": () => handleCourseExams(request, ["courses", parts[2], "exams", parts[3], "attempts"]),
+    "POST /v2/courses/:id/exams/:examId/attempts": () => handleCourseExams(request, ["courses", parts[2], "exams", parts[3], "attempts"]),
 
     // Materials
     "GET /materials/:id/files": () => handleMaterialFiles(request, ["materials", parts[1], "files"]),
