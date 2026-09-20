@@ -498,7 +498,7 @@ function LectureCard({ lecture, isSuper, videoProgress }: { lecture: LectureFull
           <DialogHeader><DialogTitle>رفع ملف PDF</DialogTitle></DialogHeader>
           <div className="space-y-3">
             <div><Label className="text-xs">اسم الملف</Label><Input value={newPdf.name} onChange={(e) => setNewPdf({ ...newPdf, name: e.target.value })} placeholder="ملخص المحاضرة.pdf" /></div>
-            <FileUpload value={newPdf.url || null} onChange={(d) => setNewPdf({ ...newPdf, url: d || "", sizeBytes: d ? Math.ceil((d.length * 3) / 4) : 0 })} accept=".pdf" maxSizeKb={5000} label="اختر ملف PDF" />
+            <FileUpload value={newPdf.url || null} onChange={(d) => setNewPdf({ ...newPdf, url: d || "", sizeBytes: d ? Math.ceil((d.length * 3) / 4) : 0 })} accept=".pdf" maxSizeKb={1000000} label="اختر ملف PDF" />
           </div>
           <DialogFooter><Button variant="ghost" onClick={() => setPdfDialog(false)}>إلغاء</Button><Button onClick={handleAddPdf} disabled={addPdf.isPending || !newPdf.url || !newPdf.name}>{addPdf.isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : <><Upload className="me-2 h-4 w-4" /> رفع</>}</Button></DialogFooter>
         </DialogContent>

@@ -229,7 +229,7 @@ export default function AdminMaterials() {
                         </select>
                       </div>
                     </div>
-                    <FileUpload value={data} onChange={setData} accept="*/*" imageOnly={false} maxSizeKb={5000} label="اختر ملفاً" />
+                    <FileUpload value={data} onChange={setData} accept="*/*" imageOnly={false} maxSizeKb={1000000} label="اختر ملفاً" />
                     <Button onClick={handleUpload} disabled={upload.isPending || !data || !name} className="w-full h-9 text-sm">
                       {upload.isPending ? <Loader2 className="h-3.5 w-3.5 sm:h-4 sm:w-4 animate-spin" /> : <><FolderUp className="me-2 h-3.5 w-3.5 sm:h-4 sm:w-4" /> ارفع الملف</>}
                     </Button>
