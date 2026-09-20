@@ -340,6 +340,13 @@ function LectureCard({ lecture, isSuper, videoProgress }: { lecture: LectureFull
     } catch (e) { toast({ title: "خطأ", description: (e as Error).message, variant: "destructive" }); }
   };
 
+  const canAddQuestion = (() => {
+    if (!newQuestion.text.trim()) return false;
+    if (newQuestion.type === "mc") return newQuestion.options.every((o) => o.trim()) && typeof newQuestion.correctIndex === "number" && newQuestion.correctIndex >= 0 && newQuestion.correctIndex < newQuestion.options.length;
+    if (newQuestion.type === "tf") return newQuestion.options.every((o) => o.trim()) && typeof newQuestion.correctIndex === "number";
+    if (newQuestion.type === "complete") return (newQuestion.options[0] || "").trim() !== "";
+    return false;
+  })();
   const handleAddQuestion = async (quizId: number) => {
     if (!newQuestion.text.trim()) { toast({ title: "نص السؤال مطلوب", variant: "destructive" }); return; }
     if (newQuestion.type === "mc" && newQuestion.options.some((o) => !o.trim())) { toast({ title: "جميع الخيارات مطلوبة", variant: "destructive" }); return; }
@@ -603,7 +610,7 @@ function LectureCard({ lecture, isSuper, videoProgress }: { lecture: LectureFull
               <div><Label className="text-xs">النقاط</Label><Input type="number" value={newQuestion.points} onChange={(e) => setNewQuestion({ ...newQuestion, points: Number(e.target.value) })} /></div>
             </div>
           </div>
-          <DialogFooter><Button variant="ghost" onClick={() => setQuestionDialog(null)}>إلغاء</Button><Button onClick={() => questionDialog && handleAddQuestion(questionDialog)} disabled={addQuestion.isPending}>{addQuestion.isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : <><Plus className="me-2 h-4 w-4" /> إضافة</>}</Button></DialogFooter>
+          <DialogFooter><Button variant="ghost" onClick={() => setQuestionDialog(null)}>إلغاء</Button><Button onClick={() => questionDialog && handleAddQuestion(questionDialog)} disabled={!canAddQuestion || addQuestion.isPending}>{addQuestion.isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : <><Plus className="me-2 h-4 w-4" /> إضافة</>}</Button></DialogFooter>
         </DialogContent>
       </Dialog>
 
