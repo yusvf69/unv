@@ -4498,6 +4498,7 @@ async function handleLectureQuizAttempts(req: Request, parts: string[]): Promise
   return handle(async () => {
     const { userId } = requireAuth(req.headers);
     const quizId = Number(parts[2]);
+    try { await sql`CREATE TABLE IF NOT EXISTS lecture_quiz_attempts (id SERIAL PRIMARY KEY, user_id INT, quiz_id INT, score INT, total INT, answers text[], completed_at TIMESTAMP DEFAULT now())`; } catch {}
     const attempts = await sql`SELECT id, user_id, quiz_id, score, total, passed, answers, completed_at FROM lecture_quiz_attempts WHERE user_id = ${userId} AND quiz_id = ${quizId} ORDER BY completed_at DESC`;
     return attempts.map((a: any) => ({ ...a, completedAt: a.completed_at?.toISOString() }));
   });
@@ -5647,8 +5648,9 @@ async function handleRequest(request: Request): Promise<Response> {
     "POST /v2/admin/lectures/:id/pdfs": () => handleAdminCrud(request, ["", "admin", "lectures", parts[3], "pdfs"]),
     "DELETE /v2/admin/lecture-pdfs/:id": () => handleAdminCrud(request, ["", "admin", "lecture-pdfs", parts[3]]),
     "POST /v2/admin/lectures/:id/quizzes": () => handleAdminCrud(request, ["", "admin", "lectures", parts[3], "quizzes"]),
-    "DELETE /v2/admin/lecture-quizzes/:id": () => handleAdminCrud(request, ["", "admin", "lecture-quizzes", parts[3]]),
+     "DELETE /v2/admin/lecture-quizzes/:id": () => handleAdminCrud(request, ["", "admin", "lecture-quizzes", parts[3]]),
     "POST /v2/admin/lecture-quizzes/:id/questions": () => handleAdminCrud(request, ["", "admin", "lecture-quizzes", parts[3], "questions"]),
+    "POST /v2/admin/lecture-quizzes/:id/questions/bulk": () => handleAdminCrud(request, ["", "admin", "lecture-quizzes", parts[3], "questions", "bulk"]),
     "GET /v2/admin/lecture-quizzes/:id/questions": () => handleAdminCrud(request, ["", "admin", "lecture-quizzes", parts[3], "questions"]),
     "DELETE /v2/admin/lecture-quiz-questions/:id": () => handleAdminCrud(request, ["", "admin", "lecture-quiz-questions", parts[3]]),
     "DELETE /v2/admin/users/:id": () => handleAdminCrud(request, ["", "admin", "users", parts[3]]),
