@@ -4279,7 +4279,7 @@ async function handleAdminCrud(req: Request, parts: string[]): Promise<Response>
       if (questions?.length) {
         await ensureLectureQuizQuestionTable();
         for (const qq of questions) {
-          await sql`INSERT INTO lecture_quiz_questions (quiz_id, text, type, options, correct_index, points, explanation, ord) VALUES (${q.id}, ${qq.text}, ${qq.type || "mc"}, ${JSON.stringify(qq.options ?? [])}, ${qq.correctIndex}, ${qq.points ?? 1}, ${qq.explanation || ""}, ${qq.ord ?? 0})`;
+          await sql`INSERT INTO lecture_quiz_questions (quiz_id, text, type, options, correct_index, points, explanation, ord) VALUES (${q.id}, ${qq.text}, ${qq.type || "mc"}, ${qq.options ?? []}, ${qq.correctIndex}, ${qq.points ?? 1}, ${qq.explanation || ""}, ${qq.ord ?? 0})`;
         }
       }
       return { ...q, questions: questions || [] };
@@ -4291,7 +4291,7 @@ async function handleAdminCrud(req: Request, parts: string[]): Promise<Response>
     return handle(async () => { await sql`DELETE FROM lecture_quizzes WHERE id = ${Number(parts[3])}`; return { ok: true }; });
   }
 
-  if (parts[2] === "lecture-quizzes" && parts[4] === "questions" && req.method === "POST") {
+  if (parts[2] === "lecture-quizzes" && parts[4] === "questions" && !parts[5] && req.method === "POST") {
     ensureAdminPermission(user, "manage_courses");
     return handle(async () => {
       await ensureLectureQuizQuestionTable();
@@ -4305,7 +4305,7 @@ async function handleAdminCrud(req: Request, parts: string[]): Promise<Response>
         ord = (r?.n ?? 0) + 1;
       } catch {}
       try {
-        const [qq] = await sql`INSERT INTO lecture_quiz_questions (quiz_id, text, type, options, correct_index, points, explanation, ord) VALUES (${quizId}, ${text}, ${type || "mc"}, ${JSON.stringify(options)}, ${correctIndex}, ${points ?? 10}, ${explanation || ""}, ${ord}) RETURNING *`;
+        const [qq] = await sql`INSERT INTO lecture_quiz_questions (quiz_id, text, type, options, correct_index, points, explanation, ord) VALUES (${quizId}, ${text}, ${type || "mc"}, ${options}, ${correctIndex}, ${points ?? 10}, ${explanation || ""}, ${ord}) RETURNING *`;
         return qq;
       } catch (err: any) {
         console.error("🔴 lecture_quiz_questions INSERT error:", err?.message);
@@ -4328,12 +4328,9 @@ async function handleAdminCrud(req: Request, parts: string[]): Promise<Response>
         const opts = Array.isArray(options) ? options : [];
         if (!text || !opts.length || typeof correctIndex !== "number" || isNaN(correctIndex)) throw Object.assign(new Error("بيانات السؤال ناقصة"), { status: 400 });
         const [r] = await sql`SELECT COALESCE(MAX(ord), 0) AS n FROM lecture_quiz_questions WHERE quiz_id = ${quizId}`;
-        await sql`INSERT INTO lecture_quiz_questions (quiz_id, text, type, options, correct_index, points, explanation, ord) VALUES (${quizId}, ${text}, ${type || "mc"}, ${JSON.stringify(opts)}, ${correctIndex}, ${points ?? 10}, ${explanation || ""}, ${(r?.n ?? 0) + 1})`;
+        await sql`INSERT INTO lecture_quiz_questions (quiz_id, text, type, options, correct_index, points, explanation, ord) VALUES (${quizId}, ${text}, ${type || "mc"}, ${opts}, ${correctIndex}, ${points ?? 10}, ${explanation || ""}, ${(r?.n ?? 0) + 1})`;
         created++;
       }
-      return { created };
-    });
-  }
       return { created };
     });
   }
