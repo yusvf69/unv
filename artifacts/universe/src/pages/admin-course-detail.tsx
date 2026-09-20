@@ -361,14 +361,24 @@ function LectureCard({ lecture, isSuper, videoProgress }: { lecture: LectureFull
       if (!["mc", "tf", "complete"].includes(type)) continue;
       const text = parts[1];
       if (!text) continue;
-      const correctRaw = parts[parts.length - 1];
-      const ci = parseInt(correctRaw, 10);
-      if (isNaN(ci) || ci < 0 || ci >= parts.length - 2) continue;
-      const options = parts.slice(2, parts.length - 1);
+      // first numeric after index 1 = correctIndex
+      let correctIndex = -1;
+      let correctIdxPos = -1;
+      for (let i = 2; i < parts.length; i++) {
+        const n = parseInt(parts[i], 10);
+        if (!isNaN(n)) { correctIndex = n; correctIdxPos = i; break; }
+      }
+      if (correctIdxPos === -1) continue;
+      const options = parts.slice(2, correctIdxPos);
       if (!options.length) continue;
-      questions.push({ text, type: type as "mc" | "tf" | "complete", options, correctIndex: ci, points: 1 });
+      const trailing = parts.slice(correctIdxPos + 1);
+      let explanation: string | undefined;
+      let points: number | undefined;
+      if (trailing.length >= 2) { explanation = trailing[0]; const p = parseInt(trailing[1], 10); if (!isNaN(p)) points = p; }
+      else if (trailing.length === 1) { const p = parseInt(trailing[0], 10); if (isNaN(p)) explanation = trailing[0]; else points = p; }
+      questions.push({ text, type: type as "mc" | "tf" | "complete", options, correctIndex, points, explanation });
     }
-    if (!questions.length) { toast({ title: "لم تُستخرج أسئلة صالحة. استخدم: النوع | نص السؤال | خيار1 | ... | رقم_الإجابة", variant: "destructive" }); return; }
+    if (!questions.length) { toast({ title: "لم تُستخرج أسئلة صالحة. استخدم: النوع | نص السؤال | خيار1 | ... | رقم_الإجابة | شرح | نقاط", variant: "destructive" }); return; }
     try {
       await bulkAddQuestions.mutateAsync({ quizId, questions });
       setBulkDialog(false);
@@ -604,11 +614,15 @@ function LectureCard({ lecture, isSuper, videoProgress }: { lecture: LectureFull
           <div className="text-xs text-muted-foreground mb-2">
             اضغط (Paste) أو اكتب كل سؤال في سطر بالشكل:
             <code className="block mt-1 p-2 bg-muted rounded text-[11px] dir-rtl">
-{`النوع | نص السؤال | الخيار1 | الخيار2 | ... | رقم_الإجابة_من_1`}
+{`النوع | نص السؤال | خيار1 | خيار2 | ... | رقم_الإجابة_من_1 | شرح(اختياري) | نقاط`}
             </code>
             <span className="mt-1 block">الأنواع: <b>mc</b> (اختر) · <b>tf</b> (صح/خطأ) · <b>complete</b> (أكمل)</span>
+            <span className="mt-0.5 block">الشرح والنقاط اختياريين. مثال:</span>
+            <code className="block mt-0.5 p-1 bg-muted rounded text-[11px] dir-rtl">
+{`mc | ما عاصمة مصر؟ | القاهرة | الجيزة | الإسكندرية | 1 | عاصمة مصر هي القاهرة | 5`}
+            </code>
           </div>
-          <textarea className="w-full border rounded-lg p-2 font-mono text-sm dir-rtl" rows={12} placeholder={'مثال:\nmc | ما عاصمة مصر؟ | القاهرة | الجيزة | الإسكندرية | 1\ntf | الأرض كروية؟ | صح | خطأ | 0\ncomplete | أكمل: ٢+٢ = ؟ | ٤ | 0'} value={bulkText} onChange={(e) => setBulkText(e.target.value)} />
+          <textarea className="w-full border rounded-lg p-2 font-mono text-sm dir-rtl" rows={14} placeholder={'مثال:\nmc | ما عاصمة مصر؟ | القاهرة | الجيزة | الإسكندرية | 1 | عاصمة مصر هي القاهرة | 5\ntf | الأرض كروية؟ | صح | خطأ | 0\ncomplete | أكمل: ٢+٢ = ؟ | ٤ | 0'} value={bulkText} onChange={(e) => setBulkText(e.target.value)} />
           <div className="text-xs text-muted-foreground mt-1">عدد الأسئلة المستخرجة: <b>{bulkText.trim().split("\n").filter((l) => l.trim()).length}</b></div>
           <DialogFooter>
             <Button variant="ghost" onClick={() => { setBulkDialog(false); setBulkText(""); }}>إلغاء</Button>
