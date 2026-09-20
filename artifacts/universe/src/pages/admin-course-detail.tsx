@@ -363,7 +363,7 @@ function LectureCard({ lecture, isSuper, videoProgress }: { lecture: LectureFull
     "ملأ الفراغ": "complete", "املأ الفراغ": "complete", "complete": "complete", "إكمال": "complete",
   };
   const handleBulkAdd = async (quizId: number) => {
-    const raw = bulkText.trim().split("\n").filter((l) => l.trim() && !l.includes("---") && !l.startsWith("| النوع") && !l.startsWith("|---") && !l.trim().startsWith("```") && !l.includes("eof"));
+    const raw = bulkText.trim().split("\n").filter((l) => l.trim() && !l.includes("---") && !l.trim().startsWith("| النوع") && !l.trim().startsWith("|---") && !l.trim().startsWith("```") && !l.includes("eof"));
     if (!raw.length) { toast({ title: "اكتب الأسئلة أولاً", variant: "destructive" }); return; }
     const questions: { text: string; type?: string; options: string[]; correctIndex: number; points?: number; explanation?: string }[] = [];
     for (const line of raw) {
