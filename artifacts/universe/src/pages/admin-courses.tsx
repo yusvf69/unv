@@ -71,8 +71,8 @@ export default function AdminCourses() {
   }
 
   const submit = async () => {
-    if (!form.title || !form.code || !form.instructorId) {
-      toast({ title: "العنوان والكود واختيار الدكتور مطلوب", variant: "destructive" });
+    if (!form.title || !form.code) {
+      toast({ title: "العنوان والكود مطلوبين", variant: "destructive" });
       return;
     }
     const payload = {
