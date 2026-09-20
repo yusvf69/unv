@@ -98,12 +98,13 @@ function PdfViewer({ pdf }: { pdf: { name: string; url: string } }) {
 function QuizTaking({ quiz, questions }: { quiz: any; questions: any[] }) {
   const submit = useSubmitLectureQuiz();
   const { toast } = useToast();
-  const [answers, setAnswers] = useState<Record<number, number>>({});
-  const [result, setResult] = useState<{ score: number; total: number; passed: boolean; details: any[] } | null>(null);
   const t = useTranslation(globalI18n);
+  const [answers, setAnswers] = useState<Record<number, { chosenIndex?: number; textAnswer?: string }>>({});
+  const [result, setResult] = useState<{ score: number; total: number; passed: boolean; details: any[] } | null>(null);
+  const unanswered = questions.some((q) => q.type === "complete" ? !(answers[q.id]?.textAnswer || "").trim() : (answers[q.id]?.chosenIndex ?? -1) < 0);
 
   const handleSubmit = async () => {
-    const ansArr = questions.map((q) => ({ questionId: q.id, chosenIndex: answers[q.id] ?? -1 }));
+    const ansArr = questions.map((q) => q.type === "complete" ? { questionId: q.id, textAnswer: answers[q.id]?.textAnswer || "" } : { questionId: q.id, chosenIndex: answers[q.id]?.chosenIndex ?? -1 });
     try {
       const res = await submit.mutateAsync({ quizId: quiz.id, answers: ansArr });
       setResult(res as { score: number; total: number; passed: boolean; details: any[] });
@@ -116,31 +117,26 @@ function QuizTaking({ quiz, questions }: { quiz: any; questions: any[] }) {
     return (
       <div className="space-y-4">
         <div className="text-center p-4">
-          <div className={`text-4xl font-bold ${result.passed ? "text-green-600" : "text-destructive"}`}>
-            {result.score}/{result.total}
-          </div>
-          <div className="text-sm text-muted-foreground mt-2">
-            {result.passed ? t("quizPassed") : t("tryAgain")}
-          </div>
+          <div className={`text-4xl font-bold ${result.passed ? "text-green-600" : "text-destructive"}`}>{result.score}/{result.total}</div>
+          <div className="text-sm text-muted-foreground mt-2">{result.passed ? t("quizPassed") : t("tryAgain")}</div>
           <Button onClick={() => setResult(null)} className="mt-3" variant="outline">{t("tryAgain")}</Button>
         </div>
         {result.details.map((d, qi) => (
           <div key={d.questionId} className={`p-3 rounded-xl border ${d.correct ? "bg-green-50 border-green-200" : "bg-red-50 border-red-200"}`}>
             <div className="flex items-center gap-2 mb-1">
-              <span className={`text-xs font-bold px-2 py-0.5 rounded-full ${d.correct ? "bg-green-200 text-green-800" : "bg-red-200 text-red-800"}`}>
-                {d.correct ? t("correctShort") : t("incorrectShort")}
-              </span>
+              <span className={`text-xs font-bold px-2 py-0.5 rounded-full ${d.correct ? "bg-green-200 text-green-800" : "bg-red-200 text-red-800"}`}>{d.correct ? t("correctShort") : t("incorrectShort")}</span>
               <span className="font-bold text-sm">{qi + 1}. {d.text}</span>
             </div>
             <div className="text-xs text-muted-foreground mt-1">
-              {t("yourAnswer")}: <span className={d.correct ? "text-green-700" : "text-red-700"}>{d.options[d.userChosen] || t("didNotAnswer")}</span>
-              {!d.correct && (
-                <span className="text-green-700 ms-3">{t("correctAnswer")}: {d.options[d.correctIndex]}</span>
+              {d.type === "complete" ? (
+                <>إجابتك: <span className={d.correct ? "text-green-700" : "text-red-700"}>{d.userChosen || t("didNotAnswer")}</span>
+                {!d.correct && <span className="text-green-700 ms-3">{t("correctAnswer")}: {d.options[d.correctIndex]}</span>}</>
+              ) : (
+                <>إجابتك: <span className={d.correct ? "text-green-700" : "text-red-700"}>{d.options[d.userChosen] || t("didNotAnswer")}</span>
+                {!d.correct && <span className="text-green-700 ms-3">{t("correctAnswer")}: {d.options[d.correctIndex]}</span>}</>
               )}
             </div>
-            {d.explanation && (
-              <div className="text-xs bg-white/60 rounded-lg p-2 mt-2 border">💡 {d.explanation}</div>
-            )}
+            {d.explanation && <div className="text-xs bg-white/60 rounded-lg p-2 mt-2 border">💡 {d.explanation}</div>}
           </div>
         ))}
       </div>
@@ -152,17 +148,30 @@ function QuizTaking({ quiz, questions }: { quiz: any; questions: any[] }) {
       {questions.map((q, qi) => (
         <div key={q.id} className="p-4 border rounded-xl space-y-3">
           <div className="font-bold text-sm">{qi + 1}. {q.text}</div>
-          <div className="space-y-2">
-            {q.options.map((opt: string, oi: number) => (
-              <label key={oi} className={`flex items-center gap-2 p-2 rounded-lg border cursor-pointer transition ${answers[q.id] === oi ? "bg-primary/10 border-primary" : "hover:bg-muted"}`}>
-                <input type="radio" name={`q-${q.id}-${quiz.id}`} checked={answers[q.id] === oi} onChange={() => setAnswers((a) => ({ ...a, [q.id]: oi }))} className="accent-primary" />
-                <span className="text-sm">{opt}</span>
-              </label>
-            ))}
-          </div>
+          {q.type === "complete" ? (
+            <textarea className="w-full border rounded-lg p-2" rows={2} placeholder="أكمل الإجابة..." value={(answers[q.id]?.textAnswer || "").replace(/^"|"$/g, "")} onChange={(e) => setAnswers((a) => ({ ...a, [q.id]: { textAnswer: e.target.value } }))} />
+          ) : q.type === "tf" ? (
+            <div className="flex gap-6">
+              {["صح", "خطأ"].map((opt, oi) => (
+                <label key={oi} className={`flex items-center gap-2 p-2 rounded-lg border cursor-pointer transition ${answers[q.id]?.chosenIndex === oi ? "bg-primary/10 border-primary" : "hover:bg-muted"}`}>
+                  <input type="radio" name={`q-${q.id}-${quiz.id}`} checked={answers[q.id]?.chosenIndex === oi} onChange={() => setAnswers((a) => ({ ...a, [q.id]: { chosenIndex: oi } }))} className="accent-primary" />
+                  <span className="text-sm">{opt}</span>
+                </label>
+              ))}
+            </div>
+          ) : (
+            <div className="space-y-2">
+              {q.options.map((opt: string, oi: number) => (
+                <label key={oi} className={`flex items-center gap-2 p-2 rounded-lg border cursor-pointer transition ${answers[q.id]?.chosenIndex === oi ? "bg-primary/10 border-primary" : "hover:bg-muted"}`}>
+                  <input type="radio" name={`q-${q.id}-${quiz.id}`} checked={answers[q.id]?.chosenIndex === oi} onChange={() => setAnswers((a) => ({ ...a, [q.id]: { chosenIndex: oi } }))} className="accent-primary" />
+                  <span className="text-sm">{opt}</span>
+                </label>
+              ))}
+            </div>
+          )}
         </div>
       ))}
-      <Button onClick={handleSubmit} disabled={Object.keys(answers).length < questions.length || submit.isPending} className="w-full">
+      <Button onClick={handleSubmit} disabled={unanswered || submit.isPending} className="w-full">
         {submit.isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : <><Send className="me-2 h-4 w-4" /> {t("submitAnswers")}</>}
       </Button>
     </div>

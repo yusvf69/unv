@@ -1570,7 +1570,7 @@ export function useDeleteLecturePdf() {
 export function useCreateLectureQuiz() {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: ({ lectureId, title, questions }: { lectureId: number; title: string; questions?: { text: string; options: string[]; correctIndex: number; points?: number }[] }) =>
+    mutationFn: ({ lectureId, title, questions }: { lectureId: number; title: string; questions?: { text: string; type?: string; options: string[]; correctIndex: number; points?: number; explanation?: string }[] }) =>
       api.post(`/v2/admin/lectures/${lectureId}/quizzes`, { title, questions }),
     onSuccess: () => qc.invalidateQueries({ queryKey: ["v2", "course-lectures"] }),
   });
@@ -1593,8 +1593,16 @@ export function useDeleteLectureQuiz() {
 export function useAddLectureQuizQuestion() {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: ({ quizId, text, options, correctIndex, points }: { quizId: number; text: string; options: string[]; correctIndex: number; points?: number }) =>
-      api.post(`/v2/admin/lecture-quizzes/${quizId}/questions`, { text, options, correctIndex, points }),
+    mutationFn: ({ quizId, text, type, options, correctIndex, points, explanation }: { quizId: number; text: string; type?: string; options: string[]; correctIndex: number; points?: number; explanation?: string }) =>
+      api.post(`/v2/admin/lecture-quizzes/${quizId}/questions`, { text, type, options, correctIndex, points, explanation }),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ["v2", "course-lectures"] }),
+  });
+}
+export function useBulkAddLectureQuizQuestions() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: ({ quizId, questions }: { quizId: number; questions: { text: string; type?: string; options: string[]; correctIndex: number; points?: number; explanation?: string }[] }) =>
+      api.post(`/v2/admin/lecture-quizzes/${quizId}/questions/bulk`, { questions }),
     onSuccess: () => qc.invalidateQueries({ queryKey: ["v2", "course-lectures"] }),
   });
 }
@@ -1637,7 +1645,7 @@ export function useMarkVideoWatched() {
 export function useSubmitLectureQuiz() {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: ({ quizId, answers }: { quizId: number; answers: { questionId: number; chosenIndex: number }[] }) =>
+    mutationFn: ({ quizId, answers }: { quizId: number; answers: { questionId: number; chosenIndex?: number; textAnswer?: string }[] }) =>
       api.post(`/v2/lecture-quizzes/${quizId}/submit`, { answers }),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ["v2", "course-progress"] });

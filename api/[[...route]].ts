@@ -101,6 +101,24 @@ async function ensureVisitsTable(): Promise<void> {
   )`;
 }
 
+async function ensureLectureQuizQuestionTable(): Promise<void> {
+  await sql`CREATE TABLE IF NOT EXISTS lecture_quiz_questions (
+    id serial PRIMARY KEY,
+    quiz_id INT,
+    text TEXT,
+    type TEXT,
+    options TEXT[],
+    correct_index INT,
+    points INT,
+    explanation TEXT,
+    ord INT
+  )`;
+  // Migration: existing live tables created before the `type`/`explanation` split
+  // (i.e. only mc with correct_index) — ALTER to add the new columns if missing.
+  try { await sql`ALTER TABLE lecture_quiz_questions ADD COLUMN IF NOT EXISTS type TEXT`; } catch {}
+  try { await sql`ALTER TABLE lecture_quiz_questions ADD COLUMN IF NOT EXISTS explanation TEXT`; } catch {}
+}
+
 function getMailer() {
   const user = process.env.GMAIL_USER;
   const pass = process.env.GMAIL_APP_PASSWORD;
@@ -3934,10 +3952,10 @@ async function handleCourses(req: Request, parts: string[]): Promise<Response> {
       const quizzes = await sql`SELECT * FROM lecture_quizzes WHERE lecture_id = ANY(${lecIds})`;
       const quizQs = quizzes.length ? await sql`SELECT * FROM lecture_quiz_questions WHERE quiz_id = ANY(${quizzes.map((q: any) => q.id)}) ORDER BY ord` : [];
       const pdfs = await sql`SELECT * FROM lecture_pdfs WHERE lecture_id = ANY(${lecIds})`;
-      const quizQToClient = (qq: any) => {
-        const clean: any = { id: qq.id, quizId: qq.quiz_id, text: qq.text, options: Array.isArray(qq.options) ? qq.options : (typeof qq.options === "string" ? JSON.parse(qq.options) : []), points: qq.points, ord: qq.ord };
-        if (isAdmin) { clean.correctIndex = qq.correct_index; }
-        return clean;
+       const quizQToClient = (qq: any) => {
+         const clean: any = { id: qq.id, quizId: qq.quiz_id, text: qq.text, type: qq.type, options: Array.isArray(qq.options) ? qq.options : (typeof qq.options === "string" ? JSON.parse(qq.options) : []), points: qq.points, ord: qq.ord, explanation: qq.explanation || "" };
+         if (isAdmin) { clean.correctIndex = qq.correct_index; }
+         return clean;
       };
       return lectures.map((l: any) => ({
         id: l.id, courseId: l.course_id, title: l.title, type: l.type, ord: l.ord,
@@ -4259,8 +4277,9 @@ async function handleAdminCrud(req: Request, parts: string[]): Promise<Response>
       if (!title) throw Object.assign(new Error("العنوان مطلوب"), { status: 400 });
       const [q] = await sql`INSERT INTO lecture_quizzes (lecture_id, title) VALUES (${lectureId}, ${title}) RETURNING *`;
       if (questions?.length) {
+        await ensureLectureQuizQuestionTable();
         for (const qq of questions) {
-          await sql`INSERT INTO lecture_quiz_questions (quiz_id, text, options, correct_index, points, ord) VALUES (${q.id}, ${qq.text}, ${qq.options}, ${qq.correctIndex}, ${qq.points ?? 1}, ${qq.ord ?? 0})`;
+          await sql`INSERT INTO lecture_quiz_questions (quiz_id, text, type, options, correct_index, points, explanation, ord) VALUES (${q.id}, ${qq.text}, ${qq.type || "mc"}, ${JSON.stringify(qq.options ?? [])}, ${qq.correctIndex}, ${qq.points ?? 1}, ${qq.explanation || ""}, ${qq.ord ?? 0})`;
         }
       }
       return { ...q, questions: questions || [] };
@@ -4275,12 +4294,10 @@ async function handleAdminCrud(req: Request, parts: string[]): Promise<Response>
   if (parts[2] === "lecture-quizzes" && parts[4] === "questions" && req.method === "POST") {
     ensureAdminPermission(user, "manage_courses");
     return handle(async () => {
-      try {
-        await sql`CREATE TABLE IF NOT EXISTS lecture_quiz_questions (id SERIAL PRIMARY KEY, quiz_id INT, text TEXT, options TEXT[], correct_index INT, points INT, ord INT)`;
-      } catch {}
+      await ensureLectureQuizQuestionTable();
       const quizId = Number(parts[3]);
       const body = await req.json();
-      const { text, options, correctIndex, points } = body;
+      const { text, type, options, correctIndex, points, explanation } = body;
       if (!text || !options || typeof correctIndex !== "number") throw Object.assign(new Error("بيانات السؤال ناقصة"), { status: 400 });
       let ord = 1;
       try {
@@ -4288,12 +4305,32 @@ async function handleAdminCrud(req: Request, parts: string[]): Promise<Response>
         ord = (r?.n ?? 0) + 1;
       } catch {}
       try {
-        const [qq] = await sql`INSERT INTO lecture_quiz_questions (quiz_id, text, options, correct_index, points, ord) VALUES (${quizId}, ${text}, ${options}, ${correctIndex}, ${points ?? 10}, ${ord}) RETURNING *`;
+        const [qq] = await sql`INSERT INTO lecture_quiz_questions (quiz_id, text, type, options, correct_index, points, explanation, ord) VALUES (${quizId}, ${text}, ${type || "mc"}, ${JSON.stringify(options)}, ${correctIndex}, ${points ?? 10}, ${explanation || ""}, ${ord}) RETURNING *`;
         return qq;
       } catch (err: any) {
         console.error("🔴 lecture_quiz_questions INSERT error:", err?.message);
         throw Object.assign(new Error(err?.message || "فشل إضافة السؤال"), { status: 500 });
       }
+    });
+  }
+
+  if (parts[2] === "lecture-quizzes" && parts[4] === "questions" && parts[5] === "bulk" && req.method === "POST") {
+    ensureAdminPermission(user, "manage_courses");
+    return handle(async () => {
+      await ensureLectureQuizQuestionTable();
+      const quizId = Number(parts[3]);
+      const body = await req.json();
+      const questionsArr = body.questions;
+      if (!Array.isArray(questionsArr) || !questionsArr.length) throw Object.assign(new Error("لم يتم إرسال أي أسئلة"), { status: 400 });
+      let created = 0;
+      for (const q of questionsArr) {
+        const { text, type, options, correctIndex, points, explanation } = q;
+        if (!text || !options || typeof correctIndex !== "number") throw Object.assign(new Error("بيانات السؤال ناقصة"), { status: 400 });
+        const [r] = await sql`SELECT COALESCE(MAX(ord), 0) AS n FROM lecture_quiz_questions WHERE quiz_id = ${quizId}`;
+        await sql`INSERT INTO lecture_quiz_questions (quiz_id, text, type, options, correct_index, points, explanation, ord) VALUES (${quizId}, ${text}, ${type || "mc"}, ${JSON.stringify(options)}, ${correctIndex}, ${points ?? 10}, ${explanation || ""}, ${(r?.n ?? 0) + 1})`;
+        created++;
+      }
+      return { created };
     });
   }
 
@@ -4411,21 +4448,28 @@ const questions = await sql`SELECT * FROM lecture_quiz_questions WHERE quiz_id =
     let score = 0, total = 0;
     const details: any[] = [];
     const ansArr: string[] = [];
-    const submitted = (answers || []).filter((a: any) => a && a.chosenIndex != null && a.chosenIndex >= 0);
+    const submitted = (answers || []).filter((a: any) => a && a.questionId != null);
     for (const qq of questions) {
       total += qq.points;
+      const type = qq.type || "mc";
       const a = submitted.find((x: any) => x.questionId === qq.id);
-      const chosen = a?.chosenIndex ?? -1;
-      const correct = chosen === qq.correct_index;
-      if (correct) score += qq.points;
-      ansArr.push(`${qq.id}:${chosen}`);
-      if (chosen >= 0) {
-        details.push({
-          questionId: qq.id, text: qq.text, options: qq.options,
-          correctIndex: qq.correct_index, points: qq.points,
-          userChosen: chosen, correct, explanation: qq.explanation || "",
-        });
+      if (type === "complete") {
+        const userText = (a?.textAnswer || "").trim();
+        const expected = Array.isArray(qq.options) ? (qq.options[qq.correct_index] || "").trim() : "";
+        const correct = userText.toLowerCase() === expected.toLowerCase();
+        ansArr.push(`${qq.id}:${userText}`);
+        if (userText !== "") {
+          details.push({ questionId: qq.id, text: qq.text, type, options: qq.options, correctIndex: qq.correct_index, points: qq.points, userChosen: userText, correct, explanation: qq.explanation || "", textAnswer: userText });
+        }
+      } else {
+        const chosen = a?.chosenIndex ?? -1;
+        const correct = chosen === qq.correct_index;
+        ansArr.push(`${qq.id}:${chosen}`);
+        if (chosen >= 0) {
+          details.push({ questionId: qq.id, text: qq.text, type, options: qq.options, correctIndex: qq.correct_index, points: qq.points, userChosen: chosen, correct, explanation: qq.explanation || "" });
+        }
       }
+      if (correct) score += qq.points;
     }
     const existing = await sql`SELECT * FROM lecture_quiz_attempts WHERE user_id = ${userId} AND quiz_id = ${quizId}`;
     if (existing.length) {

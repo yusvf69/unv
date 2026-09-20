@@ -23,6 +23,7 @@ import {
   useCreateLectureQuiz,
   useAddQuizQuestion,
   useAddLectureQuizQuestion,
+  useBulkAddLectureQuizQuestions,
   useDeleteLectureQuiz,
   useDeleteQuizQuestion,
   useDeleteLectureQuizQuestion,
@@ -127,11 +128,17 @@ function VideoPlayer({ video, completed, onWatch, loading }: { video: LectureVid
 function QuizTaking({ quiz, questions }: { quiz: any; questions: any[] }) {
   const submit = useSubmitLectureQuiz();
   const { toast } = useToast();
-  const [answers, setAnswers] = useState<Record<number, number>>({});
+  const [answers, setAnswers] = useState<Record<number, { chosenIndex?: number; textAnswer?: string }>>({});
   const [result, setResult] = useState<{ score: number; total: number; passed: boolean; details: any[] } | null>(null);
-
+  const unanswered = questions.some((q) => {
+    const a = answers[q.id];
+    return q.type === "complete" ? !(a?.textAnswer || "").trim() : (a?.chosenIndex ?? -1) < 0;
+  });
   const handleSubmit = async () => {
-    const ansArr = questions.map((q) => ({ questionId: q.id, chosenIndex: answers[q.id] ?? -1 }));
+    const ansArr = questions.map((q) => {
+      const a = answers[q.id] || {};
+      return q.type === "complete" ? { questionId: q.id, textAnswer: a.textAnswer || "" } : { questionId: q.id, chosenIndex: a.chosenIndex ?? -1 };
+    });
     try {
       const res = await submit.mutateAsync({ quizId: quiz.id, answers: ansArr });
       setResult(res as { score: number; total: number; passed: boolean; details: any[] });
@@ -139,67 +146,75 @@ function QuizTaking({ quiz, questions }: { quiz: any; questions: any[] }) {
       toast({ title: "خطأ", description: (e as Error).message, variant: "destructive" });
     }
   };
-
   if (result) {
     return (
       <div className="space-y-4">
         <div className="text-center p-4">
-          <div className={`text-4xl font-bold ${result.passed ? "text-green-600" : "text-destructive"}`}>
-            {result.score}/{result.total}
-          </div>
-          <div className="text-sm text-muted-foreground mt-2">
-            {result.passed ? "✅ ممتاز! نجحت في الاختبار" : "❌ حاول مرة أخرى"}
-          </div>
+          <div className={`text-4xl font-bold ${result.passed ? "text-green-600" : "text-destructive"}`}>{result.score}/{result.total}</div>
+          <div className="text-sm text-muted-foreground mt-2">{result.passed ? "✅ ممتاز! نجحت في الاختبار" : "❌ حاول مرة أخرى"}</div>
           <Button onClick={() => setResult(null)} className="mt-3" variant="outline">حاول مرة أخرى</Button>
         </div>
         {result.details.map((d, qi) => (
           <div key={d.questionId} className={`p-3 rounded-xl border ${d.correct ? "bg-green-50 border-green-200" : "bg-red-50 border-red-200"}`}>
             <div className="flex items-center gap-2 mb-1">
-              <span className={`text-xs font-bold px-2 py-0.5 rounded-full ${d.correct ? "bg-green-200 text-green-800" : "bg-red-200 text-red-800"}`}>
-                {d.correct ? "✅ صح" : "❌ غلط"}
-              </span>
+              <span className={`text-xs font-bold px-2 py-0.5 rounded-full ${d.correct ? "bg-green-200 text-green-800" : "bg-red-200 text-red-800"}`}>{d.correct ? "✅ صح" : "❌ غلط"}</span>
               <span className="font-bold text-sm">{qi + 1}. {d.text}</span>
             </div>
             <div className="text-xs text-muted-foreground mt-1">
-              إجابتك: <span className={d.correct ? "text-green-700" : "text-red-700"}>{d.options[d.userChosen] || "لم تجب"}</span>
-              {!d.correct && (
-                <span className="text-green-700 ms-3">الإجابة الصحيحة: {d.options[d.correctIndex]}</span>
+              {d.type === "complete" ? (
+                <>إجابتك: <span className={d.correct ? "text-green-700" : "text-red-700"}>{d.userChosen || "لم تجب"}</span>
+                {!d.correct && <span className="text-green-700 ms-3">الإجابة الصحيحة: {d.options[d.correctIndex]}</span>}</>
+              ) : (
+                <>إجابتك: <span className={d.correct ? "text-green-700" : "text-red-700"}>{d.options[d.userChosen] || "لم تجب"}</span>
+                {!d.correct && <span className="text-green-700 ms-3">الإجابة الصحيحة: {d.options[d.correctIndex]}</span>}</>
               )}
             </div>
-            {d.explanation && (
-              <div className="text-xs bg-white/60 rounded-lg p-2 mt-2 border">💡 {d.explanation}</div>
-            )}
+            {d.explanation && <div className="text-xs bg-white/60 rounded-lg p-2 mt-2 border">💡 {d.explanation}</div>}
           </div>
         ))}
       </div>
     );
   }
-
   return (
     <div className="space-y-4">
       {questions.map((q, qi) => (
         <div key={q.id} className="p-4 border rounded-xl space-y-3">
           <div className="font-bold text-sm">{qi + 1}. {q.text}</div>
-          <div className="space-y-2">
-            {q.options.map((opt: string, oi: number) => (
-              <label key={oi} className={`flex items-center gap-2 p-2 rounded-lg border cursor-pointer transition ${answers[q.id] === oi ? "bg-primary/10 border-primary" : "hover:bg-muted"}`}>
-                <input type="radio" name={`q-${q.id}`} checked={answers[q.id] === oi} onChange={() => setAnswers((a) => ({ ...a, [q.id]: oi }))} className="accent-primary" />
-                <span className="text-sm">{opt}</span>
-              </label>
-            ))}
-          </div>
+          {q.type === "complete" ? (
+            <div>
+              <textarea className="w-full border rounded-lg p-2" rows={2} placeholder="أكمل الإجابة..." value={(answers[q.id]?.textAnswer || "").replace(/"/g, "").replace(/^"|"$/g, "")} onChange={(e) => setAnswers((a) => ({ ...a, [q.id]: { textAnswer: e.target.value } }))} />
+            </div>
+          ) : q.type === "tf" ? (
+            <div className="flex gap-6">
+              {["صح", "خطأ"].map((opt, oi) => (
+                <label key={oi} className={`flex items-center gap-2 p-2 rounded-lg border cursor-pointer transition ${answers[q.id]?.chosenIndex === oi ? "bg-primary/10 border-primary" : "hover:bg-muted"}`}>
+                  <input type="radio" name={`q-${q.id}`} checked={answers[q.id]?.chosenIndex === oi} onChange={() => setAnswers((a) => ({ ...a, [q.id]: { chosenIndex: oi } }))} className="accent-primary" />
+                  <span className="text-sm">{opt}</span>
+                </label>
+              ))}
+            </div>
+          ) : (
+            <div className="space-y-2">
+              {q.options.map((opt: string, oi: number) => (
+                <label key={oi} className={`flex items-center gap-2 p-2 rounded-lg border cursor-pointer transition ${answers[q.id]?.chosenIndex === oi ? "bg-primary/10 border-primary" : "hover:bg-muted"}`}>
+                  <input type="radio" name={`q-${q.id}`} checked={answers[q.id]?.chosenIndex === oi} onChange={() => setAnswers((a) => ({ ...a, [q.id]: { chosenIndex: oi } }))} className="accent-primary" />
+                  <span className="text-sm">{opt}</span>
+                </label>
+              ))}
+            </div>
+          )}
         </div>
       ))}
-      <Button onClick={handleSubmit} disabled={Object.keys(answers).length < questions.length || submit.isPending} className="w-full">
+      <Button onClick={handleSubmit} disabled={unanswered || submit.isPending} className="w-full">
         {submit.isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : <><Send className="me-2 h-4 w-4" /> إرسال الإجابات</>}
       </Button>
     </div>
   );
 }
 
-function QuizCard({ quiz, isSuper, onDelete, onAddQuestion, onTake, deleting, onDeleteQuestion, deletingQuestion }: {
-  quiz: any; isSuper: boolean; onDelete: () => void; onAddQuestion: () => void; onTake: (id: number) => void; deleting: boolean; onDeleteQuestion: (id: number) => void; deletingQuestion: number | null;
-}) {
+function QuizCard({ quiz, isSuper, onDelete, onAddQuestion, onBulkAdd, onTake, deleting, onDeleteQuestion, deletingQuestion }: {
+   quiz: any; isSuper: boolean; onDelete: () => void; onAddQuestion: () => void; onBulkAdd: () => void; onTake: (id: number) => void; deleting: boolean; onDeleteQuestion: (id: number) => void; deletingQuestion: number | null;
+ }) {
   const { data: attempts = [] } = useLectureQuizAttempts(quiz.id);
   return (
     <div className="p-3 border rounded-xl space-y-2">
@@ -214,14 +229,15 @@ function QuizCard({ quiz, isSuper, onDelete, onAddQuestion, onTake, deleting, on
         </div>
         <div className="flex items-center gap-1">
           <Button size="sm" variant="outline" onClick={() => onTake(quiz.id)}>حل</Button>
-          {isSuper && (
-            <>
-              <button onClick={onAddQuestion} className="text-xs text-primary underline">+ سؤال</button>
-              <button onClick={onDelete} disabled={deleting} className="p-1 rounded hover:bg-destructive/10 disabled:opacity-50">
-                {deleting ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Trash2 className="h-3.5 w-3.5 text-destructive" />}
-              </button>
-            </>
-          )}
+            {isSuper && (
+              <>
+                <button onClick={onAddQuestion} className="text-xs text-primary underline">+ سؤال</button>
+                <button onClick={onBulkAdd} className="text-xs text-primary underline">+ كل الأسئلة</button>
+                <button onClick={onDelete} disabled={deleting} className="p-1 rounded hover:bg-destructive/10 disabled:opacity-50">
+                  {deleting ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Trash2 className="h-3.5 w-3.5 text-destructive" />}
+                </button>
+              </>
+            )}
         </div>
       </div>
       {isSuper && quiz.questions.map((qq: any, qi: number) => (
@@ -270,6 +286,7 @@ function LectureCard({ lecture, isSuper, videoProgress }: { lecture: LectureFull
   const createQuiz = useCreateLectureQuiz();
   const deleteQuiz = useDeleteLectureQuiz();
   const addQuestion = useAddLectureQuizQuestion();
+  const bulkAddQuestions = useBulkAddLectureQuizQuestions();
   const deleteQuestion = useDeleteLectureQuizQuestion();
   const markWatched = useMarkVideoWatched();
   const { toast } = useToast();
@@ -279,6 +296,7 @@ function LectureCard({ lecture, isSuper, videoProgress }: { lecture: LectureFull
   const [quizDialog, setQuizDialog] = useState(false);
   const [quizTakeDialog, setQuizTakeDialog] = useState<number | null>(null);
   const [questionDialog, setQuestionDialog] = useState<number | null>(null);
+  const [bulkDialog, setBulkDialog] = useState(false);
   const [deletingLecture, setDeletingLecture] = useState(false);
   const [deletingVideo, setDeletingVideo] = useState<number | null>(null);
   const [deletingPdf, setDeletingPdf] = useState<number | null>(null);
@@ -289,7 +307,8 @@ function LectureCard({ lecture, isSuper, videoProgress }: { lecture: LectureFull
   const [newVideo, setNewVideo] = useState({ title: "", youtubeUrl: "" });
   const [newPdf, setNewPdf] = useState({ name: "", url: "", sizeBytes: 0 });
   const [newQuiz, setNewQuiz] = useState({ title: "" });
-  const [newQuestion, setNewQuestion] = useState({ text: "", options: ["", "", "", ""], correctIndex: 0, points: 1 });
+  const [newQuestion, setNewQuestion] = useState({ text: "", type: "mc" as const, options: ["", "", "", ""], correctIndex: 0, points: 1, explanation: "" });
+  const [bulkText, setBulkText] = useState("");
 
   const handleAddVideo = async () => {
     if (!newVideo.title || !newVideo.youtubeUrl) { toast({ title: "العنوان والرابط مطلوب", variant: "destructive" }); return; }
@@ -322,14 +341,36 @@ function LectureCard({ lecture, isSuper, videoProgress }: { lecture: LectureFull
   };
 
   const handleAddQuestion = async (quizId: number) => {
-    if (!newQuestion.text || newQuestion.options.some((o) => !o) || typeof newQuestion.correctIndex !== "number") {
-      toast({ title: "بيانات السؤال ناقصة", variant: "destructive" }); return;
-    }
+    if (!newQuestion.text.trim()) { toast({ title: "نص السؤال مطلوب", variant: "destructive" }); return; }
+    if (newQuestion.type === "mc" && newQuestion.options.some((o) => !o.trim())) { toast({ title: "جميع الخيارات مطلوبة", variant: "destructive" }); return; }
     try {
-      await addQuestion.mutateAsync({ quizId, ...newQuestion });
+      await addQuestion.mutateAsync({ quizId, text: newQuestion.text, type: newQuestion.type, options: newQuestion.options.filter((o) => o.trim()), correctIndex: newQuestion.correctIndex, points: newQuestion.points, explanation: newQuestion.explanation });
       setQuestionDialog(null);
-      setNewQuestion({ text: "", options: ["", "", "", ""], correctIndex: 0, points: 1 });
+      setNewQuestion({ text: "", type: "mc", options: ["", "", "", ""], correctIndex: 0, points: 1, explanation: "" });
       toast({ title: "تم إضافة السؤال" });
+    } catch (e) { toast({ title: "خطأ", description: (e as Error).message, variant: "destructive" }); }
+  };
+  const handleBulkAdd = async (quizId: number) => {
+    const lines = bulkText.trim().split("\n").filter((l) => l.trim());
+    if (!lines.length) { toast({ title: "اكتب الأسئلة أولاً", variant: "destructive" }); return; }
+    const questions: { text: string; type?: string; options: string[]; correctIndex: number; points?: number; explanation?: string }[] = [];
+    for (const line of lines) {
+      const parts = line.split("|").map((s) => s.trim()).filter(Boolean);
+      if (parts.length < 3) continue;
+      const text = parts[0];
+      const correctRaw = parts[parts.length - 1];
+      const ci = parseInt(correctRaw, 10);
+      if (isNaN(ci) || ci < 0 || ci >= parts.length - 1) continue;
+      const type = parts.length === 3 ? "tf" : parts[parts.length - 2]?.toLowerCase()?.includes("صح") ? "tf" : "mc";
+      const options = parts.slice(1, parts.length - 1);
+      questions.push({ text, type, options, correctIndex: ci, points: 1 });
+    }
+    if (!questions.length) { toast({ title: "لم تُستخرج أسئلة صالحة. استخدم: نص السؤال | خيار1 | خيار2 | ... | رقم_الإجابة", variant: "destructive" }); return; }
+    try {
+      await bulkAddQuestions.mutateAsync({ quizId, questions });
+      setBulkDialog(false);
+      setBulkText("");
+      toast({ title: `تم إضافة ${questions.length} سؤال` });
     } catch (e) { toast({ title: "خطأ", description: (e as Error).message, variant: "destructive" }); }
   };
 
@@ -472,6 +513,7 @@ function LectureCard({ lecture, isSuper, videoProgress }: { lecture: LectureFull
             isSuper={isSuper}
             onDelete={() => handleDeleteQuiz(q.id)}
             onAddQuestion={() => setQuestionDialog(q.id)}
+            onBulkAdd={() => { setQuestionDialog(q.id); setBulkDialog(true); }}
             onTake={(id) => setQuizTakeDialog(id)}
             deleting={deletingQuiz === q.id}
             onDeleteQuestion={(qqId) => handleDeleteQuestion(qqId)}
@@ -520,19 +562,45 @@ function LectureCard({ lecture, isSuper, videoProgress }: { lecture: LectureFull
         <DialogContent>
           <DialogHeader><DialogTitle>إضافة سؤال</DialogTitle></DialogHeader>
           <div className="space-y-3">
+            <div><Label className="text-xs">نوع السؤال</Label>
+              <select className="w-full border rounded-md p-2 text-sm" value={newQuestion.type} onChange={(e) => setNewQuestion({ ...newQuestion, type: e.target.value as "mc" | "tf" | "complete", options: e.target.value === "tf" ? ["صح", "خطأ"] : e.target.value === "complete" ? [""] : ["", "", "", ""], correctIndex: 0 })}>
+                <option value="mc">اختر الإجابة الصحيحة</option>
+                <option value="tf">صح / خطأ</option>
+                <option value="complete">أكمل النص</option>
+              </select>
+            </div>
             <div><Label className="text-xs">نص السؤال</Label><Input value={newQuestion.text} onChange={(e) => setNewQuestion({ ...newQuestion, text: e.target.value })} /></div>
-            {newQuestion.options.map((opt, i) => (
-              <div key={i} className="flex items-center gap-2">
-                <input type="radio" name={`cq-${questionDialog}`} checked={newQuestion.correctIndex === i} onChange={() => setNewQuestion({ ...newQuestion, correctIndex: i })} className="accent-green-600" />
-                <Input value={opt} onChange={(e) => { const opts = [...newQuestion.options]; opts[i] = e.target.value; setNewQuestion({ ...newQuestion, options: opts }); }} placeholder={`الخيار ${i + 1}`} />
-              </div>
-            ))}
-            <div className="text-xs text-muted-foreground">✓ حدد الإجابة الصحيحة</div>
+            {newQuestion.type === "complete" ? (
+              <div><Label className="text-xs">الإجابة الصحيحة</Label><Input value={newQuestion.options[0] || ""} onChange={(e) => setNewQuestion({ ...newQuestion, options: [e.target.value] })} placeholder="أكمل..." /></div>
+            ) : (
+              <>
+                {newQuestion.options.map((opt, i) => (
+                  <div key={i} className="flex items-center gap-2">
+                    {newQuestion.type === "tf" ? (
+                      <input type="radio" name={`cq-${questionDialog}`} checked={newQuestion.correctIndex === i} onChange={() => setNewQuestion({ ...newQuestion, correctIndex: i })} className="accent-green-600" />
+                    ) : <span className="text-xs text-muted-foreground w-4">{i + 1}</span>}
+                    <Input value={opt} onChange={(e) => { const opts = [...newQuestion.options]; opts[i] = e.target.value; setNewQuestion({ ...newQuestion, options: opts }); }} placeholder={`الخيار ${i + 1}`} />
+                  </div>
+                ))}
+                {newQuestion.type === "mc" && <Button variant="outline" size="sm" className="mt-1" onClick={() => setNewQuestion({ ...newQuestion, options: [...newQuestion.options, ""] })}>+ إضافة خيار</Button>}
+              </>
+            )}
+            <div><Label className="text-xs">شرح (اختياري)</Label><Input value={newQuestion.explanation} onChange={(e) => setNewQuestion({ ...newQuestion, explanation: e.target.value })} placeholder="تفسير الإجابة" /></div>
             <div className="grid grid-cols-2 gap-2">
               <div><Label className="text-xs">النقاط</Label><Input type="number" value={newQuestion.points} onChange={(e) => setNewQuestion({ ...newQuestion, points: Number(e.target.value) })} /></div>
             </div>
           </div>
           <DialogFooter><Button variant="ghost" onClick={() => setQuestionDialog(null)}>إلغاء</Button><Button onClick={() => questionDialog && handleAddQuestion(questionDialog)} disabled={addQuestion.isPending}>{addQuestion.isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : <><Plus className="me-2 h-4 w-4" /> إضافة</>}</Button></DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Bulk Add Dialog */}
+      <Dialog open={bulkDialog} onOpenChange={(o) => { setBulkDialog(o); if (!o) setBulkText(""); }}>
+        <DialogContent className="max-w-xl">
+          <DialogHeader><DialogTitle>إضافة عدة أسئلة دفعة واحدة</DialogTitle></DialogHeader>
+          <div className="text-xs text-muted-foreground mb-2">اكتب سؤالًا في كل سطر بالشكل: <code>نص السؤال | خيار1 | خيار2 | رقم_الإجابة</code></div>
+          <textarea className="w-full border rounded-lg p-2 font-mono text-sm" rows={10} placeholder={'مثال:\nهل الأرض كروية؟ | نعم | لا | 0\nما ثابت الضوء؟ | 3e8 | 3e7 | 0\nأكمل: ٢+٢ = ? | 4 | 0'} value={bulkText} onChange={(e) => setBulkText(e.target.value)} />
+          <DialogFooter><Button variant="ghost" onClick={() => { setBulkDialog(false); setBulkText(""); }}>إلغاء</Button><Button onClick={() => questionDialog && handleBulkAdd(questionDialog)} disabled={bulkAddQuestions.isPending}>{bulkAddQuestions.isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : <><Plus className="me-2 h-4 w-4" /> إضافة الكل</>}</Button></DialogFooter>
         </DialogContent>
       </Dialog>
 
