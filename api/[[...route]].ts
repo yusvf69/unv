@@ -4322,15 +4322,10 @@ async function handleAdminCrud(req: Request, parts: string[]): Promise<Response>
       const body = await req.json();
       const questionsArr = body.questions;
       if (!Array.isArray(questionsArr) || !questionsArr.length) throw Object.assign(new Error("لم يتم إرسال أي أسئلة"), { status: 400 });
-      let created = 0;
-      for (const q of questionsArr) {
-        const { text, type, options, correctIndex, points, explanation } = q;
-        const opts = Array.isArray(options) ? options : [];
-        if (!text || !opts.length || typeof correctIndex !== "number" || isNaN(correctIndex)) throw Object.assign(new Error("بيانات السؤال ناقصة: text=" + !!text + " optsLen=" + opts.length + " ci=" + typeof correctIndex + "/" + correctIndex), { status: 400 });
-        const [r] = await sql`SELECT COALESCE(MAX(ord), 0) AS n FROM lecture_quiz_questions WHERE quiz_id = ${quizId}`;
-        await sql`INSERT INTO lecture_quiz_questions (quiz_id, text, type, options, correct_index, points, explanation, ord) VALUES (${quizId}, ${text}, ${type || "mc"}, ${JSON.stringify(opts)}, ${correctIndex}, ${points ?? 10}, ${explanation || ""}, ${(r?.n ?? 0) + 1})`;
-        created++;
-      }
+      // TEMP: return success without insert to test endpoint
+      return { created: questionsArr.length, test: true, firstText: questionsArr[0]?.text?.slice(0, 20) };
+    });
+  }
       return { created };
     });
   }
