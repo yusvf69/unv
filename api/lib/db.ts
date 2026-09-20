@@ -1,5 +1,7 @@
 import { neon } from "@neondatabase/serverless";
 
+console.log("🟢 [db] Module loaded, DATABASE_URL:", !!process.env.DATABASE_URL);
+
 let _sql: ReturnType<typeof neon> | null = null;
 
 function getConnectionUrl(): string {
@@ -16,7 +18,7 @@ function getSql() {
   if (!_sql) {
     const connectionUrl = getConnectionUrl();
     if (!connectionUrl) throw new Error("DATABASE_URL is not set");
-    _sql = neon(connectionUrl);
+    try { _sql = neon(connectionUrl); } catch (e: any) { console.error("🔴 [db] neon init failed:", e?.message); throw e; }
   }
   return _sql;
 }
