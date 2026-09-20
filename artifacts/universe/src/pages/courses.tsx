@@ -1,7 +1,6 @@
-import { useState, useEffect } from "react";
+import { useState } from "react";
 import { Link } from "wouter";
 import { BookOpen, ArrowRight, Loader2, RefreshCw, Plus, Check, X } from "lucide-react";
-import { useQueryClient } from "@tanstack/react-query";
 import { useCourses, useRetakeOptions, useAddMyRetake, useDeleteMyRetake } from "@/lib/api";
 import { useTranslation, globalI18n } from "@/lib/i18n";
 import { Button } from "@/components/ui/button";
@@ -11,17 +10,11 @@ import { useToast } from "@/hooks/use-toast";
 export default function Courses() {
   const { data: courses = [], isPending, isError } = useCourses();
   const { data: retakeOptions = [] } = useRetakeOptions();
-  const queryClient = useQueryClient();
   const addRetake = useAddMyRetake();
   const delRetake = useDeleteMyRetake();
   const { toast } = useToast();
   const [open, setOpen] = useState(false);
   const t = useTranslation(globalI18n);
-
-  useEffect(() => {
-    queryClient.invalidateQueries({ queryKey: ["v2", "courses"] });
-    queryClient.removeQueries({ queryKey: ["v2", "courses"] });
-  }, []);
 
   if (isPending || isError) return <div className="p-8 text-center flex items-center justify-center gap-2"><Loader2 className="h-5 w-5 animate-spin" /> {t("loading")}</div>;
 
