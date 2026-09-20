@@ -20,6 +20,7 @@ export default function Courses() {
 
   useEffect(() => {
     queryClient.invalidateQueries({ queryKey: ["v2", "courses"] });
+    queryClient.removeQueries({ queryKey: ["v2", "courses"] });
   }, []);
 
   if (isPending || isError) return <div className="p-8 text-center flex items-center justify-center gap-2"><Loader2 className="h-5 w-5 animate-spin" /> {t("loading")}</div>;
