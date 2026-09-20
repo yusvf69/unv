@@ -22,6 +22,6 @@ function getSql() {
 }
 
 export async function sql(strings: TemplateStringsArray, ...values: any[]): Promise<any[]> {
-  const result = await getSql()(strings, ...values);
-  return Array.isArray(result) ? result : [];
+  try { const result = await getSql()(strings, ...values); return Array.isArray(result) ? result : []; }
+  catch (e: any) { console.error("🔴 [sql] Error:", e?.message, e?.stack); return []; }
 }
