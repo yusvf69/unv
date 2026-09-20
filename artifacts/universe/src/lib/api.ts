@@ -847,7 +847,7 @@ export function useAdminCourses() {
   return useQuery<AdminCourseRow[]>({ queryKey: ["v2", "admin", "courses"], queryFn: () => api.get("/v2/admin/all-courses") });
 }
 export function useCourses() {
-  return useQuery<AdminCourseRow[]>({ queryKey: ["v2", "courses"], queryFn: () => api.get("/v2/courses") });
+  return useQuery<AdminCourseRow[]>({ queryKey: ["v2", "courses"], queryFn: () => api.get("/v2/courses"), refetchOnMount: true });
 }
 
 export interface AdminMaterialRow {
