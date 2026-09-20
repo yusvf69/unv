@@ -4821,6 +4821,7 @@ async function handleCoursesList(req: Request | null): Promise<Response> {
     const rows = await sql`SELECT * FROM courses ORDER BY semester, code`;
     return rows
       .filter((c: any) =>
+        myYear == null ||
         c.year_in_college == null ||
         (myYear != null && c.year_in_college === myYear) ||
         retakeKeys.has(`${c.year_in_college}|${c.title}`)
