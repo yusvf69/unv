@@ -11,15 +11,8 @@ import {
   Dialog, DialogContent, DialogHeader, DialogTitle,
 } from "@/components/ui/dialog";
 import { useToast } from "@/hooks/use-toast";
-import {
-  useCourseLectures,
-  useMarkVideoWatched,
-  useSubmitLectureQuiz,
-  useCourseProgress,
-  useCourseVideoProgress,
-  LectureFull,
-  LectureVideo,
-} from "@/lib/api";
+import { useGetCourse } from "@workspace/api-client-react";
+import { useCourseLectures, useMarkVideoWatched, useSubmitLectureQuiz, useCourseProgress, useCourseVideoProgress, LectureFull, LectureVideo } from "@/lib/api";
 import { useTranslation, globalI18n } from "@/lib/i18n";
 
 function extractYoutubeId(url: string | null | undefined): string | null {
@@ -278,6 +271,7 @@ export default function StudentCourseDetail() {
   const videoProgress: Record<number, boolean> = {};
   if (videoProgressRaw) videoProgressRaw.forEach((vp) => { videoProgress[vp.videoId] = vp.completed; });
 
+  const { data: course } = useGetCourse(courseId);
   const filtered = lectures.filter((l) => tab === "all" || l.type === tab);
   const lectureCount = lectures.filter((l) => l.type === "lecture").length;
   const sectionCount = lectures.filter((l) => l.type === "section").length;
@@ -288,7 +282,20 @@ export default function StudentCourseDetail() {
     <div className="container mx-auto px-4 py-8 max-w-5xl">
       <div className="flex items-center gap-3 mb-6">
         <Button variant="ghost" size="sm" onClick={() => navigate("/courses")}><ArrowLeft className="h-4 w-4 me-1" /> {t("back")}</Button>
-        <h1 className="text-2xl font-serif font-bold flex-1">{t("courseLabel")}</h1>
+      </div>
+
+      {course?.coverUrl && (
+        <div className="relative h-48 sm:h-56 rounded-xl overflow-hidden mb-6">
+          <img src={course.coverUrl} alt={course.title} className="w-full h-full object-cover" />
+          <div className="absolute inset-0 bg-gradient-to-t from-background/80 to-transparent" />
+        </div>
+      )}
+
+      <div className="mb-6">
+        <h1 className="text-2xl font-serif font-bold mb-2">{course?.title}</h1>
+        {course?.description && (
+          <p className="text-sm text-muted-foreground leading-relaxed whitespace-pre-line">{course.description}</p>
+        )}
       </div>
 
       {/* Progress Bar */}
