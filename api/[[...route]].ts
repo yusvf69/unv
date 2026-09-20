@@ -5,8 +5,25 @@ import { getUserId, getCurrentUser, requireAuth, requireRole, ensureSuper, gener
 import bcrypt from "bcryptjs";
 import nodemailer from "nodemailer";
 import webPushPkg from "web-push";
+import { put } from "@vercel/blob";
 const webPush = (webPushPkg as any).default ?? webPushPkg;
 
+export const config = { runtime: "nodejs", maxDuration: 60, body: "unspecified" };
+
+/* ---------- Vercel Blob single-request upload ---------- */
+async function handleBlobUpload(req: Request): Promise<Response> {
+  const token = process.env.BLOB_READ_WRITE_TOKEN;
+  if (!token) return jsonError("لم يتم إعداد تخزين الملفات (BLOB_READ_WRITE_TOKEN)", 500);
+  const { put } = await import("@vercel/blob");
+  const fileName = (req.headers.get("x-file-name") || `file-${Date.now()}`).replace(/[^\w.\-()ِأ-يإأآةऔ ]/g, "_").slice(0, 120);
+  const ext = fileName.includes(".") ? fileName.slice(fileName.lastIndexOf(".")) : "";
+  const key = `courses/${Date.now()}-${Math.random().toString(36).slice(2, 6)}${ext}`;
+  const raw = await req.arrayBuffer();
+  const blob = await put(key, raw, { access: "public", contentType: req.headers.get("content-type") || "application/octet-stream", addRandomSuffix: false, token });
+  return jsonResponse({ url: blob.url, sizeBytes: raw.byteLength, name: fileName });
+}
+
+/* ---------- Vercel Blob single-request upload ---------- */
 export const config = { runtime: "nodejs", maxDuration: 60 };
 
 async function getVapidKeys(): Promise<{ publicKey: string; privateKey: string }> {
@@ -3943,16 +3960,19 @@ async function handleCourses(req: Request, parts: string[]): Promise<Response> {
       const { userId } = requireAuth(req.headers);
       const courseId = Number(parts[2]);
       const lectures = await sql`SELECT * FROM lectures WHERE course_id = ${courseId}`;
-      if (!lectures.length) return { totalItems: 0, completedItems: 0, percent: 0, videos: [], quizzes: [] };
+      if (!lectures.length) return { totalItems: 0, completedItems: 0, percent: 0, videos: [], quizzes: [], exams: [] };
       const vids = await sql`SELECT * FROM lecture_videos WHERE lecture_id = ANY(${lectures.map((l: any) => l.id)})`;
       const quizzes = await sql`SELECT * FROM lecture_quizzes WHERE lecture_id = ANY(${lectures.map((l: any) => l.id)})`;
+      const courseExams = await sql`SELECT * FROM course_exams WHERE course_id = ${courseId}`;
       const videoProg = vids.length ? await sql`SELECT * FROM video_progress WHERE user_id = ${userId} AND video_id = ANY(${vids.map((v: any) => v.id)})` : [];
       const quizAttemptsList = quizzes.length ? await sql`SELECT * FROM lecture_quiz_attempts WHERE user_id = ${userId} AND quiz_id = ANY(${quizzes.map((q: any) => q.id)})` : [];
+      const examAttemptsList = courseExams.length ? await sql`SELECT * FROM course_exam_attempts WHERE user_id = ${userId} AND course_exam_id = ANY(${courseExams.map((e: any) => e.id)})` : [];
       const videoMap = new Map(videoProg.map((p: any) => [p.video_id, p.completed]));
       const quizMap = new Map(quizAttemptsList.map((a: any) => [a.quiz_id, a.score / a.total >= 0.5]));
-      const totalItems = vids.length + quizzes.length;
-      const completedItems = vids.filter((v: any) => videoMap.get(v.id)).length + quizzes.filter((q: any) => quizMap.get(q.id)).length;
-      return { totalItems, completedItems, percent: totalItems ? Math.round((completedItems / totalItems) * 100) : 0, videos: vids.map((v: any) => ({ id: v.id, completed: videoMap.get(v.id) || false })), quizzes: quizzes.map((q: any) => ({ id: q.id, completed: quizMap.get(q.id) || false })) };
+      const examMap = new Map(examAttemptsList.map((a: any) => [a.course_exam_id, true]));
+      const totalItems = vids.length + quizzes.length + courseExams.length;
+      const completedItems = vids.filter((v: any) => videoMap.get(v.id)).length + quizzes.filter((q: any) => quizMap.get(q.id)).length + courseExams.filter((e: any) => examMap.get(e.id)).length;
+      return { totalItems, completedItems, percent: totalItems ? Math.round((completedItems / totalItems) * 100) : 0, videos: vids.map((v: any) => ({ id: v.id, completed: videoMap.get(v.id) || false })), quizzes: quizzes.map((q: any) => ({ id: q.id, completed: quizMap.get(q.id) || false })), exams: courseExams.map((e: any) => ({ id: e.id, completed: examMap.get(e.id) || false })) };
     });
   }
   return jsonError("Not Found", 404);
@@ -5429,6 +5449,7 @@ async function handleRequest(request: Request): Promise<Response> {
     "POST /v2/auth/verify-reset-code": () => handleAuth(request, parts),
     "POST /auth/reset-password": () => handleAuth(request, parts),
     "POST /v2/auth/reset-password": () => handleAuth(request, parts),
+    "POST /v2/upload": () => handleBlobUpload(request),
 
     // Me
     "GET /me": () => handleMe(request),

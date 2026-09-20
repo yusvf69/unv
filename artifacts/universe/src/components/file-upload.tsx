@@ -45,13 +45,8 @@ export default function FileUpload({
           onChange(dataUrl, meta);
         }
       } else {
-        const dataUrl = await readAsDataUrl(file);
-        const sizeKb = Math.ceil((dataUrl.length * 3) / 4 / 1024);
-        if (sizeKb > maxSizeKb) {
-          setErr(t("fileTooLarge").replace("{sizeKb}", String(sizeKb)).replace("{maxSizeKb}", String(maxSizeKb)));
-          return;
-        }
-        onChange(dataUrl, meta);
+        const res = await api.uploadFile(file, meta);
+        onChange(res.url, meta);
       }
     } catch (e: any) {
       setErr(e?.message === "readFailed" || e?.message === "invalidImage" ? t(e.message) : t("uploadFailed"));

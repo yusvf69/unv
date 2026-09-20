@@ -79,6 +79,39 @@ export function logoutClient() {
 
 export const api = {
   get: <T,>(path: string) => request<T>("GET", path),
+  uploadFile: async (file: Blob | File, meta: FileMeta) => {
+    const token = getToken();
+    const headers: Record<string, string> = {};
+    if (token) headers["Authorization"] = `Bearer ${token}`;
+    headers["Content-Type"] = file.type || "application/octet-stream";
+    headers["x-file-name"] = (file as File).name || "file";
+    const controller = new AbortController();
+    const timer = setTimeout(() => controller.abort(), REQUEST_TIMEOUT_MS);
+    let res: Response;
+    try {
+      res = await fetch(`${API_BASE}/v2/upload`, {
+        method: "POST",
+        headers,
+        body: file,
+        signal: controller.signal,
+      });
+    } catch (e: any) {
+      clearTimeout(timer);
+      if (e?.name === "AbortError") {
+        const err = new Error("انتهت مهلة الرفع") as Error & { status?: number };
+        err.status = 408; throw err;
+      }
+      throw e;
+    }
+    clearTimeout(timer);
+    if (!res.ok) {
+      let msg = `${res.status} ${res.statusText}`;
+      try { const j = await res.json(); msg = (j as { error?: string }).error || msg; } catch {}
+      throw new Error(msg);
+    }
+    const j = (await res.json()) as { url: string };
+    return { url: j.url, meta };
+  },
   post: <T,>(path: string, body?: unknown) => request<T>("POST", path, body),
   put: <T,>(path: string, body?: unknown) => request<T>("PUT", path, body),
   patch: <T,>(path: string, body?: unknown) => request<T>("PATCH", path, body),
@@ -1636,6 +1669,7 @@ export interface CourseProgress {
   percent: number;
   videos: { id: number; completed: boolean }[];
   quizzes: { id: number; completed: boolean }[];
+  exams: { id: number; completed: boolean }[];
 }
 export function useCourseProgress(courseId: number) {
   return useQuery<CourseProgress>({

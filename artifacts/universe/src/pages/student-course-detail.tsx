@@ -12,7 +12,7 @@ import {
 } from "@/components/ui/dialog";
 import { useToast } from "@/hooks/use-toast";
 import { useGetCourse } from "@workspace/api-client-react";
-import { useCourseLectures, useMarkVideoWatched, useSubmitLectureQuiz, useCourseProgress, useCourseVideoProgress, LectureFull, LectureVideo } from "@/lib/api";
+import { useCourseLectures, useMarkVideoWatched, useSubmitLectureQuiz, useCourseProgress, useCourseVideoProgress, useCourseExams, useCourseExamDetail, useSubmitCourseExamAttempt, CourseExamWithQuestions, LectureFull, LectureVideo } from "@/lib/api";
 import { useTranslation, globalI18n } from "@/lib/i18n";
 
 function extractYoutubeId(url: string | null | undefined): string | null {
@@ -265,7 +265,12 @@ export default function StudentCourseDetail() {
   const { data: progress, isPending: progressLoading } = useCourseProgress(courseId);
   const { data: videoProgressRaw, isPending: videoProgressLoading } = useCourseVideoProgress(courseId);
 
-  const [tab, setTab] = useState<"all" | "lecture" | "section">("all");
+  const [tab, setTab] = useState<"all" | "lecture" | "section" | "exams">("all");
+  const [examTab, setExamTab] = useState<"list" | "take">("list");
+  const [selectedExam, setSelectedExam] = useState<any>(null);
+  const { data: courseExams } = useCourseExams(courseId);
+  const submitExam = useSubmitCourseExamAttempt(courseId, selectedExam?.id || 0);
+  const { toast } = useToast();
   const t = useTranslation(globalI18n);
 
   const videoProgress: Record<number, boolean> = {};
@@ -275,6 +280,14 @@ export default function StudentCourseDetail() {
   const filtered = lectures.filter((l) => tab === "all" || l.type === tab);
   const lectureCount = lectures.filter((l) => l.type === "lecture").length;
   const sectionCount = lectures.filter((l) => l.type === "section").length;
+  const examCount = courseExams?.length || 0;
+
+  const handleSubmitExam = async (examId: number) => {
+    const exam = courseExams?.find((e: any) => e.id === examId);
+    if (!exam) return;
+    const answers = exam.questions?.map((q: any, i: number) => ({ questionId: q.id, answer: "" })) || [];
+    try { await submitExam.mutateAsync({ answers: answers, score: 0, total: exam.total_points }); toast({ title: "تم تسليم الامتحان" }); setExamTab("list"); setSelectedExam(null); } catch (e: any) { toast({ title: e?.message || "خطأ", variant: "destructive" }); }
+  };
 
   if (!courseId) return <div className="p-12 text-center text-muted-foreground">{t("courseNotFound")}</div>;
 
@@ -311,6 +324,7 @@ export default function StudentCourseDetail() {
           <div className="flex items-center gap-4 mt-2 text-xs text-muted-foreground">
             <span>{t("videosLabel")} {progress.videos.filter((v) => v.completed).length}/{progress.videos.length}</span>
             <span>{t("quizzesLabel")} {progress.quizzes.filter((q) => q.completed).length}/{progress.quizzes.length}</span>
+            <span>{t("examsLabel")} {progress?.exams.filter((e) => e.completed).length}/{progress?.exams.length}</span>
           </div>
         </div>
       )}
@@ -321,6 +335,7 @@ export default function StudentCourseDetail() {
           { key: "all" as const, label: `${t("all")} (${lectures.length})` },
           { key: "lecture" as const, label: `${t("lecturesLabel")} (${lectureCount})` },
           { key: "section" as const, label: `${t("sectionsLabel")} (${sectionCount})` },
+          { key: "exams" as const, label: t("examsLabel") },
         ].map((t) => (
           <button
             key={t.key}
