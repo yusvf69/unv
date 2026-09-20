@@ -4454,17 +4454,18 @@ const questions = await sql`SELECT * FROM lecture_quiz_questions WHERE quiz_id =
       total += qq.points;
       const type = qq.type || "mc";
       const a = submitted.find((x: any) => x.questionId === qq.id);
+      let correct = false;
       if (type === "complete") {
         const userText = (a?.textAnswer || "").trim();
         const expected = Array.isArray(qq.options) ? (qq.options[qq.correct_index] || "").trim() : "";
-        const correct = userText.toLowerCase() === expected.toLowerCase();
+        correct = userText.toLowerCase() === expected.toLowerCase();
         ansArr.push(`${qq.id}:${userText}`);
         if (userText !== "") {
           details.push({ questionId: qq.id, text: qq.text, type, options: qq.options, correctIndex: qq.correct_index, points: qq.points, userChosen: userText, correct, explanation: qq.explanation || "", textAnswer: userText });
         }
       } else {
         const chosen = a?.chosenIndex ?? -1;
-        const correct = chosen === qq.correct_index;
+        correct = chosen === qq.correct_index;
         ansArr.push(`${qq.id}:${chosen}`);
         if (chosen >= 0) {
           details.push({ questionId: qq.id, text: qq.text, type, options: qq.options, correctIndex: qq.correct_index, points: qq.points, userChosen: chosen, correct, explanation: qq.explanation || "" });
