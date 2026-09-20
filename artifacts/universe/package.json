@@ -79,6 +79,7 @@
   "dependencies": {
     "@capacitor/app": "^8.1.1",
     "@tailwindcss/oxide-darwin-arm64": "^4.2.4",
+    "@vercel/blob": "^0.26.0",
     "zustand": "^5.0.12"
   },
   "optionalDependencies": {

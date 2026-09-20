@@ -10,17 +10,24 @@ const webPush = (webPushPkg as any).default ?? webPushPkg;
 
 export const config = { runtime: "nodejs", maxDuration: 60, body: "unspecified" };
 
-/* ---------- Vercel Blob single-request upload ---------- */
-async function handleBlobUpload(req: Request): Promise<Response> {
+/* ---------- Vercel Blob client upload (direct browser -> blob) ---------- */
+async function handleUploadUrl(req: Request): Promise<Response> {
+  requireAuth(req.headers);
   const token = process.env.BLOB_READ_WRITE_TOKEN;
   if (!token) return jsonError("لم يتم إعداد تخزين الملفات (BLOB_READ_WRITE_TOKEN)", 500);
-  const { put } = await import("@vercel/blob");
-  const fileName = (req.headers.get("x-file-name") || `file-${Date.now()}`).replace(/[^\w.\-()ِأ-يإأآةऔ ]/g, "_").slice(0, 120);
+  const { generateClientTokenFromReadWriteToken } = await import("@vercel/blob/client");
+  const body = (await req.json().catch(() => ({}))) as { name?: string };
+  const fileName = String(body.name || `file-${Date.now()}`).replace(/[^\w.\-()ِأ-يإأآةऔ ]/g, "_").slice(0, 120);
   const ext = fileName.includes(".") ? fileName.slice(fileName.lastIndexOf(".")) : "";
-  const key = `courses/${Date.now()}-${Math.random().toString(36).slice(2, 6)}${ext}`;
-  const raw = await req.arrayBuffer();
-  const blob = await put(key, raw, { access: "public", contentType: req.headers.get("content-type") || "application/octet-stream", addRandomSuffix: false, token });
-  return jsonResponse({ url: blob.url, sizeBytes: raw.byteLength, name: fileName });
+  const key = `courses/${Date.now()}-${Math.random().toString(36).slice(2, 8)}${ext}`;
+  const clientToken = await generateClientTokenFromReadWriteToken({
+    token,
+    pathname: key,
+    addRandomSuffix: false,
+    maximumSizeInBytes: 200 * 1024 * 1024,
+    validUntil: Date.now() + 15 * 60 * 1000,
+  });
+  return jsonResponse({ token: clientToken, pathname: key, name: fileName });
 }
 
 async function getVapidKeys(): Promise<{ publicKey: string; privateKey: string }> {
@@ -5446,7 +5453,8 @@ async function handleRequest(request: Request): Promise<Response> {
     "POST /v2/auth/verify-reset-code": () => handleAuth(request, parts),
     "POST /auth/reset-password": () => handleAuth(request, parts),
     "POST /v2/auth/reset-password": () => handleAuth(request, parts),
-    "POST /v2/upload": () => handleBlobUpload(request),
+    "POST /v2/upload": () => handleUploadUrl(request),
+    "POST /v2/upload-url": () => handleUploadUrl(request),
 
     // Me
     "GET /me": () => handleMe(request),

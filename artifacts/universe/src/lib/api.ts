@@ -1,5 +1,6 @@
 import { useQuery, useMutation, useQueryClient, type UseQueryOptions } from "@tanstack/react-query";
 import { getGetDashboardQueryKey } from "@workspace/api-client-react";
+import { put } from "@vercel/blob/client";
 
 export function getApiBase(): string {
   if (typeof window !== "undefined" && (window as any).__API_BASE__) {
@@ -83,34 +84,24 @@ export const api = {
     const token = getToken();
     const headers: Record<string, string> = {};
     if (token) headers["Authorization"] = `Bearer ${token}`;
-    headers["Content-Type"] = file.type || "application/octet-stream";
-    headers["x-file-name"] = (file as File).name || "file";
-    const controller = new AbortController();
-    const timer = setTimeout(() => controller.abort(), REQUEST_TIMEOUT_MS);
-    let res: Response;
-    try {
-      res = await fetch(`${API_BASE}/v2/upload`, {
-        method: "POST",
-        headers,
-        body: file,
-        signal: controller.signal,
-      });
-    } catch (e: any) {
-      clearTimeout(timer);
-      if (e?.name === "AbortError") {
-        const err = new Error("انتهت مهلة الرفع") as Error & { status?: number };
-        err.status = 408; throw err;
-      }
-      throw e;
-    }
-    clearTimeout(timer);
+    headers["Content-Type"] = "application/json";
+    const res = await fetch(`${API_BASE}/v2/upload-url`, {
+      method: "POST",
+      headers,
+      body: JSON.stringify({ name: (file as File).name || "file" }),
+    });
     if (!res.ok) {
       let msg = `${res.status} ${res.statusText}`;
       try { const j = await res.json(); msg = (j as { error?: string }).error || msg; } catch {}
       throw new Error(msg);
     }
-    const j = (await res.json()) as { url: string };
-    return { url: j.url, meta };
+    const { token: clientToken, pathname } = (await res.json()) as { token: string; pathname: string };
+    const blob = await put(pathname, file, {
+      access: "public",
+      token: clientToken,
+      contentType: file.type || "application/octet-stream",
+    });
+    return { url: blob.url, meta };
   },
   post: <T,>(path: string, body?: unknown) => request<T>("POST", path, body),
   put: <T,>(path: string, body?: unknown) => request<T>("PUT", path, body),
