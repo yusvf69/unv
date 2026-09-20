@@ -1,15 +1,14 @@
 import { neon } from "@neondatabase/serverless";
 
-console.log("🟢 [db] Module loaded, DATABASE_URL:", !!process.env.DATABASE_URL);
-
 let _sql: ReturnType<typeof neon> | null = null;
 
 function getConnectionUrl(): string {
-  const url = process.env.DATABASE_URL || "";
+  const url = process.env.DATABASE_URL || process.env.unvst_DATABASE_URL || process.env.unvst_POSTGRES_URL || "";
   if (!url) return "";
   try {
     const u = new URL(url.startsWith("postgresql://") ? url : url.replace("postgres://", "postgresql://"));
     u.searchParams.delete("channel_binding");
+    u.searchParams.delete("sslmode");
     return u.toString();
   } catch { return url; }
 }
