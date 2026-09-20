@@ -23,9 +23,6 @@ async function handleBlobUpload(req: Request): Promise<Response> {
   return jsonResponse({ url: blob.url, sizeBytes: raw.byteLength, name: fileName });
 }
 
-/* ---------- Vercel Blob single-request upload ---------- */
-export const config = { runtime: "nodejs", maxDuration: 60 };
-
 async function getVapidKeys(): Promise<{ publicKey: string; privateKey: string }> {
   const rows = await sql`SELECT v.k, v.v FROM unnest(ARRAY['vapid_public','vapid_private']::text[]) k LEFT JOIN app_settings v ON v.key = k.k`;
   const map: Record<string, string> = {};

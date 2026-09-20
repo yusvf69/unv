@@ -1,6 +1,7 @@
 import { useRef, useState } from "react";
 import { Upload, X, Loader2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { api } from "@/lib/api";
 import { globalI18n, useTranslation } from "@/lib/i18n";
 
 interface FileMeta { name: string; type: string; size: number }
