@@ -4325,9 +4325,10 @@ async function handleAdminCrud(req: Request, parts: string[]): Promise<Response>
       let created = 0;
       for (const q of questionsArr) {
         const { text, type, options, correctIndex, points, explanation } = q;
-        if (!text || !options || typeof correctIndex !== "number") throw Object.assign(new Error("بيانات السؤال ناقصة"), { status: 400 });
+        const opts = Array.isArray(options) ? options : [];
+        if (!text || !opts.length || typeof correctIndex !== "number") throw Object.assign(new Error("بيانات السؤال ناقصة"), { status: 400 });
         const [r] = await sql`SELECT COALESCE(MAX(ord), 0) AS n FROM lecture_quiz_questions WHERE quiz_id = ${quizId}`;
-        await sql`INSERT INTO lecture_quiz_questions (quiz_id, text, type, options, correct_index, points, explanation, ord) VALUES (${quizId}, ${text}, ${type || "mc"}, ${JSON.stringify(options)}, ${correctIndex}, ${points ?? 10}, ${explanation || ""}, ${(r?.n ?? 0) + 1})`;
+        await sql`INSERT INTO lecture_quiz_questions (quiz_id, text, type, options, correct_index, points, explanation, ord) VALUES (${quizId}, ${text}, ${type || "mc"}, ${JSON.stringify(opts)}, ${correctIndex}, ${points ?? 10}, ${explanation || ""}, ${(r?.n ?? 0) + 1})`;
         created++;
       }
       return { created };
