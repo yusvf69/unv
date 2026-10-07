@@ -3,6 +3,7 @@ import { useTranslation, globalI18n } from "@/lib/i18n";
 import { Link } from "wouter";
 import { formatISODate } from "@/lib/dates";
 import { useAdSense } from "@/lib/adsense";
+import AdSlot from "@/components/ads/AdSlot";
 
 export default function News() {
   const { data: news, isLoading } = useListNews();
@@ -37,6 +38,8 @@ export default function News() {
           </Link>
         ))}
       </div>
+
+      <AdSlot slot="newsList" className="mt-6 sm:mt-8" />
     </div>
   );
 }

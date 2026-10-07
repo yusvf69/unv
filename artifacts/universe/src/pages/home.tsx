@@ -1,5 +1,6 @@
 import { useGetHomeFeed, useGetMe } from "@workspace/api-client-react";
 import { useAdSense } from "@/lib/adsense";
+import AdSlot from "@/components/ads/AdSlot";
 import { motion, useScroll, useTransform } from "framer-motion";
 import { useEffect, useRef, useState } from "react";
 import { Link } from "wouter";
@@ -237,6 +238,9 @@ export default function Home() {
           ))}
         </div>
       </section>
+
+      {/* IN-CONTENT AD */}
+      <AdSlot slot="homeFeed" className="container mx-auto px-3 sm:px-4" />
 
       {/* DEAN */}
       {feed.dean && (

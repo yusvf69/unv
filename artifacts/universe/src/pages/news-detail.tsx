@@ -4,6 +4,7 @@ import { ChevronRight, ChevronLeft, Calendar, User } from "lucide-react";
 import { useLanguage } from "@/hooks/use-language";
 import { formatISODate } from "@/lib/dates";
 import { useAdSense } from "@/lib/adsense";
+import AdSlot from "@/components/ads/AdSlot";
 
 export default function NewsDetail() {
   const { id } = useParams<{ id: string }>();
@@ -58,6 +59,8 @@ export default function NewsDetail() {
               <p key={i}>{paragraph}</p>
             ))}
           </div>
+
+          <AdSlot slot="newsDetail" className="mt-8" />
         </div>
       </article>
     </div>
