@@ -3,6 +3,7 @@ import { Link, useLocation } from "wouter";
 import { motion } from "framer-motion";
 import { useLanguage } from "@/hooks/use-language";
 import { globalI18n, useTranslation } from "@/lib/i18n";
+import { useAdSense } from "@/lib/adsense";
 import { useGetMe } from "@workspace/api-client-react";
 import { useLogout } from "@/lib/api";
 import {
@@ -44,6 +45,9 @@ export default function Layout({ children }: { children: ReactNode }) {
   const [, setLocation] = useLocation();
   const [location] = useLocation();
   const { theme, toggle: toggleTheme } = useTheme();
+
+  // Ads on authenticated content screens only — never on login/404/loading.
+  useAdSense(!!user && location !== "/login");
 
   const mePerms = meV2?.adminPermissions;
   const isAdmin = user?.role === "admin" || user?.role === "super_admin" || (user?.role === "student" && !!mePerms);

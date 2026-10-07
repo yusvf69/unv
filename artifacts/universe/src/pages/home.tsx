@@ -1,5 +1,5 @@
-import { useGetHomeFeed } from "@workspace/api-client-react";
-import { useGetMe } from "@workspace/api-client-react";
+import { useGetHomeFeed, useGetMe } from "@workspace/api-client-react";
+import { useAdSense } from "@/lib/adsense";
 import { motion, useScroll, useTransform } from "framer-motion";
 import { useEffect, useRef, useState } from "react";
 import { Link } from "wouter";
@@ -78,6 +78,8 @@ export default function Home() {
   const heroRef = useRef<HTMLDivElement>(null);
   const { scrollY } = useScroll();
   const heroY = useTransform(scrollY, [0, 500], [0, 150]);
+
+  useAdSense(!isLoading && !!feed?.stats);
 
   if (isLoading || !feed || !feed.stats) {
     return (
