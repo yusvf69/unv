@@ -2,13 +2,11 @@ import { useListNews } from "@workspace/api-client-react";
 import { useTranslation, globalI18n } from "@/lib/i18n";
 import { Link } from "wouter";
 import { formatISODate } from "@/lib/dates";
-import { useAdSense } from "@/lib/adsense";
 import AdSlot from "@/components/ads/AdSlot";
 
 export default function News() {
   const { data: news, isLoading } = useListNews();
   const t = useTranslation(globalI18n);
-  useAdSense(!isLoading && (news?.length ?? 0) > 0);
 
   if (isLoading) {
     return <div className="p-8 text-center">Loading...</div>;

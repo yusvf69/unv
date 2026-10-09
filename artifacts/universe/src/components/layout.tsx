@@ -3,7 +3,6 @@ import { Link, useLocation } from "wouter";
 import { motion } from "framer-motion";
 import { useLanguage } from "@/hooks/use-language";
 import { globalI18n, useTranslation } from "@/lib/i18n";
-import { useAdSense } from "@/lib/adsense";
 import { useGetMe } from "@workspace/api-client-react";
 import { useLogout } from "@/lib/api";
 import {
@@ -46,8 +45,11 @@ export default function Layout({ children }: { children: ReactNode }) {
   const [location] = useLocation();
   const { theme, toggle: toggleTheme } = useTheme();
 
-  // Ads on authenticated content screens only — never on login/404/loading.
-  useAdSense(!!user && location !== "/login");
+  // NOTE: AdSense Auto Ads must NOT be loaded here. Layout wraps every screen
+  // (dashboard, messages, admin, profile, AI chat, 404, loading...), and Auto Ads
+  // would inject ads into those content-less/functional screens, violating the
+  // "Google-served ads on screens without publisher-content" policy.
+  // Ads are instead placed explicitly via <AdSlot /> on content pages only.
 
   const mePerms = meV2?.adminPermissions;
   const isAdmin = user?.role === "admin" || user?.role === "super_admin" || (user?.role === "student" && !!mePerms);

@@ -3,7 +3,6 @@ import { useParams, Link } from "wouter";
 import { ChevronRight, ChevronLeft, Calendar, User } from "lucide-react";
 import { useLanguage } from "@/hooks/use-language";
 import { formatISODate } from "@/lib/dates";
-import { useAdSense } from "@/lib/adsense";
 import AdSlot from "@/components/ads/AdSlot";
 
 export default function NewsDetail() {
@@ -12,8 +11,6 @@ export default function NewsDetail() {
   const { data: article, isLoading } = useGetNews(Number(id), { 
     query: { enabled: !!id, queryKey: getGetNewsQueryKey(Number(id)) } 
   });
-
-  useAdSense(!isLoading && !!article);
 
   if (isLoading) return <div className="p-6 sm:p-8 text-center text-sm">Loading...</div>;
   if (!article) return <div className="p-6 sm:p-8 text-center text-sm">Not found</div>;
