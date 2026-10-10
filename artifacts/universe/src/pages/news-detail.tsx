@@ -1,9 +1,20 @@
 import { useGetNews, getGetNewsQueryKey } from "@workspace/api-client-react";
 import { useParams, Link } from "wouter";
+import { useEffect } from "react";
 import { ChevronRight, ChevronLeft, Calendar, User } from "lucide-react";
 import { useLanguage } from "@/hooks/use-language";
 import { formatISODate } from "@/lib/dates";
 import AdSlot from "@/components/ads/AdSlot";
+import ShareButtons from "@/components/share-buttons";
+
+function setMeta(selector: string, attr: string, value: string) {
+  let el = document.head.querySelector<HTMLElement>(selector);
+  if (!el) {
+    el = document.createElement("meta");
+    document.head.appendChild(el);
+  }
+  el.setAttribute(attr, value);
+}
 
 export default function NewsDetail() {
   const { id } = useParams<{ id: string }>();
@@ -11,6 +22,22 @@ export default function NewsDetail() {
   const { data: article, isLoading } = useGetNews(Number(id), { 
     query: { enabled: !!id, queryKey: getGetNewsQueryKey(Number(id)) } 
   });
+
+  const excerpt = article
+    ? article.excerpt || article.body.replace(/\s+/g, " ").trim().slice(0, 160)
+    : "";
+
+  useEffect(() => {
+    if (!article) return;
+    const origin = window.location.origin;
+    document.title = `${article.title} — UniVerse`;
+    setMeta('meta[name="description"]', "content", excerpt);
+    setMeta('meta[property="og:title"]', "content", article.title);
+    setMeta('meta[property="og:description"]', "content", excerpt);
+    setMeta('meta[property="og:image"]', "content", article.imageUrl || `${origin}/og-image.png`);
+    setMeta('meta[property="og:url"]', "content", window.location.href);
+    setMeta('meta[property="og:type"]', "content", "article");
+  }, [article, excerpt]);
 
   if (isLoading) return <div className="p-6 sm:p-8 text-center text-sm">Loading...</div>;
   if (!article) return <div className="p-6 sm:p-8 text-center text-sm">Not found</div>;
@@ -50,6 +77,8 @@ export default function NewsDetail() {
               <span>{formatISODate(article.publishedAt)}</span>
             </div>
           </div>
+
+          <ShareButtons title={article.title} description={excerpt} className="mb-6 sm:mb-10 -mt-2 sm:-mt-4" />
           
           <div className="prose prose-sm sm:prose-lg dark:prose-invert max-w-none prose-p:text-muted-foreground prose-headings:font-serif">
             {article.body.split('\n').map((paragraph, i) => (
