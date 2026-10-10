@@ -5,6 +5,7 @@ import { Badge } from "@/components/ui/badge";
 import { Progress } from "@/components/ui/progress";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useAchievements } from "@/lib/api";
+import ShareResultImage from "@/components/share-result-image";
 import { useLocation } from "wouter";
 
 export default function Achievements() {
@@ -107,6 +108,11 @@ function AchievementCard({ achievement, index }: { achievement: any; index: numb
             <span className="text-muted-foreground">{achievement.value} / {achievement.target}</span>
             {achievement.completed && <span className="text-emerald-600 font-bold flex items-center gap-0.5"><Zap className="h-2.5 w-2.5" /> مكتمل</span>}
           </div>
+          {achievement.completed && (
+            <div className="mt-2">
+              <ShareResultImage quizTitle={achievement.title} achievementTitle={achievement.title} achievementSubtitle={achievement.desc} points={achievement.points || 0} />
+            </div>
+          )}
         </div>
       </div>
     </motion.div>

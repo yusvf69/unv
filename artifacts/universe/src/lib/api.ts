@@ -134,6 +134,8 @@ export interface MeV2 {
   unreadDmCount: number;
   username: string | null;
   uniqueCode: string | null;
+  referralUrl: string | null;
+  referralCount: number;
   adminPermissions: string | null;
   onboarded: boolean;
 }
@@ -526,7 +528,7 @@ export function useUpdateProfile() {
 export function useSignup() {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: (body: { name: string; email: string; phone: string; yearInCollege?: number; specialization?: string; groupName?: string; avatarUrl?: string }) =>
+    mutationFn: (body: { name: string; email: string; phone: string; yearInCollege?: number; specialization?: string; groupName?: string; avatarUrl?: string; referralCode?: string }) =>
       api.post<{ userId: number; isNew: boolean }>("/v2/auth/signup", body),
     onSuccess: () => qc.invalidateQueries(),
   });

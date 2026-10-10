@@ -10,7 +10,8 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
-import { useOpenQuizzes, type QuizOpenItem, api } from "@/lib/api";
+import { useOpenQuizzes, useMeV2, type QuizOpenItem, api } from "@/lib/api";
+import ShareResultImage from "@/components/share-result-image";
 import { useToast } from "@/hooks/use-toast";
 import { useTranslation, globalI18n } from "@/lib/i18n";
 
@@ -72,6 +73,7 @@ export function QuizTakePage() {
   const [, navigate] = useLocation();
   const { toast } = useToast();
   const t = useTranslation(globalI18n);
+  const { data: me } = useMeV2();
   const [quiz, setQuiz] = useState<any>(null);
   const [questions, setQuestions] = useState<any[]>([]);
   const [answers, setAnswers] = useState<Record<number, any>>({});
@@ -237,8 +239,9 @@ export function QuizTakePage() {
         </div>
 
         {/* Actions */}
-        <div className="flex gap-3 justify-center pb-6">
+        <div className="flex gap-3 justify-center pb-6 flex-wrap">
           <Button onClick={() => navigate("/quizzes")}><ArrowLeft className="me-2 h-4 w-4" /> {t("backToQuizzes")}</Button>
+          <ShareResultImage quizTitle={quiz.title} score={result.score} total={result.total} percent={pct} points={result.pointsAwarded || 0} passed={result.passed} userName={me?.name || null} />
           <Button variant="outline" onClick={() => { setResult(null); setAnswers({}); setTimeLeft(quiz.durationMinutes * 60); setTimeUp(false); }}>{t("retry")}</Button>
         </div>
       </div>

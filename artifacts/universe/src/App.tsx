@@ -67,7 +67,7 @@ import StudyRooms from "@/pages/study-rooms";
 import CoopChallenges from "@/pages/coop-challenges";
 import GameAnalytics from "@/pages/game-analytics";
 
-const PUBLIC_ROUTES = ["/", "/login", "/news"];
+const PUBLIC_ROUTES = ["/", "/login", "/news", "/news/:id"];
 
 function ProtectedRoute({ path, component: Component }: { path: string; component: () => React.ReactNode }) {
   const { data: user, isLoading } = useGetMe();
@@ -127,9 +127,9 @@ function Router() {
       <Switch>
         <Route path="/login" component={Login} />
         <Route path="/" component={Home} />
-        <ProtectedRoute path="/news" component={News} />
-        <ProtectedRoute path="/news/:id" component={NewsDetail} />
-        <ProtectedRoute path="/staff" component={Staff} />
+        <Route path="/news" component={News} />
+        <Route path="/news/:id" component={NewsDetail} />
+        <Route path="/staff" component={Staff} />
         <ProtectedRoute path="/staff/:id" component={StaffDetail} />
         <ProtectedRoute path="/talents" component={Talents} />
         <ProtectedRoute path="/leaderboard" component={Leaderboard} />

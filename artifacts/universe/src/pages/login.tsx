@@ -2,7 +2,7 @@ import { useState, useCallback } from "react";
 import { useLocation } from "wouter";
 import { useQueryClient } from "@tanstack/react-query";
 import { motion, AnimatePresence } from "framer-motion";
-import { Leaf, Mail, Phone, User, Loader2, CheckCircle2, Shield, GraduationCap, Sprout, Eye, EyeOff, AlertCircle, KeyRound } from "lucide-react";
+import { Leaf, Mail, Phone, User, Loader2, CheckCircle2, Shield, GraduationCap, Sprout, Eye, EyeOff, AlertCircle, KeyRound, Gift } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -101,6 +101,9 @@ const translations = {
   forgotPassword: { ar: "هل نسيت الباسورد؟", en: "Forgot password?" },
   emailCodeLabel: { ar: "كود البريد الإلكتروني", en: "Email Code" },
   enterCodePlaceholder: { ar: "أدخل الكود", en: "Enter code" },
+  referralLabel: { ar: "كود الدعوة (اختياري)", en: "Invitation Code (Optional)" },
+  referralPlaceholder: { ar: "مثال: UV-ABCD1234", en: "e.g. UV-ABCD1234" },
+  referralHint: { ar: "ادخل كود صاحبك لو حد دعاك — هتحصل أنت وهو على 50 نقطة هدية.", en: "Enter your friend's invite code — you both get a 50 point gift." },
 };
 
 export default function Login() {
@@ -119,6 +122,10 @@ export default function Login() {
   const [specialization, setSpecialization] = useState(SPECIALIZATIONS[0]);
   const [groupName, setGroupName] = useState("A");
   const [avatarUrl, setAvatarUrl] = useState<string | null>(null);
+  const [referralCode, setReferralCode] = useState(() => {
+    if (typeof window === "undefined") return "";
+    return new URLSearchParams(window.location.search).get("ref") || "";
+  });
   const [termsAgreed, setTermsAgreed] = useState(false);
   const [done, setDone] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
@@ -236,7 +243,7 @@ export default function Login() {
         const res = await fetch(API + "/v2/auth/signup", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ name, username, email, phone, password, yearInCollege, specialization, groupName, avatarUrl, termsAccepted: true }),
+          body: JSON.stringify({ name, username, email, phone, password, yearInCollege, specialization, groupName, avatarUrl, termsAccepted: true, referralCode: referralCode.trim().toUpperCase() }),
         });
         const data = await res.json();
         if (!res.ok) throw new Error(data.error || data.message);
@@ -436,6 +443,12 @@ export default function Login() {
                     </button>
                   ))}
                 </div>
+              </div>
+
+              <div className="space-y-1.5 md:col-span-2">
+                <Label className="flex items-center gap-1.5 text-xs"><Gift className="h-3.5 w-3.5 text-primary" /> {t("referralLabel")}</Label>
+                <Input value={referralCode} onChange={(e) => setReferralCode(e.target.value)} placeholder={t("referralPlaceholder")} className="h-10 font-mono" />
+                <p className="text-xs text-muted-foreground">{t("referralHint")}</p>
               </div>
 
               <div className="md:col-span-2">

@@ -78,6 +78,24 @@ async function sendPushToUser(userId: number, title: string, body: string, url: 
   }
 }
 
+async function sendPushToUsers(userIds: number[], title: string, body: string, url: string): Promise<void> {
+  const unique = [...new Set(userIds.filter(Boolean))];
+  await Promise.all(unique.map((id) => sendPushToUser(id, title, body, url)));
+}
+
+async function sendPushToAll(title: string, body: string, url: string): Promise<void> {
+  try {
+    const rows = await sql`SELECT DISTINCT user_id FROM push_subscriptions`;
+    await sendPushToUsers(rows.map((r: any) => r.user_id), title, body, url);
+  } catch {
+    // pushes are best-effort; never break the main flow
+  }
+}
+
+async function ensureReferralColumns(): Promise<void> {
+  try { await sql`ALTER TABLE users ADD COLUMN IF NOT EXISTS referred_by integer`; } catch {}
+}
+
 async function ensurePushTables(): Promise<void> {
   await sql`CREATE TABLE IF NOT EXISTS app_settings (key text PRIMARY KEY, value text NOT NULL)`;
   await sql`CREATE TABLE IF NOT EXISTS push_subscriptions (
@@ -700,7 +718,7 @@ async function handleAuth(req: Request, parts: string[]): Promise<Response> {
   if (action === "signup") {
     return handle(async () => {
       const body = await req.json();
-      const { name, username, email, phone, password, yearInCollege, specialization, groupName, avatarUrl, termsAccepted } = body;
+      const { name, username, email, phone, password, yearInCollege, specialization, groupName, avatarUrl, termsAccepted, referralCode } = body;
       if (!name || !username || !email || !phone || !password) throw Object.assign(new Error("كل الحقول مطلوبة"), { status: 400 });
       if (username.length < 4) throw Object.assign(new Error("اليوزر لازم يكون 4 حروف على الأقل"), { status: 400 });
       if (password.length < 6) throw Object.assign(new Error("كلمة المرور لازم تكون 6 حروف على الأقل"), { status: 400 });
@@ -731,6 +749,22 @@ async function handleAuth(req: Request, parts: string[]): Promise<Response> {
         RETURNING *`;
 
       await sql`INSERT INTO notifications (user_id, title, body, type) VALUES (${created.id}, ${`أهلاً ${name} في UniVerse`}, ${`كودك الخاص: ${uniqueCode}. احفظه لأنه مهم.`}, 'success')`;
+
+      await ensureReferralColumns();
+      const refCode = String(referralCode || "").trim().toUpperCase().replace(/^REF\s*/i, "");
+      if (refCode) {
+        const [referrer] = await sql`SELECT id, name FROM users WHERE unique_code = ${refCode} LIMIT 1`;
+        if (referrer) {
+          await sql`UPDATE users SET referred_by = ${referrer.id} WHERE id = ${created.id}`;
+          await sql`UPDATE users SET points = points + 50 WHERE id = ${referrer.id}`;
+          await sql`UPDATE users SET points = points + 50 WHERE id = ${created.id}`;
+          try {
+            await sql`INSERT INTO notifications (user_id, title, body, type) VALUES (${referrer.id}, 'مكافأة دعوة', ${`تم تسجيل ${name} بكودك — هدية 50 نقطة`}, 'success')`;
+          } catch {}
+          await sendPushToUser(referrer.id, "مكافأة دعوة", `تم تسجيل ${name} بكودك — هدية 50 نقطة`, "/profile");
+        }
+      }
+
       const token = generateToken(created.id, created.role);
       return { userId: created.id, isNew: true, uniqueCode, token };
     });
@@ -1061,12 +1095,18 @@ async function handleMe(req: Request): Promise<Response> {
     if (!user) throw Object.assign(new Error("لا يوجد مستخدم"), { status: 404 });
     const [{ c: unreadCount }] = await sql`SELECT count(*)::int AS c FROM notifications WHERE user_id = ${userId} AND read = false`;
     const [{ c: unreadDmCount }] = await sql`SELECT count(*)::int AS c FROM dm_messages m JOIN dm_threads t ON m.thread_id = t.id WHERE t.user_a_id = ${userId} OR t.user_b_id = ${userId} AND m.read = false AND m.from_id != ${userId}`;
+    let referralCount = 0;
+    try {
+      const [{ c }] = await sql`SELECT count(*)::int AS c FROM users WHERE referred_by = ${userId}`;
+      referralCount = c;
+    } catch {}
     return {
       id: user.id, name: user.name, username: user.username, email: user.email, phone: user.phone,
       role: user.role, groupName: user.group_name, avatarUrl: user.avatar_url, department: user.department,
       year: user.year, yearInCollege: user.year_in_college, specialization: user.specialization,
       points: user.points, coins: user.coins ?? 0, level: user.level, streak: user.streak, title: user.title,
       uniqueCode: user.unique_code, adminPermissions: user.admin_permissions,
+      referralCount, referralUrl: `${process.env.PUBLIC_BASE_URL || "https://unv-api.vercel.app"}?ref=${user.unique_code || ""}`,
       emailVerified: user.email_verified, phoneVerified: user.phone_verified,
       unreadCount, unreadDmCount,
       onboarded: !!user.onboarded_at,
@@ -1168,6 +1208,7 @@ async function handleAdminNotifications(req: Request): Promise<Response> {
         await sql`INSERT INTO notifications (user_id, title, body) VALUES (${u.id}, ${title}, ${msgBody})`;
       }
     }
+    await sendPushToUsers(users.map((u: any) => u.id), title, msgBody.slice(0, 100), "/notifications");
     return { ok: true, sentTo: users.length };
   });
 }
@@ -1629,6 +1670,7 @@ async function handleQuizzes(req: Request, parts: string[]): Promise<Response> {
       const pointsAwarded = Math.floor(score / 5) + (passed ? 10 : 0);
       await sql`UPDATE users SET points = points + ${pointsAwarded} WHERE id = ${userId}`;
       try { await recalculateLevel(userId); } catch (e) { console.error("[recalculateLevel]", e); }
+      await sendPushToUser(userId, passed ? "نتيجة الاختبار ✅" : "نتيجة الاختبار", `${passed ? "مبروك نجحت" : "حاول تاني المرة الجاية"} في "${q.title}" — نتيجتك ${score}/${total} (${pct}%)`, `/quizzes/${id}`);
       const questionDetails = questions.map((qq: any) => {
         const userAns = ans.find((a: any) => a.questionId === qq.id);
         const wasAnswered = !!userAns;
@@ -1848,6 +1890,7 @@ async function handleDM(req: Request, parts: string[]): Promise<Response> {
         } catch {
           // notifications table may not exist
         }
+        await sendPushToUser(otherId, `رسالة من ${meUser?.name || "أحدهم"}`, body.body.trim().slice(0, 100), "/messages");
         return { ...msg, createdAt: msg.created_at?.toISOString() };
       });
     }
@@ -2007,6 +2050,33 @@ async function handleNewsById(id: string): Promise<Response> {
       imageUrl: row.image_url, author: row.author,
       publishedAt: row.published_at?.toISOString?.() ?? row.published_at,
     };
+  });
+}
+
+const SITE_BASE = process.env.PUBLIC_BASE_URL || "https://unv-api.vercel.app";
+
+function escapeXml(value: string): string {
+  return value.replace(/[<>&'"]/g, (c) => ({ "<": "&lt;", ">": "&gt;", "&": "&amp;", "'": "&apos;", '"': "&quot;" }[c]!));
+}
+
+async function handleSitemap(): Promise<Response> {
+  const urls: string[] = [
+    `<url><loc>${SITE_BASE}/</loc><changefreq>daily</changefreq><priority>1.0</priority></url>`,
+    `<url><loc>${SITE_BASE}/news</loc><changefreq>daily</changefreq><priority>0.8</priority></url>`,
+    `<url><loc>${SITE_BASE}/quizzes</loc><changefreq>weekly</changefreq><priority>0.7</priority></url>`,
+    `<url><loc>${SITE_BASE}/achievements</loc><changefreq>weekly</changefreq><priority>0.5</priority></url>`,
+    `<url><loc>${SITE_BASE}/profile</loc><changefreq>monthly</changefreq><priority>0.3</priority></url>`,
+  ];
+  try {
+    const rows = await sql`SELECT id, title, published_at FROM news WHERE status = 'approved' ORDER BY published_at DESC LIMIT 500`;
+    for (const r of rows) {
+      const lastmod = r.published_at ? new Date(r.published_at).toISOString().slice(0, 10) : "";
+      urls.push(`<url><loc>${SITE_BASE}/news/${r.id}</loc><lastmod>${lastmod}</lastmod><changefreq>monthly</changefreq><priority>0.6</priority></url>`);
+    }
+  } catch {}
+  const xml = `<?xml version="1.0" encoding="UTF-8"?>\n<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">\n${urls.join("\n")}\n</urlset>`;
+  return new Response(xml, {
+    headers: { "Content-Type": "application/xml; charset=utf-8", "Cache-Control": "public, max-age=3600" },
   });
 }
 
@@ -5185,11 +5255,14 @@ async function handleAdminNews(req: Request, parts: string[]): Promise<Response>
 
   if (parts[2] && parts[3] === "approve") {
     return handle(async () => {
-      await sql`UPDATE news SET status = 'approved', published_at = ${new Date()} WHERE id = ${Number(parts[2])}`;
+      const newsId = Number(parts[2]);
+      await sql`UPDATE news SET status = 'approved', published_at = ${new Date()} WHERE id = ${newsId}`;
+      const [newsRow] = await sql`SELECT title FROM news WHERE id = ${newsId}`;
       const students = await sql`SELECT id FROM users WHERE role = 'student'`;
       for (const u of students) {
         await sql`INSERT INTO notifications (user_id, title, body, type) VALUES (${u.id}, 'خبر جديد', ${`تم نشر خبر جديد في الأخبار`}, 'news')`;
       }
+      await sendPushToAll("خبر جديد 📰", `${(newsRow?.title || "تيّفي زيارة للأخبار").slice(0, 80)}`, `/news/${newsId}`);
       return { ok: true };
     });
   }
@@ -5791,6 +5864,9 @@ async function handleRequest(request: Request): Promise<Response> {
     // News
     "GET /news": () => handleNews(),
     "GET /news/:id": () => handleNewsById(parts[1]),
+
+    // SEO
+    "GET /sitemap.xml": () => handleSitemap(),
 
     // Skills
     "GET /skills": () => handleSkills(request, ["skills"]),

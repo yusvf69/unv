@@ -1,6 +1,6 @@
 import { useState, useEffect } from "react";
 import { motion } from "framer-motion";
-import { Save, User, Award, Key, Copy, Lock, Calendar, Clock, Target, BookOpen, Trophy, FileText, Medal, RefreshCw, Check } from "lucide-react";
+import { Save, User, Award, Key, Copy, Lock, Calendar, Clock, Target, BookOpen, Trophy, FileText, Medal, RefreshCw, Check, Gift } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Progress } from "@/components/ui/progress";
@@ -9,8 +9,21 @@ import { useToast } from "@/hooks/use-toast";
 import { useMeV2, useUpdateProfile, useAchievements, useMyGroupSchedule, useMyExamSchedule, useUnlockables, useEquipUnlockable, useFollows, useRetakeOptions, useAddMyRetake, useDeleteMyRetake } from "@/lib/api";
 import { useGetDashboard } from "@workspace/api-client-react";
 import FileUpload from "@/components/file-upload";
+import ShareButtons from "@/components/share-buttons";
 import { Link, useSearch } from "wouter";
 import { useTranslation, globalI18n } from "@/lib/i18n";
+
+const profileTranslations = {
+  ...globalI18n,
+  inviteTitle: { ar: "ادعي أصحابك واكسب 50 نقطة", en: "Invite friends and earn 50 points" },
+  inviteHint: { ar: "شارك الرابط ده مع صحابك ورصد 50 نقطة على كل حد يسجل بكودك.", en: "Share this link — you get 50 points for every friend who signs up with your code." },
+  inviteCode: { ar: "كود الدعوة", en: "Invite Code" },
+  inviteLink: { ar: "رابط الدعوة", en: "Invite Link" },
+  inviteCount: { ar: "عدد اللي سجلوا بدعوتك", en: "People joined via your invite" },
+  copyInviteLink: { ar: "نسخ رابط الدعوة", en: "Copy invite link" },
+  inviteCopied: { ar: "تم نسخ رابط الدعوة", en: "Invite link copied" },
+  joinUniverse: { ar: "انضم لي على UniVerse وأنا وياك نكسب 50 نقطة هدية 🎁", en: "Join me on UniVerse — we both get a 50 point gift 🎁" },
+};
 
 const SPECIALIZATIONS = [
   "شعبه عامه",
@@ -39,7 +52,7 @@ const SPECIALIZATION_KEYS: Record<string, string> = {
 type ProfileTab = "account" | "schedule" | "tasks" | "progress" | "goals";
 
 export default function Profile() {
-  const t = useTranslation(globalI18n);
+  const t = useTranslation(profileTranslations);
   const { data: me } = useMeV2();
   const update = useUpdateProfile();
   const { data: achievements } = useAchievements();
@@ -127,6 +140,13 @@ export default function Profile() {
     }
   };
 
+  const copyInviteLink = () => {
+    if (me.referralUrl) {
+      navigator.clipboard.writeText(me.referralUrl);
+      toast({ title: t("inviteCopied"), description: me.referralUrl });
+    }
+  };
+
   const completedMissions = missions.filter((m) => m.completed).length;
   const totalMissions = missions.length;
 
@@ -170,6 +190,31 @@ export default function Profile() {
           <FileUpload value={null} onChange={(d) => { if (d) setAvatarUrl(d); }} label={t("changePhoto")} maxSizeKb={400} />
         </div>
       </div>
+
+      {/* Invite Friends */}
+      {me.uniqueCode && (
+        <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} className="bg-gradient-to-l from-emerald-500/10 via-primary/10 to-primary/5 border border-primary/20 rounded-2xl p-4 sm:p-6 mb-4 sm:mb-6">
+          <div className="flex flex-col sm:flex-row sm:items-center gap-4">
+            <div className="flex-1">
+              <h2 className="font-bold text-base sm:text-lg flex items-center gap-2"><Gift className="w-5 h-5 text-primary" /> {t("inviteTitle")}</h2>
+              <p className="text-xs sm:text-sm text-muted-foreground mt-1">{t("inviteHint")}</p>
+            </div>
+            <div className="flex items-center gap-2">
+              <span className="text-xs bg-emerald-500/15 text-emerald-700 px-3 py-1.5 rounded-full font-bold whitespace-nowrap">{t("inviteCount")}: {me.referralCount ?? 0}</span>
+            </div>
+          </div>
+          <div className="mt-3 flex flex-col sm:flex-row gap-2 sm:items-center">
+            <div className="flex items-center gap-2 flex-1">
+              <Label className="text-[10px] text-muted-foreground shrink-0">{t("inviteLink")}</Label>
+              <Input value={me.referralUrl || ""} readOnly className="h-9 sm:h-10 bg-background font-mono text-xs sm:text-sm" />
+            </div>
+            <div className="flex items-center gap-2">
+              <Button variant="outline" size="sm" className="h-9 sm:h-10" onClick={copyInviteLink}><Copy className="w-4 h-4 me-1" /> {t("copyInviteLink")}</Button>
+              <ShareButtons title={t("joinUniverse")} url={me.referralUrl || ""} />
+            </div>
+          </div>
+        </motion.div>
+      )}
 
       {/* Tabs */}
       <div className="flex gap-1.5 sm:gap-2 mb-4 sm:mb-6 overflow-x-auto pb-2 scrollbar-hide">
