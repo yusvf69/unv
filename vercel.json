@@ -10,6 +10,14 @@
       "destination": "/api/sitemap.xml"
     },
     {
+      "source": "/ads.txt",
+      "destination": "/ads.txt"
+    },
+    {
+      "source": "/robots.txt",
+      "destination": "/robots.txt"
+    },
+    {
       "source": "/((?!api/).*)",
       "destination": "/index.html"
     }
