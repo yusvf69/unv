@@ -1,5 +1,6 @@
 import { useGetHomeFeed, useGetMe } from "@workspace/api-client-react";
 import AdSlot from "@/components/ads/AdSlot";
+import ShareButtons from "@/components/share-buttons";
 import { motion, useScroll, useTransform } from "framer-motion";
 import { useEffect, useRef, useState } from "react";
 import { Link } from "wouter";
@@ -285,6 +286,7 @@ export default function Home() {
               viewport={{ once: true }}
               transition={{ duration: 0.5, delay: i * 0.1 }}
               whileHover={{ y: -6 }}
+              className="relative"
             >
               <Link
                 href={`/news/${news.id}`}
@@ -307,6 +309,9 @@ export default function Home() {
                   <p className="text-muted-foreground text-sm line-clamp-2">{news.excerpt}</p>
                 </div>
               </Link>
+              <div className="absolute top-2 end-2 z-10">
+                <ShareButtons compact title={news.title} url={`${window.location.origin}/news/${news.id}`} description={news.excerpt} />
+              </div>
             </motion.div>
           ))}
         </div>

@@ -2,6 +2,12 @@ import { useState } from "react";
 import { Button } from "@/components/ui/button";
 import { useToast } from "@/hooks/use-toast";
 import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
+import {
   Share2,
   Link2,
   Check,
@@ -26,17 +32,20 @@ const t = {
   copyLink: { ar: "نسخ الرابط", en: "Copy link" },
   copied: { ar: "تم نسخ الرابط", en: "Link copied" },
   share: { ar: "مشاركة", en: "Share" },
+  sharePost: { ar: "مشاركة المنشور", en: "Share post" },
   x: { ar: "إكس", en: "X" },
   facebook: { ar: "فيسبوك", en: "Facebook" },
-  nativeShare: { ar: "النسخة العالمية للمشاركة", en: "Use native share sheet" },
+  nativeShare: { ar: "فتح قائمة المشاركة", en: "Open share sheet" },
 } as const;
 
 export default function ShareButtons({ title, url, description, compact, className }: ShareButtonsProps) {
   const { lang } = useLanguage();
   const { toast } = useToast();
   const [copied, setCopied] = useState(false);
+  const [open, setOpen] = useState(false);
   const shareUrl = url || (typeof window !== "undefined" ? window.location.href : "");
   const shareText = [title, description].filter(Boolean).join("\n\n");
+  const shared = `${shareText}\n\n${shareUrl}`;
 
   const copy = async () => {
     try {
@@ -58,9 +67,12 @@ export default function ShareButtons({ title, url, description, compact, classNa
     }
   };
 
-  const open = (href: string) => window.open(href, "_blank", "noopener,noreferrer");
+  const stop = (e: React.MouseEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+  };
 
-  const shared = `${shareText}\n\n${shareUrl}`;
+  const openUrl = (href: string) => window.open(href, "_blank", "noopener,noreferrer");
 
   const buttons = [
     { key: "wa", icon: MessageCircle, label: t.whatsapp[lang], href: `https://wa.me/?text=${encodeURIComponent(shared)}` },
@@ -77,32 +89,74 @@ export default function ShareButtons({ title, url, description, compact, classNa
   }) => (
     <Button
       variant="outline"
-      size={compact ? "icon" : "icon"}
+      size="icon"
       className="h-9 w-9 rounded-full"
       title={label}
       aria-label={label}
       onClick={() => {
         if (onClick) onClick();
-        else if (href) open(href);
+        else if (href) openUrl(href);
       }}
     >
       <Icon className="h-4 w-4" />
     </Button>
   );
 
-  return (
-    <div className={`flex items-center gap-2 ${className || ""}`} role="group" aria-label={t.share[lang]}>
-      {typeof navigator !== "undefined" && "share" in navigator && (
+  const hasNative = typeof navigator !== "undefined" && "share" in navigator;
+
+  const row = (
+    <div className="flex flex-wrap items-center gap-2" role="group" aria-label={t.share[lang]}>
+      {hasNative && (
         <IconButton icon={Share2} label={t.nativeShare[lang]} onClick={nativeShare} />
       )}
       {buttons.map((b) => (
         <IconButton key={b.key} icon={b.icon} label={b.label} href={b.href} />
       ))}
-      <IconButton
-        icon={copied ? Check : Link2}
-        label={t.copyLink[lang]}
-        onClick={copy}
-      />
+      <IconButton icon={copied ? Check : Link2} label={t.copyLink[lang]} onClick={copy} />
+    </div>
+  );
+
+  if (compact) {
+    return (
+      <>
+        <Button
+          variant="outline"
+          size="icon"
+          className={`h-8 w-8 rounded-full bg-background/80 backdrop-blur ${className || ""}`}
+          title={t.share[lang]}
+          aria-label={t.share[lang]}
+          onClick={(e) => {
+            stop(e);
+            setOpen(true);
+          }}
+        >
+          <Share2 className="h-3.5 w-3.5" />
+        </Button>
+
+        <Dialog open={open} onOpenChange={setOpen}>
+          <DialogContent className="max-w-sm" onClick={(e) => e.stopPropagation()}>
+            <DialogHeader>
+              <DialogTitle className="flex items-center gap-2">
+                <Share2 className="h-4 w-4 text-primary" /> {t.sharePost[lang]}
+              </DialogTitle>
+            </DialogHeader>
+            <p className="text-sm font-medium line-clamp-2">{title}</p>
+            <div className="pt-1">{row}</div>
+          </DialogContent>
+        </Dialog>
+      </>
+    );
+  }
+
+  return (
+    <div className={`flex items-center gap-2 ${className || ""}`} role="group" aria-label={t.share[lang]}>
+      {hasNative && (
+        <IconButton icon={Share2} label={t.nativeShare[lang]} onClick={nativeShare} />
+      )}
+      {buttons.map((b) => (
+        <IconButton key={b.key} icon={b.icon} label={b.label} href={b.href} />
+      ))}
+      <IconButton icon={copied ? Check : Link2} label={t.copyLink[lang]} onClick={copy} />
     </div>
   );
 }
