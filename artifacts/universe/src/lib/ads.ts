@@ -1,8 +1,8 @@
 export const AD_CLIENT = "ca-pub-2720033869750214";
 export const AD_SLOTS = {
   homeFeed: "REPLACE_WITH_SLOT_ID",
-  newsList: "REPLACE_WITH_SLOT_ID",
-  newsDetail: "REPLACE_WITH_SLOT_ID",
+  newsList: "6481660124",
+  newsDetail: "1988890500",
 } as const;
 
 export type AdSlotKey = keyof typeof AD_SLOTS;
