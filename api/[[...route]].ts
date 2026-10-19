@@ -278,6 +278,329 @@ async function ensureInstitutionsSchema(): Promise<void> {
   }
 }
 
+let communitiesReady = false;
+
+async function ensureCommunitiesSchema(): Promise<void> {
+  if (communitiesReady) return;
+  try {
+    await sql`CREATE TABLE IF NOT EXISTS communities (
+      id serial PRIMARY KEY,
+      kind text NOT NULL,
+      university_id integer NOT NULL REFERENCES universities(id) ON DELETE CASCADE,
+      faculty_id integer REFERENCES faculties(id) ON DELETE CASCADE,
+      year integer,
+      name_ar text NOT NULL,
+      slug text NOT NULL UNIQUE,
+      description text,
+      status text NOT NULL DEFAULT 'active',
+      created_at timestamptz NOT NULL DEFAULT now()
+    )`;
+    try { await sql`CREATE UNIQUE INDEX IF NOT EXISTS communities_scope_unique ON communities (kind, university_id, COALESCE(faculty_id, 0), COALESCE(year, 0))`; } catch {}
+    await sql`CREATE TABLE IF NOT EXISTS community_posts (
+      id serial PRIMARY KEY,
+      community_id integer NOT NULL REFERENCES communities(id) ON DELETE CASCADE,
+      user_id integer NOT NULL,
+      body text NOT NULL,
+      image_url text,
+      is_deleted boolean NOT NULL DEFAULT false,
+      created_at timestamptz NOT NULL DEFAULT now()
+    )`;
+    try { await sql`CREATE INDEX IF NOT EXISTS community_posts_community_idx ON community_posts (community_id, created_at DESC)`; } catch {}
+    await sql`CREATE TABLE IF NOT EXISTS community_post_likes (
+      post_id integer NOT NULL REFERENCES community_posts(id) ON DELETE CASCADE,
+      user_id integer NOT NULL,
+      created_at timestamptz NOT NULL DEFAULT now(),
+      PRIMARY KEY (post_id, user_id)
+    )`;
+    await sql`CREATE TABLE IF NOT EXISTS community_comments (
+      id serial PRIMARY KEY,
+      post_id integer NOT NULL REFERENCES community_posts(id) ON DELETE CASCADE,
+      user_id integer NOT NULL,
+      body text NOT NULL,
+      is_deleted boolean NOT NULL DEFAULT false,
+      created_at timestamptz NOT NULL DEFAULT now()
+    )`;
+    try { await sql`CREATE INDEX IF NOT EXISTS community_comments_post_idx ON community_comments (post_id, created_at)`; } catch {}
+    await sql`CREATE OR REPLACE VIEW community_stats AS
+      SELECT c.*,
+        (SELECT count(*)::int FROM community_posts p WHERE p.community_id = c.id AND NOT p.is_deleted) AS posts_count,
+        CASE c.kind
+          WHEN 'university' THEN (SELECT count(*)::int FROM users u WHERE u.role = 'student' AND u.university_id = c.university_id)
+          WHEN 'faculty' THEN (SELECT count(*)::int FROM users u WHERE u.role = 'student' AND u.faculty_id = c.faculty_id)
+          ELSE (SELECT count(*)::int FROM users u WHERE u.role = 'student' AND u.faculty_id = c.faculty_id AND u.year_in_college = c.year)
+        END AS members_count
+      FROM communities c`;
+
+    await sql`
+      INSERT INTO communities (kind, university_id, name_ar, slug, description)
+      SELECT 'university', u.id, 'مجتمع ' || u.name_ar, u.slug || '-community',
+             'مساحة طلاب ' || u.name_ar || ' للتشارك والأسئلة والنقاشات.'
+      FROM universities u WHERE u.status = 'active'
+      ON CONFLICT (slug) DO NOTHING`;
+    await sql`
+      INSERT INTO communities (kind, university_id, faculty_id, name_ar, slug, description)
+      SELECT 'faculty', f.university_id, f.id, 'مجتمع ' || f.name_ar || ' - ' || u.name_ar,
+             u.slug || '-f-' || f.id, 'مساحة طلاب ' || f.name_ar || ' في ' || u.name_ar || '.'
+      FROM faculties f JOIN universities u ON u.id = f.university_id
+      WHERE f.status = 'active' AND u.status = 'active'
+      ON CONFLICT (slug) DO NOTHING`;
+
+    communitiesReady = true;
+  } catch (err: any) {
+    console.error("🔴 [ensureCommunitiesSchema]", err?.message);
+    throw err;
+  }
+}
+
+function communityMembership(user: any, community: any): boolean {
+  if (!user) return false;
+  if (community.kind === "university") {
+    return !!user.university_id && Number(user.university_id) === Number(community.university_id);
+  }
+  if (community.kind === "faculty") {
+    return !!user.faculty_id && Number(user.faculty_id) === Number(community.faculty_id);
+  }
+  if (community.kind === "cohort") {
+    return !!user.faculty_id && Number(user.faculty_id) === Number(community.faculty_id)
+      && Number(user.year_in_college) === Number(community.year);
+  }
+  return false;
+}
+
+function isAdminUser(user: any): boolean {
+  return !!user && (user.role === "admin" || user.role === "super_admin");
+}
+
+async function ensureCohortCommunity(user: any): Promise<any | null> {
+  const facultyId = Number(user?.faculty_id);
+  const year = Number(user?.year_in_college);
+  if (!facultyId || !year) return null;
+  const [faculty] = await sql`
+    SELECT f.id, f.name_ar, f.university_id, u.name_ar AS university_name, u.slug AS university_slug
+    FROM faculties f JOIN universities u ON u.id = f.university_id
+    WHERE f.id = ${facultyId} LIMIT 1`;
+  if (!faculty) return null;
+  const nameAr = `دفعة ${year} - ${faculty.name_ar}`;
+  const slug = `${faculty.university_slug}-c-${faculty.id}-y${year}`;
+  await sql`
+    INSERT INTO communities (kind, university_id, faculty_id, year, name_ar, slug, description)
+    VALUES ('cohort', ${faculty.university_id}, ${faculty.id}, ${year}, ${nameAr}, ${slug},
+            'مساحة دفعة ' || ${year} || ' في ' || ${faculty.name_ar} || ' - ' || ${faculty.university_name})
+    ON CONFLICT (slug) DO NOTHING`;
+  const [row] = await sql`SELECT * FROM communities WHERE slug = ${slug} LIMIT 1`;
+  return row ?? null;
+}
+
+function mapCommunity(row: any) {
+  return {
+    id: row.id, kind: row.kind, universityId: row.university_id, facultyId: row.faculty_id ?? null,
+    year: row.year ?? null, nameAr: row.name_ar, slug: row.slug, description: row.description ?? null,
+    postsCount: row.posts_count ?? 0, membersCount: row.members_count ?? 0,
+    createdAt: row.created_at,
+  };
+}
+
+async function handleCommunities(req: Request, parts: string[]): Promise<Response> {
+  await ensureCommunitiesSchema();
+  const { userId } = requireAuth(req.headers);
+  const user = await getCurrentUser(userId);
+  if (!user) return jsonError("غير مسجل", 401);
+
+  // GET /v2/communities/mine
+  if (req.method === "GET" && parts[2] === "mine" && !parts[3]) {
+    return handle(async () => {
+      const ids: number[] = [];
+      const [universityCommunity] = user.university_id
+        ? await sql`SELECT id FROM communities WHERE kind = 'university' AND university_id = ${user.university_id} AND status = 'active' LIMIT 1`
+        : [];
+      if (universityCommunity) ids.push(universityCommunity.id);
+      const [facultyCommunity] = user.faculty_id
+        ? await sql`SELECT id FROM communities WHERE kind = 'faculty' AND faculty_id = ${user.faculty_id} AND status = 'active' LIMIT 1`
+        : [];
+      if (facultyCommunity) ids.push(facultyCommunity.id);
+      const cohort = await ensureCohortCommunity(user);
+      if (cohort) ids.push(cohort.id);
+      if (!ids.length) return [];
+      const rows = await sql`
+        SELECT * FROM community_stats
+        WHERE id = ANY(${ids}::int[]) AND status = 'active'
+        ORDER BY CASE kind WHEN 'cohort' THEN 0 WHEN 'faculty' THEN 1 ELSE 2 END`;
+      return rows.map(mapCommunity);
+    });
+  }
+
+  // GET /v2/communities — browse (optional ?kind=&universityId=&facultyId=)
+  if (req.method === "GET" && parts[2] === undefined) {
+    return handle(async () => {
+      const url = new URL(req.url, "http://localhost");
+      const kindParam = url.searchParams.get("kind");
+      const kind = kindParam === "university" || kindParam === "faculty" ? kindParam : null;
+      const universityId = Number(url.searchParams.get("universityId") || 0);
+      const facultyId = Number(url.searchParams.get("facultyId") || 0);
+      const rows = await sql`
+        SELECT * FROM community_stats
+        WHERE status = 'active' AND kind <> 'cohort'
+          AND (${kind}::text IS NULL OR kind = ${kind})
+          AND (${universityId}::int = 0 OR university_id = ${universityId})
+          AND (${facultyId}::int = 0 OR faculty_id = ${facultyId})
+        ORDER BY kind, name_ar LIMIT 200`;
+      return rows.map(mapCommunity);
+    });
+  }
+
+  // GET /v2/communities/:id
+  if (req.method === "GET" && parts[2] && !parts[3]) {
+    return handle(async () => {
+      const id = Number(parts[2]);
+      const [row] = await sql`SELECT * FROM community_stats WHERE id = ${id} LIMIT 1`;
+      if (!row) throw Object.assign(new Error("المجتمع غير موجود"), { status: 404 });
+      return { ...mapCommunity(row), isMember: communityMembership(user, row), isAdmin: isAdminUser(user) };
+    });
+  }
+
+  // GET /v2/communities/:id/posts
+  if (req.method === "GET" && parts[2] && parts[3] === "posts" && !parts[4]) {
+    return handle(async () => {
+      const communityId = Number(parts[2]);
+      const [community] = await sql`SELECT * FROM communities WHERE id = ${communityId} AND status = 'active' LIMIT 1`;
+      if (!community) throw Object.assign(new Error("المجتمع غير موجود"), { status: 404 });
+      const rows = await sql`
+        SELECT p.*, u.name AS author_name, u.avatar_url AS author_avatar, u.group_name AS author_group,
+          (SELECT count(*)::int FROM community_post_likes l WHERE l.post_id = p.id) AS likes_count,
+          (SELECT count(*)::int FROM community_comments cm WHERE cm.post_id = p.id AND NOT cm.is_deleted) AS comments_count,
+          EXISTS(SELECT 1 FROM community_post_likes l WHERE l.post_id = p.id AND l.user_id = ${userId}) AS liked_by_me
+        FROM community_posts p JOIN users u ON u.id = p.user_id
+        WHERE p.community_id = ${communityId} AND NOT p.is_deleted
+        ORDER BY p.id DESC LIMIT 50`;
+      return rows.map((p: any) => ({
+        id: p.id, communityId: p.community_id, authorId: p.user_id, authorName: p.author_name,
+        authorAvatar: p.author_avatar, authorGroup: p.author_group, body: p.body, imageUrl: p.image_url,
+        likes: p.likes_count, comments: p.comments_count, likedByMe: p.liked_by_me, createdAt: p.created_at,
+      }));
+    });
+  }
+
+  // POST /v2/communities/:id/posts
+  if (req.method === "POST" && parts[2] && parts[3] === "posts" && !parts[4]) {
+    return handle(async () => {
+      const communityId = Number(parts[2]);
+      const body = await req.json();
+      const text = String(body.body || "").trim();
+      const imageUrl = body.imageUrl ? String(body.imageUrl) : null;
+      if (text.length < 1) throw Object.assign(new Error("اكتب حاجة في المنشور"), { status: 400 });
+      if (text.length > 3000) throw Object.assign(new Error("المنشور طويل جدًا (الحد 3000 حرف)"), { status: 400 });
+      if (imageUrl && imageUrl.length > 1_500_000) throw Object.assign(new Error("الصورة كبيرة جدًا"), { status: 400 });
+      const [community] = await sql`SELECT * FROM communities WHERE id = ${communityId} AND status = 'active' LIMIT 1`;
+      if (!community) throw Object.assign(new Error("المجتمع غير موجود"), { status: 404 });
+      if (!communityMembership(user, community) && !isAdminUser(user)) {
+        throw Object.assign(new Error("المنشور متاح لأعضاء المجتمع فقط"), { status: 403 });
+      }
+      const [created] = await sql`
+        INSERT INTO community_posts (community_id, user_id, body, image_url)
+        VALUES (${communityId}, ${userId}, ${text}, ${imageUrl})
+        RETURNING *`;
+      return {
+        id: created.id, communityId: created.community_id, authorId: created.user_id,
+        authorName: user.name, authorAvatar: user.avatar_url, authorGroup: user.group_name,
+        body: created.body, imageUrl: created.image_url, likes: 0, comments: 0,
+        likedByMe: false, createdAt: created.created_at,
+      };
+    });
+  }
+
+  // POST /v2/communities/posts/:id/like
+  if (req.method === "POST" && parts[2] === "posts" && parts[3] && parts[4] === "like") {
+    return handle(async () => {
+      const postId = Number(parts[3]);
+      const [post] = await sql`SELECT * FROM community_posts WHERE id = ${postId} AND NOT is_deleted LIMIT 1`;
+      if (!post) throw Object.assign(new Error("المنشور غير موجود"), { status: 404 });
+      const [inserted] = await sql`
+        INSERT INTO community_post_likes (post_id, user_id) VALUES (${postId}, ${userId})
+        ON CONFLICT (post_id, user_id) DO NOTHING RETURNING post_id`;
+      if (!inserted) {
+        await sql`DELETE FROM community_post_likes WHERE post_id = ${postId} AND user_id = ${userId}`;
+      } else if (post.user_id !== userId) {
+        await sql`
+          INSERT INTO notifications (user_id, title, body, type)
+          VALUES (${post.user_id}, 'إعجاب جديد', ${`${user.name} أعجب بمنشورك في المجتمع`}, 'success')`;
+      }
+      const [{ c: likes }] = await sql`SELECT count(*)::int AS c FROM community_post_likes WHERE post_id = ${postId}`;
+      return { liked: !!inserted, likes };
+    });
+  }
+
+  // GET /v2/communities/posts/:id/comments
+  if (req.method === "GET" && parts[2] === "posts" && parts[3] && parts[4] === "comments" && !parts[5]) {
+    return handle(async () => {
+      const postId = Number(parts[3]);
+      const rows = await sql`
+        SELECT cm.*, u.name AS author_name, u.avatar_url AS author_avatar, u.role AS author_role
+        FROM community_comments cm JOIN users u ON u.id = cm.user_id
+        WHERE cm.post_id = ${postId} AND NOT cm.is_deleted
+        ORDER BY cm.id ASC LIMIT 200`;
+      return rows.map((c: any) => ({
+        id: c.id, postId: c.post_id, authorId: c.user_id, authorName: c.author_name,
+        authorAvatar: c.author_avatar, authorRole: c.author_role, body: c.body, createdAt: c.created_at,
+      }));
+    });
+  }
+
+  // POST /v2/communities/posts/:id/comments
+  if (req.method === "POST" && parts[2] === "posts" && parts[3] && parts[4] === "comments" && !parts[5]) {
+    return handle(async () => {
+      const postId = Number(parts[3]);
+      const body = await req.json();
+      const text = String(body.body || "").trim();
+      if (text.length < 1) throw Object.assign(new Error("اكتب تعليقك"), { status: 400 });
+      if (text.length > 1500) throw Object.assign(new Error("التعليق طويل جدًا"), { status: 400 });
+      const [post] = await sql`SELECT * FROM community_posts WHERE id = ${postId} AND NOT is_deleted LIMIT 1`;
+      if (!post) throw Object.assign(new Error("المنشور غير موجود"), { status: 404 });
+      const [created] = await sql`
+        INSERT INTO community_comments (post_id, user_id, body) VALUES (${postId}, ${userId}, ${text})
+        RETURNING *`;
+      if (post.user_id !== userId) {
+        await sql`
+          INSERT INTO notifications (user_id, title, body, type)
+          VALUES (${post.user_id}, 'تعليق جديد', ${`${user.name} علّق على منشورك في المجتمع`}, 'success')`;
+      }
+      return {
+        id: created.id, postId: created.post_id, authorId: created.user_id, authorName: user.name,
+        authorAvatar: user.avatar_url, authorRole: user.role, body: created.body, createdAt: created.created_at,
+      };
+    });
+  }
+
+  // DELETE /v2/communities/posts/:id
+  if (req.method === "DELETE" && parts[2] === "posts" && parts[3]) {
+    return handle(async () => {
+      const postId = Number(parts[3]);
+      const [post] = await sql`SELECT * FROM community_posts WHERE id = ${postId} LIMIT 1`;
+      if (!post) throw Object.assign(new Error("المنشور غير موجود"), { status: 404 });
+      if (post.user_id !== userId && !isAdminUser(user)) {
+        throw Object.assign(new Error("لا تملك صلاحية حذف المنشور"), { status: 403 });
+      }
+      await sql`UPDATE community_posts SET is_deleted = true WHERE id = ${postId}`;
+      return { ok: true };
+    });
+  }
+
+  // DELETE /v2/communities/comments/:id
+  if (req.method === "DELETE" && parts[2] === "comments" && parts[3]) {
+    return handle(async () => {
+      const commentId = Number(parts[3]);
+      const [comment] = await sql`SELECT * FROM community_comments WHERE id = ${commentId} LIMIT 1`;
+      if (!comment) throw Object.assign(new Error("التعليق غير موجود"), { status: 404 });
+      if (comment.user_id !== userId && !isAdminUser(user)) {
+        throw Object.assign(new Error("لا تملك صلاحية حذف التعليق"), { status: 403 });
+      }
+      await sql`UPDATE community_comments SET is_deleted = true WHERE id = ${commentId}`;
+      return { ok: true };
+    });
+  }
+
+  return jsonError("Not Found", 404);
+}
+
 async function ensureLectureQuizQuestionTable(): Promise<void> {
   await sql`CREATE TABLE IF NOT EXISTS lecture_quiz_questions (
     id serial PRIMARY KEY,
@@ -6003,6 +6326,18 @@ async function handleRequest(request: Request): Promise<Response> {
     "GET /v2/institutions/suggestions/me": () => handleInstitutions(request, parts),
     "GET /v2/admin/institution-suggestions": () => handleAdminInstitutionSuggestions(request, parts),
     "POST /v2/admin/institution-suggestions/:id/decide": () => handleAdminInstitutionSuggestions(request, parts),
+
+    // Communities (university / faculty / cohort)
+    "GET /v2/communities": () => handleCommunities(request, parts),
+    "GET /v2/communities/mine": () => handleCommunities(request, parts),
+    "GET /v2/communities/:id": () => handleCommunities(request, parts),
+    "GET /v2/communities/:id/posts": () => handleCommunities(request, parts),
+    "POST /v2/communities/:id/posts": () => handleCommunities(request, parts),
+    "POST /v2/communities/posts/:id/like": () => handleCommunities(request, parts),
+    "GET /v2/communities/posts/:id/comments": () => handleCommunities(request, parts),
+    "POST /v2/communities/posts/:id/comments": () => handleCommunities(request, parts),
+    "DELETE /v2/communities/posts/:id": () => handleCommunities(request, parts),
+    "DELETE /v2/communities/comments/:id": () => handleCommunities(request, parts),
 
     // Feed alias
     "GET /feed": () => handleTalentsFeed(request, ["feed"]),

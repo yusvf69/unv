@@ -19,6 +19,8 @@ import CourseDetail from "@/pages/student-course-detail";
 import Quizzes, { QuizTakePage } from "@/pages/quizzes";
 import Forum from "@/pages/forum";
 import ForumDetail from "@/pages/forum-detail";
+import Communities from "@/pages/communities";
+import CommunityDetail from "@/pages/community-detail";
 import Talents from "@/pages/talents";
 import Skills from "@/pages/skills";
 import SkillsMe from "@/pages/skills-me";
@@ -142,6 +144,8 @@ function Router() {
         <ProtectedRoute path="/quizzes/:id" component={QuizTakePage} />
         <ProtectedRoute path="/forum" component={Forum} />
         <ProtectedRoute path="/forum/:id" component={ForumDetail} />
+        <ProtectedRoute path="/communities" component={Communities} />
+        <ProtectedRoute path="/communities/:id" component={CommunityDetail} />
         <ProtectedRoute path="/skills" component={Skills} />
         <ProtectedRoute path="/skills/me" component={SkillsMe} />
         <ProtectedRoute path="/skills/:id" component={SkillDetail} />

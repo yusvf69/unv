@@ -70,6 +70,7 @@ export default function Layout({ children }: { children: ReactNode }) {
     { href: "/quizzes", label: t("quizzes") },
     { href: "/skills", label: t("skills") },
     { href: "/forum", label: t("forum") },
+    { href: "/communities", label: t("communities") },
     { href: "/games", label: t("games") },
     { href: "/talents", label: t("talents") },
   ];

@@ -19,6 +19,7 @@ export const globalI18n = {
   courses: { ar: "المقررات", en: "Courses" },
   quizzes: { ar: "الاختبارات", en: "Quizzes" },
   forum: { ar: "المنتدى", en: "Forum" },
+  communities: { ar: "المجتمعات", en: "Communities" },
   talents: { ar: "المواهب", en: "Talents" },
   skills: { ar: "المهارات", en: "Skills" },
   complaints: { ar: "الشكاوى", en: "Complaints" },

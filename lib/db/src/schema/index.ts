@@ -12,3 +12,4 @@ export * from "./admin";
 export * from "./social";
 export * from "./events";
 export * from "./institutions";
+export * from "./communities";

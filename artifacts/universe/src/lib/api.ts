@@ -2200,3 +2200,145 @@ export function useMyInstitutionSuggestions() {
   });
 }
 
+// ===== Communities (university / faculty / cohort) =====
+export interface CommunityRow {
+  id: number;
+  kind: "university" | "faculty" | "cohort";
+  universityId: number;
+  facultyId: number | null;
+  year: number | null;
+  nameAr: string;
+  slug: string;
+  description: string | null;
+  postsCount: number;
+  membersCount: number;
+  createdAt: string;
+  isMember?: boolean;
+  isAdmin?: boolean;
+}
+
+export interface CommunityPostRow {
+  id: number;
+  communityId: number;
+  authorId: number;
+  authorName: string;
+  authorAvatar: string | null;
+  authorGroup: string | null;
+  body: string;
+  imageUrl: string | null;
+  likes: number;
+  comments: number;
+  likedByMe: boolean;
+  createdAt: string;
+}
+
+export interface CommunityCommentRow {
+  id: number;
+  postId: number;
+  authorId: number;
+  authorName: string;
+  authorAvatar: string | null;
+  authorRole: string;
+  body: string;
+  createdAt: string;
+}
+
+export function useMyCommunities() {
+  return useQuery<CommunityRow[]>({
+    queryKey: ["v2", "communities", "mine"],
+    queryFn: () => api.get<CommunityRow[]>("/v2/communities/mine"),
+  });
+}
+
+export function useCommunities(filters?: { kind?: "university" | "faculty"; universityId?: number }) {
+  const params = new URLSearchParams();
+  if (filters?.kind) params.set("kind", filters.kind);
+  if (filters?.universityId) params.set("universityId", String(filters.universityId));
+  const qs = params.toString();
+  return useQuery<CommunityRow[]>({
+    queryKey: ["v2", "communities", "browse", filters?.kind ?? "all", filters?.universityId ?? 0],
+    queryFn: () => api.get<CommunityRow[]>(`/v2/communities${qs ? `?${qs}` : ""}`),
+    staleTime: 60 * 1000,
+  });
+}
+
+export function useCommunity(id: number | null) {
+  return useQuery<CommunityRow>({
+    queryKey: ["v2", "communities", id],
+    queryFn: () => api.get<CommunityRow>(`/v2/communities/${id}`),
+    enabled: !!id,
+  });
+}
+
+export function useCommunityPosts(communityId: number | null) {
+  return useQuery<CommunityPostRow[]>({
+    queryKey: ["v2", "communities", communityId, "posts"],
+    queryFn: () => api.get<CommunityPostRow[]>(`/v2/communities/${communityId}/posts`),
+    enabled: !!communityId,
+  });
+}
+
+export function useCreateCommunityPost(communityId: number) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (body: { body: string; imageUrl?: string | null }) =>
+      api.post<CommunityPostRow>(`/v2/communities/${communityId}/posts`, body),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["v2", "communities", communityId, "posts"] });
+      qc.invalidateQueries({ queryKey: ["v2", "communities"] });
+    },
+  });
+}
+
+export function useToggleCommunityPostLike(communityId: number) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (postId: number) =>
+      api.post<{ liked: boolean; likes: number }>(`/v2/communities/posts/${postId}/like`),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["v2", "communities", communityId, "posts"] });
+    },
+  });
+}
+
+export function useCommunityComments(postId: number | null) {
+  return useQuery<CommunityCommentRow[]>({
+    queryKey: ["v2", "community-post", postId, "comments"],
+    queryFn: () => api.get<CommunityCommentRow[]>(`/v2/communities/posts/${postId}/comments`),
+    enabled: !!postId,
+  });
+}
+
+export function useAddCommunityComment(postId: number, communityId: number) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (body: string) =>
+      api.post<CommunityCommentRow>(`/v2/communities/posts/${postId}/comments`, { body }),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["v2", "community-post", postId, "comments"] });
+      qc.invalidateQueries({ queryKey: ["v2", "communities", communityId, "posts"] });
+    },
+  });
+}
+
+export function useDeleteCommunityPost(communityId: number) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (postId: number) => api.del(`/v2/communities/posts/${postId}`),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["v2", "communities", communityId, "posts"] });
+      qc.invalidateQueries({ queryKey: ["v2", "communities"] });
+    },
+  });
+}
+
+export function useDeleteCommunityComment(postId: number, communityId: number) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (commentId: number) => api.del(`/v2/communities/comments/${commentId}`),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["v2", "community-post", postId, "comments"] });
+      qc.invalidateQueries({ queryKey: ["v2", "communities", communityId, "posts"] });
+    },
+  });
+}
