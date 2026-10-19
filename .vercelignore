@@ -14,3 +14,7 @@ api/vercel.ts
 api/.DS_Store
 api/node_modules/
 api/.env
+.git/
+dist/
+**/dist/
+artifacts/universe/node_modules/
