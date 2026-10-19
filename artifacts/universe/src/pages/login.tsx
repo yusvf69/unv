@@ -9,7 +9,7 @@ import { Label } from "@/components/ui/label";
 import { useToast } from "@/hooks/use-toast";
 import FileUpload from "@/components/file-upload";
 import { useTranslation, globalI18n } from "@/lib/i18n";
-import { getApiBase } from "@/lib/api";
+import { getApiBase, useUniversities, useFacultyDepartments, useSuggestInstitution } from "@/lib/api";
 const API = getApiBase();
 
 const SPECIALIZATIONS = [
@@ -104,6 +104,21 @@ const translations = {
   referralLabel: { ar: "كود الدعوة (اختياري)", en: "Invitation Code (Optional)" },
   referralPlaceholder: { ar: "مثال: UV-ABCD1234", en: "e.g. UV-ABCD1234" },
   referralHint: { ar: "ادخل كود صاحبك لو حد دعاك — هتحصل أنت وهو على 50 نقطة هدية.", en: "Enter your friend's invite code — you both get a 50 point gift." },
+  universityLabel: { ar: "الجامعة", en: "University" },
+  facultyLabel: { ar: "الكلية", en: "Faculty" },
+  departmentLabel: { ar: "القسم / التخصص", en: "Department / Major" },
+  selectUniversity: { ar: "اختر جامعتك", en: "Select your university" },
+  selectFaculty: { ar: "اختر كليتك", en: "Select your faculty" },
+  selectDepartment: { ar: "اختر القسم (اختياري)", en: "Select department (optional)" },
+  chooseUniversityFirst: { ar: "اختر الجامعة الأول", en: "Choose a university first" },
+  universityNotListed: { ar: "جامعتك مش موجودة؟ اقترح إضافتها", en: "University not listed? Suggest it" },
+  facultyNotListed: { ar: "كليتك مش موجودة؟ اقترح إضافتها", en: "Faculty not listed? Suggest it" },
+  suggestionNamePlaceholder: { ar: "اكتب الاسم الرسمي", en: "Enter the official name" },
+  submitSuggestion: { ar: "إرسال الاقتراح", en: "Submit suggestion" },
+  suggestionSent: { ar: "تم إرسال الاقتراح، هيتراجع قريبًا", en: "Suggestion sent, it will be reviewed soon" },
+  suggestUniversityTitle: { ar: "اقتراح جامعة جديدة", en: "Suggest a new university" },
+  suggestFacultyTitle: { ar: "اقتراح كلية جديدة", en: "Suggest a new faculty" },
+  chooseUniversityAndFaculty: { ar: "اختر الجامعة والكلية", en: "Choose your university and faculty" },
 };
 
 export default function Login() {
@@ -121,6 +136,19 @@ export default function Login() {
   const [yearInCollege, setYearInCollege] = useState<number>(1);
   const [specialization, setSpecialization] = useState(SPECIALIZATIONS[0]);
   const [groupName, setGroupName] = useState("A");
+  const [universityId, setUniversityId] = useState<number | null>(null);
+  const [facultyId, setFacultyId] = useState<number | null>(null);
+  const [departmentId, setDepartmentId] = useState<number | null>(null);
+  const [suggestFor, setSuggestFor] = useState<null | "university" | "faculty">(null);
+  const [suggestName, setSuggestName] = useState("");
+  const [suggestedInstitutions, setSuggestedInstitutions] = useState(false);
+  const universitiesQuery = useUniversities();
+  const universities = universitiesQuery.data ?? [];
+  const selectedUniversity = universities.find((u) => u.id === universityId) ?? null;
+  const facultyOptions = selectedUniversity?.faculties ?? [];
+  const departmentsQuery = useFacultyDepartments(facultyId);
+  const departmentOptions = departmentsQuery.data ?? [];
+  const suggestInstitution = useSuggestInstitution();
   const [avatarUrl, setAvatarUrl] = useState<string | null>(null);
   const [referralCode, setReferralCode] = useState(() => {
     if (typeof window === "undefined") return "";
@@ -183,6 +211,10 @@ export default function Login() {
       toast({ title: "لازم توافق على الشروط والأحكام الأول", variant: "destructive" });
       return;
     }
+    if (universities.length > 0 && !facultyId && !suggestedInstitutions) {
+      toast({ title: t("chooseUniversityAndFaculty"), variant: "destructive" });
+      return;
+    }
 
     if (verifyStep === "idle") {
       setVerifyStep("sending");
@@ -243,7 +275,7 @@ export default function Login() {
         const res = await fetch(API + "/v2/auth/signup", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ name, username, email, phone, password, yearInCollege, specialization, groupName, avatarUrl, termsAccepted: true, referralCode: referralCode.trim().toUpperCase() }),
+          body: JSON.stringify({ name, username, email, phone, password, yearInCollege, specialization, groupName, avatarUrl, termsAccepted: true, referralCode: referralCode.trim().toUpperCase(), universityId, facultyId, departmentId, country: "EG" }),
         });
         const data = await res.json();
         if (!res.ok) throw new Error(data.error || data.message);
@@ -255,6 +287,25 @@ export default function Login() {
       } catch (err) {
         toast({ title: t("error"), description: (err as Error).message, variant: "destructive" });
       }
+    }
+  };
+
+  const submitSuggestion = async () => {
+    if (!suggestFor) return;
+    const suggestionName = suggestName.trim();
+    if (suggestionName.length < 3) return;
+    try {
+      await suggestInstitution.mutateAsync({
+        kind: suggestFor,
+        parentId: suggestFor === "faculty" ? universityId : null,
+        nameAr: suggestionName,
+      });
+      setSuggestedInstitutions(true);
+      setSuggestName("");
+      setSuggestFor(null);
+      toast({ title: t("suggestionSent") });
+    } catch (err) {
+      toast({ title: t("error"), description: (err as Error).message, variant: "destructive" });
     }
   };
 
@@ -422,16 +473,86 @@ export default function Login() {
                   </button>
                 </div>
               </div>
+              {universities.length > 0 ? (
+                <>
+                  <div className="space-y-1.5 md:col-span-2">
+                    <Label className="text-xs">{t("universityLabel")}</Label>
+                    <select
+                      value={universityId ?? ""}
+                      onChange={(e) => {
+                        const id = e.target.value ? Number(e.target.value) : null;
+                        setUniversityId(id);
+                        setFacultyId(null);
+                        setDepartmentId(null);
+                      }}
+                      className="w-full h-10 rounded-md border bg-background px-3 text-sm"
+                    >
+                      <option value="">{t("selectUniversity")}</option>
+                      {universities.map((u) => <option key={u.id} value={u.id}>{u.nameAr}</option>)}
+                    </select>
+                    <button type="button" onClick={() => { setSuggestFor("university"); setSuggestName(""); }} className="text-xs text-primary underline">
+                      {t("universityNotListed")}
+                    </button>
+                  </div>
+                  <div className="space-y-1.5 md:col-span-2">
+                    <Label className="text-xs">{t("facultyLabel")}</Label>
+                    <select
+                      value={facultyId ?? ""}
+                      onChange={(e) => {
+                        const id = e.target.value ? Number(e.target.value) : null;
+                        setFacultyId(id);
+                        setDepartmentId(null);
+                      }}
+                      disabled={!universityId}
+                      className="w-full h-10 rounded-md border bg-background px-3 text-sm disabled:opacity-50"
+                    >
+                      <option value="">{universityId ? t("selectFaculty") : t("chooseUniversityFirst")}</option>
+                      {facultyOptions.map((f) => <option key={f.id} value={f.id}>{f.nameAr}</option>)}
+                    </select>
+                    {universityId && (
+                      <button type="button" onClick={() => { setSuggestFor("faculty"); setSuggestName(""); }} className="text-xs text-primary underline">
+                        {t("facultyNotListed")}
+                      </button>
+                    )}
+                  </div>
+                  {facultyId && departmentOptions.length > 0 && (
+                    <div className="space-y-1.5 md:col-span-2">
+                      <Label className="text-xs">{t("departmentLabel")}</Label>
+                      <select
+                        value={departmentId ?? ""}
+                        onChange={(e) => setDepartmentId(e.target.value ? Number(e.target.value) : null)}
+                        className="w-full h-10 rounded-md border bg-background px-3 text-sm"
+                      >
+                        <option value="">{t("selectDepartment")}</option>
+                        {departmentOptions.map((d) => <option key={d.id} value={d.id}>{d.nameAr}</option>)}
+                      </select>
+                    </div>
+                  )}
+                  {suggestFor && (
+                    <div className="md:col-span-2 rounded-xl border-2 border-dashed p-3 space-y-2">
+                      <p className="text-xs font-bold">{suggestFor === "university" ? t("suggestUniversityTitle") : t("suggestFacultyTitle")}</p>
+                      <div className="flex gap-2">
+                        <Input value={suggestName} onChange={(e) => setSuggestName(e.target.value)} placeholder={t("suggestionNamePlaceholder")} className="h-9 text-sm" />
+                        <Button type="button" size="sm" onClick={submitSuggestion} disabled={suggestInstitution.isPending || suggestName.trim().length < 3}>
+                          {suggestInstitution.isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : t("submitSuggestion")}
+                        </Button>
+                        <Button type="button" size="sm" variant="ghost" onClick={() => setSuggestFor(null)}>✕</Button>
+                      </div>
+                    </div>
+                  )}
+                </>
+              ) : (
+                <div className="space-y-1.5 md:col-span-2">
+                  <Label className="text-xs">{t("specializationLabel")}</Label>
+                  <select value={specialization} onChange={(e) => setSpecialization(e.target.value)} className="w-full h-10 rounded-md border bg-background px-3 text-sm">
+                    {SPECIALIZATIONS.map((s, i) => <option key={s} value={s}>{t(SPECIALIZATION_KEYS[i] as any)}</option>)}
+                  </select>
+                </div>
+              )}
               <div className="space-y-1.5">
                 <Label className="flex items-center gap-1.5 text-xs"><GraduationCap className="h-3.5 w-3.5" /> {t("academicYear")}</Label>
                 <select value={yearInCollege} onChange={(e) => setYearInCollege(Number(e.target.value))} className="w-full h-10 rounded-md border bg-background px-3 text-sm">
                   {YEARS.map((y) => <option key={y} value={y}>{t("yearOption").replace("{year}", String(y))}</option>)}
-                </select>
-              </div>
-              <div className="space-y-1.5 md:col-span-2">
-                <Label className="text-xs">{t("specializationLabel")}</Label>
-                <select value={specialization} onChange={(e) => setSpecialization(e.target.value)} className="w-full h-10 rounded-md border bg-background px-3 text-sm">
-                  {SPECIALIZATIONS.map((s, i) => <option key={s} value={s}>{t(SPECIALIZATION_KEYS[i] as any)}</option>)}
                 </select>
               </div>
               <div className="space-y-1.5 md:col-span-2">

@@ -119,6 +119,165 @@ async function ensureVisitsTable(): Promise<void> {
   )`;
 }
 
+let institutionsReady = false;
+
+const SEED_UNIVERSITIES: { slug: string; nameAr: string; nameEn: string; city: string; faculties: string[] }[] = [
+  {
+    slug: "alexandria", nameAr: "جامعة الإسكندرية", nameEn: "Alexandria University", city: "الإسكندرية",
+    faculties: ["كلية الطب", "كلية الهندسة", "كلية التجارة", "كلية العلوم", "كلية الحاسبات والمعلومات", "كلية الزراعة"],
+  },
+  {
+    slug: "cairo", nameAr: "جامعة القاهرة", nameEn: "Cairo University", city: "الجيزة",
+    faculties: ["كلية الطب", "كلية الهندسة", "كلية التجارة", "كلية العلوم", "كلية الحاسبات والذكاء الاصطناعي", "كلية الزراعة"],
+  },
+  {
+    slug: "ain-shams", nameAr: "جامعة عين شمس", nameEn: "Ain Shams University", city: "القاهرة",
+    faculties: ["كلية الطب", "كلية الهندسة", "كلية التجارة", "كلية العلوم", "كلية الحاسبات والمعلومات", "كلية الزراعة", "كلية الألسن"],
+  },
+  {
+    slug: "mansoura", nameAr: "جامعة المنصورة", nameEn: "Mansoura University", city: "المنصورة",
+    faculties: ["كلية الطب", "كلية الهندسة", "كلية التجارة", "كلية العلوم", "كلية الحاسبات والمعلومات", "كلية الزراعة"],
+  },
+  {
+    slug: "damanhour", nameAr: "جامعة دمنهور", nameEn: "Damanhour University", city: "دمنهور",
+    faculties: ["كلية الزراعة", "كلية الطب البيطري", "كلية العلوم", "كلية الآداب", "كلية التربية", "كلية التجارة", "كلية التمريض", "كلية الصيدلة", "كلية الهندسة", "كلية الحاسبات والمعلومات"],
+  },
+  {
+    slug: "tanta", nameAr: "جامعة طنطا", nameEn: "Tanta University", city: "طنطا",
+    faculties: ["كلية الطب", "كلية الهندسة", "كلية التجارة", "كلية العلوم", "كلية الزراعة", "كلية الحاسبات والمعلومات"],
+  },
+  {
+    slug: "assiut", nameAr: "جامعة أسيوط", nameEn: "Assiut University", city: "أسيوط",
+    faculties: ["كلية الطب", "كلية الهندسة", "كلية التجارة", "كلية العلوم", "كلية الزراعة", "كلية الحاسبات والمعلومات"],
+  },
+  {
+    slug: "zagazig", nameAr: "جامعة الزقازيق", nameEn: "Zagazig University", city: "الزقازيق",
+    faculties: ["كلية الطب", "كلية الهندسة", "كلية التجارة", "كلية الزراعة", "كلية الحاسبات والمعلومات"],
+  },
+  {
+    slug: "helwan", nameAr: "جامعة حلوان", nameEn: "Helwan University", city: "القاهرة",
+    faculties: ["كلية الهندسة", "كلية التجارة", "كلية العلوم", "كلية الحاسبات والذكاء الاصطناعي", "كلية الزراعة"],
+  },
+  {
+    slug: "benha", nameAr: "جامعة بنها", nameEn: "Benha University", city: "بنها",
+    faculties: ["كلية الطب", "كلية الهندسة", "كلية التجارة", "كلية الزراعة", "كلية الحاسبات والذكاء الاصطناعي"],
+  },
+];
+
+const SEED_AGRICULTURE_DEPARTMENTS = [
+  "شعبه عامه",
+  "علوم التربة والمياه",
+  "الإنتاج النباتي",
+  "الإنتاج الحيواني",
+  "الهندسة الزراعية",
+  "التكنولوجيا الحيوية",
+  "علوم الأغذية",
+  "الاقتصاد الزراعي",
+  "وقاية النبات",
+];
+
+async function ensureInstitutionsSchema(): Promise<void> {
+  if (institutionsReady) return;
+  try {
+    await sql`CREATE TABLE IF NOT EXISTS universities (
+      id serial PRIMARY KEY,
+      name_ar text NOT NULL,
+      name_en text,
+      slug text NOT NULL UNIQUE,
+      country text NOT NULL DEFAULT 'EG',
+      city text,
+      logo_url text,
+      status text NOT NULL DEFAULT 'active',
+      created_at timestamptz NOT NULL DEFAULT now()
+    )`;
+    await sql`CREATE TABLE IF NOT EXISTS faculties (
+      id serial PRIMARY KEY,
+      university_id integer NOT NULL REFERENCES universities(id) ON DELETE CASCADE,
+      name_ar text NOT NULL,
+      name_en text,
+      slug text,
+      status text NOT NULL DEFAULT 'active',
+      created_at timestamptz NOT NULL DEFAULT now()
+    )`;
+    try { await sql`CREATE UNIQUE INDEX IF NOT EXISTS faculties_university_name_ar_unique ON faculties (university_id, name_ar)`; } catch {}
+    await sql`CREATE TABLE IF NOT EXISTS departments (
+      id serial PRIMARY KEY,
+      faculty_id integer NOT NULL REFERENCES faculties(id) ON DELETE CASCADE,
+      name_ar text NOT NULL,
+      name_en text,
+      status text NOT NULL DEFAULT 'active',
+      created_at timestamptz NOT NULL DEFAULT now()
+    )`;
+    try { await sql`CREATE UNIQUE INDEX IF NOT EXISTS departments_faculty_name_ar_unique ON departments (faculty_id, name_ar)`; } catch {}
+    await sql`CREATE TABLE IF NOT EXISTS institution_suggestions (
+      id serial PRIMARY KEY,
+      user_id integer NOT NULL,
+      kind text NOT NULL,
+      parent_id integer,
+      name_ar text NOT NULL,
+      notes text,
+      status text NOT NULL DEFAULT 'pending',
+      created_at timestamptz NOT NULL DEFAULT now()
+    )`;
+    try { await sql`ALTER TABLE users ADD COLUMN IF NOT EXISTS university_id integer`; } catch {}
+    try { await sql`ALTER TABLE users ADD COLUMN IF NOT EXISTS faculty_id integer`; } catch {}
+    try { await sql`ALTER TABLE users ADD COLUMN IF NOT EXISTS department_id integer`; } catch {}
+    try { await sql`ALTER TABLE users ADD COLUMN IF NOT EXISTS country text`; } catch {}
+
+    const [{ c: universityCount }] = await sql`SELECT count(*)::int AS c FROM universities`;
+    if (universityCount === 0) for (const uni of SEED_UNIVERSITIES) {
+      const insertedRows = await sql`
+        INSERT INTO universities (name_ar, name_en, slug, country, city)
+        VALUES (${uni.nameAr}, ${uni.nameEn}, ${uni.slug}, 'EG', ${uni.city})
+        ON CONFLICT (slug) DO NOTHING
+        RETURNING id`;
+      let uniRow = insertedRows[0];
+      if (!uniRow) {
+        const existingRows = await sql`SELECT id FROM universities WHERE slug = ${uni.slug} LIMIT 1`;
+        uniRow = existingRows[0];
+      }
+      if (!uniRow) continue;
+      for (const facultyName of uni.faculties) {
+        await sql`
+          INSERT INTO faculties (university_id, name_ar)
+          VALUES (${uniRow.id}, ${facultyName})
+          ON CONFLICT (university_id, name_ar) DO NOTHING`;
+      }
+      const [agriculture] = await sql`
+        SELECT id FROM faculties WHERE university_id = ${uniRow.id} AND name_ar = 'كلية الزراعة' LIMIT 1`;
+      if (agriculture) {
+        for (const dept of SEED_AGRICULTURE_DEPARTMENTS) {
+          await sql`
+            INSERT INTO departments (faculty_id, name_ar)
+            VALUES (${agriculture.id}, ${dept})
+            ON CONFLICT (faculty_id, name_ar) DO NOTHING`;
+        }
+      }
+    }
+
+    const [damanhour] = await sql`SELECT id FROM universities WHERE slug = 'damanhour' LIMIT 1`;
+    if (damanhour) {
+      const [agri] = await sql`
+        SELECT id FROM faculties WHERE university_id = ${damanhour.id} AND name_ar = 'كلية الزراعة' LIMIT 1`;
+      if (agri) {
+        await sql`
+          UPDATE users u
+          SET university_id = ${damanhour.id}, faculty_id = ${agri.id},
+              department_id = COALESCE(
+                (SELECT d.id FROM departments d WHERE d.faculty_id = ${agri.id} AND d.name_ar = COALESCE(u.specialization, u.department) LIMIT 1),
+                (SELECT d.id FROM departments d WHERE d.faculty_id = ${agri.id} AND d.name_ar = u.department LIMIT 1)
+              )
+          WHERE u.university_id IS NULL
+            AND COALESCE(u.specialization, u.department) = ANY(${SEED_AGRICULTURE_DEPARTMENTS}::text[])`;
+      }
+    }
+    institutionsReady = true;
+  } catch (err: any) {
+    console.error("🔴 [ensureInstitutionsSchema]", err?.message);
+    throw err;
+  }
+}
+
 async function ensureLectureQuizQuestionTable(): Promise<void> {
   await sql`CREATE TABLE IF NOT EXISTS lecture_quiz_questions (
     id serial PRIMARY KEY,
@@ -719,6 +878,10 @@ async function handleAuth(req: Request, parts: string[]): Promise<Response> {
     return handle(async () => {
       const body = await req.json();
       const { name, username, email, phone, password, yearInCollege, specialization, groupName, avatarUrl, termsAccepted, referralCode } = body;
+      let universityId: number | null = body.universityId ? Number(body.universityId) : null;
+      let facultyId: number | null = body.facultyId ? Number(body.facultyId) : null;
+      let departmentId: number | null = body.departmentId ? Number(body.departmentId) : null;
+      const country = body.country ? String(body.country).slice(0, 5) : null;
       if (!name || !username || !email || !phone || !password) throw Object.assign(new Error("كل الحقول مطلوبة"), { status: 400 });
       if (username.length < 4) throw Object.assign(new Error("اليوزر لازم يكون 4 حروف على الأقل"), { status: 400 });
       if (password.length < 6) throw Object.assign(new Error("كلمة المرور لازم تكون 6 حروف على الأقل"), { status: 400 });
@@ -734,6 +897,35 @@ async function handleAuth(req: Request, parts: string[]): Promise<Response> {
       const [phoneExists] = await sql`SELECT id FROM users WHERE phone = ${normalizedPhone} LIMIT 1`;
       if (phoneExists) throw Object.assign(new Error("الرقم ده مسجل قبل كده"), { status: 409 });
 
+      await ensureInstitutionsSchema().catch(() => {});
+      let facultyName: string | null = null;
+      let departmentName: string | null = null;
+      if (facultyId) {
+        const [faculty] = await sql`
+          SELECT f.id, f.name_ar, f.university_id FROM faculties f
+          WHERE f.id = ${facultyId} AND f.status = 'active' LIMIT 1`;
+        if (!faculty) throw Object.assign(new Error("الكلية غير موجودة"), { status: 400 });
+        if (universityId && faculty.university_id !== universityId) {
+          throw Object.assign(new Error("الكلية لا تتبع الجامعة المختارة"), { status: 400 });
+        }
+        universityId = faculty.university_id;
+        facultyName = faculty.name_ar;
+      }
+      if (departmentId) {
+        if (!facultyId) throw Object.assign(new Error("اختر الكلية أولًا"), { status: 400 });
+        const [department] = await sql`
+          SELECT id, name_ar, faculty_id FROM departments
+          WHERE id = ${departmentId} AND status = 'active' LIMIT 1`;
+        if (!department || department.faculty_id !== facultyId) {
+          throw Object.assign(new Error("القسم لا يتبع الكلية المختارة"), { status: 400 });
+        }
+        departmentName = department.name_ar;
+      } else {
+        departmentId = null;
+      }
+      const departmentText = facultyName || specialization || "غير محدد";
+      const specializationText = departmentName || (facultyName ? facultyName : specialization || null);
+
       const hashedPassword = await bcrypt.hash(password, 10);
       let uniqueCode = generateUniqueCode();
       let codeExists = true;
@@ -744,8 +936,8 @@ async function handleAuth(req: Request, parts: string[]): Promise<Response> {
       }
 
       const [created] = await sql`
-        INSERT INTO users (name, username, email, phone, password, role, department, specialization, year_in_college, group_name, avatar_url, unique_code, email_verified, phone_verified, terms_accepted_at)
-        VALUES (${name}, ${username}, ${email}, ${phone}, ${hashedPassword}, 'student', ${specialization || "غير محدد"}, ${specialization || null}, ${yearInCollege || null}, ${groupName || null}, ${avatarUrl || null}, ${uniqueCode}, true, true, now())
+        INSERT INTO users (name, username, email, phone, password, role, department, specialization, university_id, faculty_id, department_id, country, year_in_college, group_name, avatar_url, unique_code, email_verified, phone_verified, terms_accepted_at)
+        VALUES (${name}, ${username}, ${email}, ${phone}, ${hashedPassword}, 'student', ${departmentText}, ${specializationText}, ${universityId}, ${facultyId}, ${departmentId}, ${country}, ${yearInCollege || null}, ${groupName || null}, ${avatarUrl || null}, ${uniqueCode}, true, true, now())
         RETURNING *`;
 
       await sql`INSERT INTO notifications (user_id, title, body, type) VALUES (${created.id}, ${`أهلاً ${name} في UniVerse`}, ${`كودك الخاص: ${uniqueCode}. احفظه لأنه مهم.`}, 'success')`;
@@ -1090,7 +1282,14 @@ async function handleMe(req: Request): Promise<Response> {
     const { userId } = requireAuth(req.headers);
     console.log("🟡 [handleMe] userId:", userId);
     console.log("🔵 [handleMe] Querying user...");
-    const [user] = await sql`SELECT * FROM users WHERE id = ${userId}`;
+    await ensureInstitutionsSchema().catch(() => {});
+    const [user] = await sql`
+      SELECT u.*, uni.name_ar AS university_name, fac.name_ar AS faculty_name, dep.name_ar AS department_name
+      FROM users u
+      LEFT JOIN universities uni ON uni.id = u.university_id
+      LEFT JOIN faculties fac ON fac.id = u.faculty_id
+      LEFT JOIN departments dep ON dep.id = u.department_id
+      WHERE u.id = ${userId}`;
     console.log("🟢 [handleMe] User found:", !!user);
     if (!user) throw Object.assign(new Error("لا يوجد مستخدم"), { status: 404 });
     const [{ c: unreadCount }] = await sql`SELECT count(*)::int AS c FROM notifications WHERE user_id = ${userId} AND read = false`;
@@ -1103,6 +1302,9 @@ async function handleMe(req: Request): Promise<Response> {
     return {
       id: user.id, name: user.name, username: user.username, email: user.email, phone: user.phone,
       role: user.role, groupName: user.group_name, avatarUrl: user.avatar_url, department: user.department,
+      universityId: user.university_id ?? null, facultyId: user.faculty_id ?? null, departmentId: user.department_id ?? null,
+      university: user.university_name ?? null, faculty: user.faculty_name ?? null, departmentName: user.department_name ?? null,
+      country: user.country ?? null,
       year: user.year, yearInCollege: user.year_in_college, specialization: user.specialization,
       points: user.points, coins: user.coins ?? 0, level: user.level, streak: user.streak, title: user.title,
       uniqueCode: user.unique_code, adminPermissions: user.admin_permissions,
@@ -1127,6 +1329,45 @@ async function handleMeProfile(req: Request): Promise<Response> {
     if (typeof specialization === "string") update.specialization = specialization;
     if (typeof yearInCollege === "number") update.year_in_college = yearInCollege;
     if (typeof groupName === "string" && ["A", "B", "C", "D", "E"].includes(groupName)) update.group_name = groupName;
+
+    if (body.universityId !== undefined || body.facultyId !== undefined || body.departmentId !== undefined) {
+      await ensureInstitutionsSchema();
+      let universityId = body.universityId ? Number(body.universityId) : null;
+      let facultyId = body.facultyId ? Number(body.facultyId) : null;
+      let departmentId = body.departmentId ? Number(body.departmentId) : null;
+      let facultyName: string | null = null;
+      let departmentName: string | null = null;
+      if (facultyId) {
+        const [faculty] = await sql`
+          SELECT id, name_ar, university_id FROM faculties
+          WHERE id = ${facultyId} AND status = 'active' LIMIT 1`;
+        if (!faculty) throw Object.assign(new Error("الكلية غير موجودة"), { status: 400 });
+        if (universityId && faculty.university_id !== universityId) {
+          throw Object.assign(new Error("الكلية لا تتبع الجامعة المختارة"), { status: 400 });
+        }
+        universityId = faculty.university_id;
+        facultyName = faculty.name_ar;
+      }
+      if (departmentId) {
+        if (!facultyId) throw Object.assign(new Error("اختر الكلية أولًا"), { status: 400 });
+        const [department] = await sql`
+          SELECT id, name_ar, faculty_id FROM departments
+          WHERE id = ${departmentId} AND status = 'active' LIMIT 1`;
+        if (!department || department.faculty_id !== facultyId) {
+          throw Object.assign(new Error("القسم لا يتبع الكلية المختارة"), { status: 400 });
+        }
+        departmentName = department.name_ar;
+      } else {
+        departmentId = null;
+      }
+      update.university_id = universityId;
+      update.faculty_id = facultyId;
+      update.department_id = departmentId;
+      if (facultyName) update.department = facultyName;
+      if (departmentName) update.specialization = departmentName;
+      else if (facultyName) update.specialization = facultyName;
+    }
+    if (typeof body.country === "string") update.country = body.country.slice(0, 5);
     if (!Object.keys(update).length) return { ok: true };
     if (update.name !== undefined) await sql`UPDATE users SET name = ${update.name} WHERE id = ${userId}`;
     if (update.phone !== undefined) await sql`UPDATE users SET phone = ${update.phone} WHERE id = ${userId}`;
@@ -1135,6 +1376,11 @@ async function handleMeProfile(req: Request): Promise<Response> {
     if (update.specialization !== undefined) await sql`UPDATE users SET specialization = ${update.specialization} WHERE id = ${userId}`;
     if (update.year_in_college !== undefined) await sql`UPDATE users SET year_in_college = ${update.year_in_college} WHERE id = ${userId}`;
     if (update.group_name !== undefined) await sql`UPDATE users SET group_name = ${update.group_name} WHERE id = ${userId}`;
+    if (update.university_id !== undefined) await sql`UPDATE users SET university_id = ${update.university_id} WHERE id = ${userId}`;
+    if (update.faculty_id !== undefined) await sql`UPDATE users SET faculty_id = ${update.faculty_id} WHERE id = ${userId}`;
+    if (update.department_id !== undefined) await sql`UPDATE users SET department_id = ${update.department_id} WHERE id = ${userId}`;
+    if (update.department !== undefined) await sql`UPDATE users SET department = ${update.department} WHERE id = ${userId}`;
+    if (update.country !== undefined) await sql`UPDATE users SET country = ${update.country} WHERE id = ${userId}`;
     return { ok: true };
   });
 }
@@ -1949,15 +2195,28 @@ async function handleFollow(req: Request, parts: string[]): Promise<Response> {
 async function handleUsers(req: Request, parts: string[]): Promise<Response> {
   if (parts[1] === "students") {
     return handle(async () => {
-      const rows = await sql`SELECT * FROM users WHERE role = 'student' ORDER BY points DESC LIMIT 100`;
-      return rows.map((u: any) => ({ id: u.id, name: u.name, username: u.username, avatarUrl: u.avatar_url, groupName: u.group_name, specialization: u.specialization, yearInCollege: u.year_in_college, points: u.points, uniqueCode: u.unique_code }));
+      await ensureInstitutionsSchema().catch(() => {});
+      const rows = await sql`
+        SELECT u.*, uni.name_ar AS university_name, fac.name_ar AS faculty_name
+        FROM users u
+        LEFT JOIN universities uni ON uni.id = u.university_id
+        LEFT JOIN faculties fac ON fac.id = u.faculty_id
+        WHERE u.role = 'student' ORDER BY u.points DESC LIMIT 100`;
+      return rows.map((u: any) => ({ id: u.id, name: u.name, username: u.username, avatarUrl: u.avatar_url, groupName: u.group_name, specialization: u.specialization, yearInCollege: u.year_in_college, points: u.points, uniqueCode: u.unique_code, university: u.university_name ?? null, faculty: u.faculty_name ?? null }));
     });
   }
 
   if (parts[1]) {
     return handle(async () => {
       const id = Number(parts[1]);
-      const [user] = await sql`SELECT * FROM users WHERE id = ${id} LIMIT 1`;
+      await ensureInstitutionsSchema().catch(() => {});
+      const [user] = await sql`
+        SELECT u.*, uni.name_ar AS university_name, fac.name_ar AS faculty_name, dep.name_ar AS department_name
+        FROM users u
+        LEFT JOIN universities uni ON uni.id = u.university_id
+        LEFT JOIN faculties fac ON fac.id = u.faculty_id
+        LEFT JOIN departments dep ON dep.id = u.department_id
+        WHERE u.id = ${id} LIMIT 1`;
       if (!user) throw Object.assign(new Error("User not found"), { status: 404 });
       const [{ followerCount }] = await sql`SELECT count(*)::int AS "followerCount" FROM user_follows WHERE following_id = ${id}`;
       const [{ followingCount }] = await sql`SELECT count(*)::int AS "followingCount" FROM user_follows WHERE follower_id = ${id}`;
@@ -1986,6 +2245,8 @@ async function handleUsers(req: Request, parts: string[]): Promise<Response> {
       const safe: any = {
         id: user.id, name: user.name, username: user.username, role: user.role,
         title: user.title || null, bio: user.bio || null, department: user.department || "غير محدد",
+        university: user.university_name ?? null, faculty: user.faculty_name ?? null,
+        departmentName: user.department_name ?? null,
         specialization: user.specialization || null, groupName: user.group_name || null,
         avatarUrl: user.avatar_url || null, points: user.points || 0, level: user.level || 1,
         streak: user.streak || 0, coins: user.coins || 0,
@@ -2004,6 +2265,198 @@ async function handleUsers(req: Request, parts: string[]): Promise<Response> {
         safe.uniqueCode = user.unique_code;
       }
       return safe;
+    });
+  }
+
+  return jsonError("Not Found", 404);
+}
+
+function institutionSlug(prefix: string): string {
+  return `${prefix}-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}`;
+}
+
+async function handleInstitutions(req: Request, parts: string[]): Promise<Response> {
+  await ensureInstitutionsSchema();
+
+  // GET /v2/universities — list active universities with their faculties
+  if (req.method === "GET" && parts[1] === "universities" && !parts[2]) {
+    return handle(async () => {
+      const universities = await sql`SELECT * FROM universities WHERE status = 'active' ORDER BY name_ar`;
+      const faculties = await sql`SELECT * FROM faculties WHERE status = 'active' ORDER BY name_ar`;
+      return universities.map((u: any) => ({
+        id: u.id, nameAr: u.name_ar, nameEn: u.name_en, slug: u.slug,
+        country: u.country, city: u.city,
+        faculties: faculties
+          .filter((f: any) => f.university_id === u.id)
+          .map((f: any) => ({ id: f.id, nameAr: f.name_ar, nameEn: f.name_en })),
+      }));
+    });
+  }
+
+  // GET /v2/universities/:id/faculties — faculties of a university with departments
+  if (req.method === "GET" && parts[1] === "universities" && parts[2] && parts[3] === "faculties") {
+    return handle(async () => {
+      const universityId = Number(parts[2]);
+      const faculties = await sql`
+        SELECT * FROM faculties WHERE university_id = ${universityId} AND status = 'active' ORDER BY name_ar`;
+      const departments = await sql`
+        SELECT d.* FROM departments d
+        JOIN faculties f ON f.id = d.faculty_id
+        WHERE f.university_id = ${universityId} AND d.status = 'active'
+        ORDER BY d.name_ar`;
+      return faculties.map((f: any) => ({
+        id: f.id, nameAr: f.name_ar, nameEn: f.name_en,
+        departments: departments
+          .filter((d: any) => d.faculty_id === f.id)
+          .map((d: any) => ({ id: d.id, nameAr: d.name_ar, nameEn: d.name_en })),
+      }));
+    });
+  }
+
+  // GET /v2/faculties/:id/departments
+  if (req.method === "GET" && parts[1] === "faculties" && parts[2] && parts[3] === "departments") {
+    return handle(async () => {
+      const facultyId = Number(parts[2]);
+      const rows = await sql`
+        SELECT * FROM departments WHERE faculty_id = ${facultyId} AND status = 'active' ORDER BY name_ar`;
+      return rows.map((d: any) => ({ id: d.id, nameAr: d.name_ar, nameEn: d.name_en }));
+    });
+  }
+
+  // POST /v2/institutions/suggest — student suggestion for a new university/faculty/department
+  if (req.method === "POST" && parts[1] === "institutions" && parts[2] === "suggest") {
+    return handle(async () => {
+      let userId = 0;
+      try { userId = requireAuth(req.headers).userId; } catch {}
+      const body = await req.json();
+      const kind = String(body.kind || "");
+      const nameAr = String(body.nameAr || "").trim();
+      const notes = body.notes ? String(body.notes).trim().slice(0, 500) : null;
+      if (!["university", "faculty", "department"].includes(kind)) {
+        throw Object.assign(new Error("نوع الاقتراح غير صحيح"), { status: 400 });
+      }
+      if (nameAr.length < 3) {
+        throw Object.assign(new Error("اكتب اسمًا صحيحًا (3 أحرف على الأقل)"), { status: 400 });
+      }
+      let parentId: number | null = body.parentId ? Number(body.parentId) : null;
+      if (kind !== "university") {
+        if (!parentId) throw Object.assign(new Error("العنصر التابع له مطلوب"), { status: 400 });
+        if (kind === "faculty") {
+          const [parent] = await sql`SELECT id FROM universities WHERE id = ${parentId} AND status = 'active' LIMIT 1`;
+          if (!parent) throw Object.assign(new Error("الجامعة غير موجودة"), { status: 404 });
+        } else {
+          const [parent] = await sql`SELECT id FROM faculties WHERE id = ${parentId} AND status = 'active' LIMIT 1`;
+          if (!parent) throw Object.assign(new Error("الكلية غير موجودة"), { status: 404 });
+        }
+      } else {
+        parentId = null;
+      }
+      const [duplicate] = await sql`
+        SELECT id FROM institution_suggestions
+        WHERE status = 'pending' AND kind = ${kind} AND name_ar = ${nameAr}
+          AND COALESCE(parent_id, 0) = COALESCE(${parentId}, 0)
+        LIMIT 1`;
+      if (duplicate) throw Object.assign(new Error("الاقتراح ده موجود بالفعل وقيد المراجعة"), { status: 409 });
+      const [created] = await sql`
+        INSERT INTO institution_suggestions (user_id, kind, parent_id, name_ar, notes)
+        VALUES (${userId}, ${kind}, ${parentId}, ${nameAr}, ${notes})
+        RETURNING *`;
+      return {
+        id: created.id, kind: created.kind, parentId: created.parent_id,
+        nameAr: created.name_ar, status: created.status, createdAt: created.created_at,
+      };
+    });
+  }
+
+  // GET /v2/institutions/suggestions/me
+  if (req.method === "GET" && parts[1] === "institutions" && parts[2] === "suggestions" && parts[3] === "me") {
+    return handle(async () => {
+      const { userId } = requireAuth(req.headers);
+      const rows = await sql`
+        SELECT * FROM institution_suggestions WHERE user_id = ${userId} ORDER BY created_at DESC LIMIT 50`;
+      return rows.map((s: any) => ({
+        id: s.id, kind: s.kind, parentId: s.parent_id, nameAr: s.name_ar,
+        notes: s.notes, status: s.status, createdAt: s.created_at,
+      }));
+    });
+  }
+
+  return jsonError("Not Found", 404);
+}
+
+async function handleAdminInstitutionSuggestions(req: Request, parts: string[]): Promise<Response> {
+  await ensureInstitutionsSchema();
+  const { userId } = requireAuth(req.headers);
+  const user = await getCurrentUser(userId);
+  requireRole(user, ["admin", "super_admin"]);
+
+  // GET /v2/admin/institution-suggestions
+  if (req.method === "GET" && parts[2] === "institution-suggestions" && !parts[3]) {
+    return handle(async () => {
+      const rows = await sql`
+        SELECT s.*, u.name AS user_name FROM institution_suggestions s
+        LEFT JOIN users u ON u.id = s.user_id
+        ORDER BY s.created_at DESC LIMIT 200`;
+      const universities = await sql`SELECT id, name_ar FROM universities`;
+      const faculties = await sql`SELECT id, name_ar FROM faculties`;
+      const uniById = new Map(universities.map((u: any) => [u.id, u.name_ar]));
+      const facultyById = new Map(faculties.map((f: any) => [f.id, f.name_ar]));
+      return rows.map((s: any) => ({
+        id: s.id, kind: s.kind, parentId: s.parent_id, nameAr: s.name_ar, notes: s.notes,
+        status: s.status, createdAt: s.created_at, userName: s.user_name,
+        parentName: s.kind === "faculty" ? uniById.get(s.parent_id) || null
+          : s.kind === "department" ? facultyById.get(s.parent_id) || null
+          : null,
+      }));
+    });
+  }
+
+  // POST /v2/admin/institution-suggestions/:id/decide
+  if (req.method === "POST" && parts[2] === "institution-suggestions" && parts[3] && parts[4] === "decide") {
+    return handle(async () => {
+      const id = Number(parts[3]);
+      const body = await req.json();
+      const decision = String(body.decision || "");
+      if (!["approve", "reject"].includes(decision)) {
+        throw Object.assign(new Error("القرار غير صحيح"), { status: 400 });
+      }
+      const [suggestion] = await sql`SELECT * FROM institution_suggestions WHERE id = ${id} LIMIT 1`;
+      if (!suggestion) throw Object.assign(new Error("الاقتراح غير موجود"), { status: 404 });
+      if (suggestion.status !== "pending") {
+        throw Object.assign(new Error("تمت مراجعة الاقتراح بالفعل"), { status: 409 });
+      }
+      if (decision === "reject") {
+        await sql`UPDATE institution_suggestions SET status = 'rejected' WHERE id = ${id}`;
+        return { ok: true, status: "rejected" };
+      }
+      let createdId: number | null = null;
+      if (suggestion.kind === "university") {
+        const [created] = await sql`
+          INSERT INTO universities (name_ar, slug, country)
+          VALUES (${suggestion.name_ar}, ${institutionSlug("university")}, 'EG')
+          RETURNING id`;
+        createdId = created.id;
+      } else if (suggestion.kind === "faculty") {
+        const [parent] = await sql`SELECT id FROM universities WHERE id = ${suggestion.parent_id} LIMIT 1`;
+        if (!parent) throw Object.assign(new Error("الجامعة غير موجودة"), { status: 404 });
+        const [created] = await sql`
+          INSERT INTO faculties (university_id, name_ar)
+          VALUES (${parent.id}, ${suggestion.name_ar})
+          ON CONFLICT (university_id, name_ar) DO NOTHING
+          RETURNING id`;
+        createdId = created?.id ?? null;
+      } else if (suggestion.kind === "department") {
+        const [parent] = await sql`SELECT id FROM faculties WHERE id = ${suggestion.parent_id} LIMIT 1`;
+        if (!parent) throw Object.assign(new Error("الكلية غير موجودة"), { status: 404 });
+        const [created] = await sql`
+          INSERT INTO departments (faculty_id, name_ar)
+          VALUES (${parent.id}, ${suggestion.name_ar})
+          ON CONFLICT (faculty_id, name_ar) DO NOTHING
+          RETURNING id`;
+        createdId = created?.id ?? null;
+      }
+      await sql`UPDATE institution_suggestions SET status = 'approved' WHERE id = ${id}`;
+      return { ok: true, status: "approved", createdId };
     });
   }
 
@@ -5541,6 +5994,15 @@ async function handleRequest(request: Request): Promise<Response> {
     // Health
     "GET /healthz": () => handleHealth(),
     "GET /health": () => handleHealth(),
+
+    // Institutions (universities / faculties / departments)
+    "GET /v2/universities": () => handleInstitutions(request, parts),
+    "GET /v2/universities/:id/faculties": () => handleInstitutions(request, parts),
+    "GET /v2/faculties/:id/departments": () => handleInstitutions(request, parts),
+    "POST /v2/institutions/suggest": () => handleInstitutions(request, parts),
+    "GET /v2/institutions/suggestions/me": () => handleInstitutions(request, parts),
+    "GET /v2/admin/institution-suggestions": () => handleAdminInstitutionSuggestions(request, parts),
+    "POST /v2/admin/institution-suggestions/:id/decide": () => handleAdminInstitutionSuggestions(request, parts),
 
     // Feed alias
     "GET /feed": () => handleTalentsFeed(request, ["feed"]),

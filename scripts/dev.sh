@@ -8,8 +8,12 @@ cleanup() {
 trap cleanup INT TERM EXIT
 
 (
-  cd artifacts/api-server
-  PORT=8080 NODE_ENV=development pnpm run dev
+  cd api
+  set -a
+  [ -f ../.env.local ] && . ../.env.local
+  [ -f ../artifacts/api-server/.env ] && . ../artifacts/api-server/.env
+  set +a
+  PORT=8080 NODE_ENV=development pnpm exec tsx server.ts
 ) &
 API_PID=$!
 

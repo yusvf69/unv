@@ -6,7 +6,7 @@ import { Input } from "@/components/ui/input";
 import { Progress } from "@/components/ui/progress";
 import { Label } from "@/components/ui/label";
 import { useToast } from "@/hooks/use-toast";
-import { useMeV2, useUpdateProfile, useAchievements, useMyGroupSchedule, useMyExamSchedule, useUnlockables, useEquipUnlockable, useFollows, useRetakeOptions, useAddMyRetake, useDeleteMyRetake } from "@/lib/api";
+import { useMeV2, useUpdateProfile, useAchievements, useMyGroupSchedule, useMyExamSchedule, useUnlockables, useEquipUnlockable, useFollows, useRetakeOptions, useAddMyRetake, useDeleteMyRetake, useUniversities, useFacultyDepartments } from "@/lib/api";
 import { useGetDashboard } from "@workspace/api-client-react";
 import FileUpload from "@/components/file-upload";
 import ShareButtons from "@/components/share-buttons";
@@ -23,6 +23,13 @@ const profileTranslations = {
   copyInviteLink: { ar: "نسخ رابط الدعوة", en: "Copy invite link" },
   inviteCopied: { ar: "تم نسخ رابط الدعوة", en: "Invite link copied" },
   joinUniverse: { ar: "انضم لي على UniVerse وأنا وياك نكسب 50 نقطة هدية 🎁", en: "Join me on UniVerse — we both get a 50 point gift 🎁" },
+  universityLabel: { ar: "الجامعة", en: "University" },
+  facultyLabel: { ar: "الكلية", en: "Faculty" },
+  departmentLabel: { ar: "القسم / التخصص", en: "Department / Major" },
+  selectUniversity: { ar: "اختر جامعتك", en: "Select your university" },
+  selectFaculty: { ar: "اختر كليتك", en: "Select your faculty" },
+  selectDepartment: { ar: "اختر القسم (اختياري)", en: "Select department (optional)" },
+  chooseUniversityFirst: { ar: "اختر الجامعة الأول", en: "Choose a university first" },
 };
 
 const SPECIALIZATIONS = [
@@ -73,6 +80,13 @@ export default function Profile() {
   const [specialization, setSpecialization] = useState("");
   const [yearInCollege, setYearInCollege] = useState<number>(1);
   const [groupName, setGroupName] = useState("A");
+  const [universityId, setUniversityId] = useState<number | null>(null);
+  const [facultyId, setFacultyId] = useState<number | null>(null);
+  const [departmentId, setDepartmentId] = useState<number | null>(null);
+  const { data: universities = [] } = useUniversities();
+  const selectedUniversity = universities.find((u) => u.id === universityId) ?? null;
+  const facultyOptions = selectedUniversity?.faculties ?? [];
+  const { data: departmentOptions = [] } = useFacultyDepartments(facultyId);
   const search = useSearch();
   const [tab, setTab] = useState<ProfileTab>(() => {
     const t = new URLSearchParams((search || "").replace(/^\?/, "")).get("tab");
@@ -94,6 +108,9 @@ export default function Profile() {
     setSpecialization(me.specialization || SPECIALIZATIONS[0]);
     setYearInCollege(me.yearInCollege || 1);
     setGroupName(me.groupName || "A");
+    setUniversityId(me.universityId ?? null);
+    setFacultyId(me.facultyId ?? null);
+    setDepartmentId(me.departmentId ?? null);
   }, [me?.id]);
 
   useEffect(() => {
@@ -112,6 +129,9 @@ export default function Profile() {
         specialization,
         yearInCollege,
         groupName,
+        universityId,
+        facultyId,
+        departmentId,
       });
       toast({ title: t("profileSaved"), description: t("changesApplied") });
     } catch (e) {
@@ -176,6 +196,11 @@ export default function Profile() {
             <div className="font-bold text-xl sm:text-2xl">{me.name}</div>
             {me.title && <div className="text-sm text-primary font-bold">{me.title}</div>}
             <div className="text-sm text-muted-foreground">{me.email}</div>
+            {(me.university || me.faculty) && (
+              <div className="text-xs text-muted-foreground mt-1">
+                {[me.university, me.faculty, me.departmentName].filter(Boolean).join(" — ")}
+              </div>
+            )}
             <div className="flex flex-wrap gap-2 mt-2 justify-center sm:justify-start">
               <span className="text-xs bg-primary/10 text-primary px-3 py-1 rounded-full font-bold">{me.points} {t("point")}</span>
               <span className="text-xs bg-secondary/10 text-secondary px-3 py-1 rounded-full font-bold">{t("level")} {me.level}</span>
@@ -272,12 +297,62 @@ export default function Profile() {
                   {["عام", "A", "B", "C", "D", "E"].map((g) => <option key={g} value={g}>{g === "عام" ? t("catGeneral") : g}</option>)}
                 </select>
               </div>
-              <div className="space-y-1.5 md:col-span-2">
-                <Label className="text-xs">{t("specializationLabel")}</Label>
-                <select value={specialization} onChange={(e) => setSpecialization(e.target.value)} className="w-full h-10 rounded-md border bg-background px-3 text-sm">
-                  {SPECIALIZATIONS.map((s) => <option key={s} value={s}>{t(SPECIALIZATION_KEYS[s])}</option>)}
-                </select>
-              </div>
+              {universities.length > 0 ? (
+                <>
+                  <div className="space-y-1.5">
+                    <Label className="text-xs">{t("universityLabel")}</Label>
+                    <select
+                      value={universityId ?? ""}
+                      onChange={(e) => {
+                        const id = e.target.value ? Number(e.target.value) : null;
+                        setUniversityId(id);
+                        setFacultyId(null);
+                        setDepartmentId(null);
+                      }}
+                      className="w-full h-10 rounded-md border bg-background px-3 text-sm"
+                    >
+                      <option value="">{t("selectUniversity")}</option>
+                      {universities.map((u) => <option key={u.id} value={u.id}>{u.nameAr}</option>)}
+                    </select>
+                  </div>
+                  <div className="space-y-1.5">
+                    <Label className="text-xs">{t("facultyLabel")}</Label>
+                    <select
+                      value={facultyId ?? ""}
+                      onChange={(e) => {
+                        const id = e.target.value ? Number(e.target.value) : null;
+                        setFacultyId(id);
+                        setDepartmentId(null);
+                      }}
+                      disabled={!universityId}
+                      className="w-full h-10 rounded-md border bg-background px-3 text-sm disabled:opacity-50"
+                    >
+                      <option value="">{universityId ? t("selectFaculty") : t("chooseUniversityFirst")}</option>
+                      {facultyOptions.map((f) => <option key={f.id} value={f.id}>{f.nameAr}</option>)}
+                    </select>
+                  </div>
+                  {facultyId && departmentOptions.length > 0 && (
+                    <div className="space-y-1.5 md:col-span-2">
+                      <Label className="text-xs">{t("departmentLabel")}</Label>
+                      <select
+                        value={departmentId ?? ""}
+                        onChange={(e) => setDepartmentId(e.target.value ? Number(e.target.value) : null)}
+                        className="w-full h-10 rounded-md border bg-background px-3 text-sm"
+                      >
+                        <option value="">{t("selectDepartment")}</option>
+                        {departmentOptions.map((d) => <option key={d.id} value={d.id}>{d.nameAr}</option>)}
+                      </select>
+                    </div>
+                  )}
+                </>
+              ) : (
+                <div className="space-y-1.5 md:col-span-2">
+                  <Label className="text-xs">{t("specializationLabel")}</Label>
+                  <select value={specialization} onChange={(e) => setSpecialization(e.target.value)} className="w-full h-10 rounded-md border bg-background px-3 text-sm">
+                    {SPECIALIZATIONS.map((s) => <option key={s} value={s}>{t(SPECIALIZATION_KEYS[s])}</option>)}
+                  </select>
+                </div>
+              )}
             </div>
             <Button onClick={save} disabled={update.isPending} className="w-full">
               <Save className="me-2 h-4 w-4" /> {t("saveChanges")}

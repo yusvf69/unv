@@ -11,3 +11,4 @@ export * from "./dashboard";
 export * from "./admin";
 export * from "./social";
 export * from "./events";
+export * from "./institutions";

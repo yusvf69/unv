@@ -71,3 +71,4 @@ artifacts/app/
 .vercel
 
 /.session-tmp/
+.env*.local

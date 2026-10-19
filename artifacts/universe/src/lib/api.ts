@@ -120,6 +120,13 @@ export interface MeV2 {
   groupName: string | null;
   avatarUrl: string | null;
   department: string;
+  universityId: number | null;
+  facultyId: number | null;
+  departmentId: number | null;
+  university: string | null;
+  faculty: string | null;
+  departmentName: string | null;
+  country: string | null;
   year: number | null;
   yearInCollege: number | null;
   specialization: string | null;
@@ -518,7 +525,7 @@ export function useVisualCard(lessonId: number | null) {
 export function useUpdateProfile() {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: (body: Partial<{ name: string; phone: string; avatarUrl: string; bio: string; specialization: string; yearInCollege: number; groupName: string }>) =>
+    mutationFn: (body: Partial<{ name: string; phone: string; avatarUrl: string; bio: string; specialization: string; yearInCollege: number; groupName: string; universityId: number | null; facultyId: number | null; departmentId: number | null; country: string }>) =>
       request("PATCH", "/v2/me/profile", body),
     onSuccess: () => qc.invalidateQueries(),
   });
@@ -2122,6 +2129,74 @@ export function useCourseExamAttempts(courseId: number, examId: number) {
     queryKey: ["v2", "course-exam-attempts", courseId, examId],
     queryFn: () => api.get(`/v2/courses/${courseId}/exams/${examId}/attempts`),
     enabled: courseId > 0 && examId > 0,
+  });
+}
+
+// ===== Institutions (universities / faculties / departments) =====
+export interface FacultyOption {
+  id: number;
+  nameAr: string;
+  nameEn: string | null;
+}
+
+export interface UniversityOption {
+  id: number;
+  nameAr: string;
+  nameEn: string | null;
+  slug: string;
+  country: string;
+  city: string | null;
+  faculties: FacultyOption[];
+}
+
+export interface DepartmentOption {
+  id: number;
+  nameAr: string;
+  nameEn: string | null;
+}
+
+export function useUniversities() {
+  return useQuery<UniversityOption[]>({
+    queryKey: ["v2", "universities"],
+    queryFn: () => api.get<UniversityOption[]>("/v2/universities"),
+    staleTime: 10 * 60 * 1000,
+  });
+}
+
+export function useFacultyDepartments(facultyId: number | null) {
+  return useQuery<DepartmentOption[]>({
+    queryKey: ["v2", "faculties", facultyId, "departments"],
+    queryFn: () => api.get<DepartmentOption[]>(`/v2/faculties/${facultyId}/departments`),
+    enabled: !!facultyId,
+    staleTime: 10 * 60 * 1000,
+  });
+}
+
+export interface InstitutionSuggestionRow {
+  id: number;
+  kind: "university" | "faculty" | "department";
+  parentId: number | null;
+  nameAr: string;
+  notes: string | null;
+  status: string;
+  createdAt: string;
+}
+
+export function useSuggestInstitution() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (body: { kind: "university" | "faculty" | "department"; parentId?: number | null; nameAr: string; notes?: string }) =>
+      api.post<InstitutionSuggestionRow>("/v2/institutions/suggest", body),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["v2", "institutions", "suggestions", "me"] });
+    },
+  });
+}
+
+export function useMyInstitutionSuggestions() {
+  return useQuery<InstitutionSuggestionRow[]>({
+    queryKey: ["v2", "institutions", "suggestions", "me"],
+    queryFn: () => api.get<InstitutionSuggestionRow[]>("/v2/institutions/suggestions/me"),
   });
 }
 
