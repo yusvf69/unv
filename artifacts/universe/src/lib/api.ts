@@ -755,6 +755,9 @@ export interface SkillTrackFull {
   level: string; lessons: SkillLessonFull[];
   yearInCollege?: number;
   prerequisites?: number[];
+  enrolled?: boolean;
+  certificateCode?: string | null;
+  certificateIssuedAt?: string | null;
 }
 export function useSkillTracks() {
   return useQuery<SkillTrackFull[]>({ queryKey: ["v2", "skills"], queryFn: () => api.get("/v2/skills/tracks") });
@@ -766,7 +769,73 @@ export function useCompleteLesson() {
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ["v2", "skills"] });
       qc.invalidateQueries({ queryKey: ["v2", "me"] });
+      qc.invalidateQueries({ queryKey: ["v2", "skill-passport"] });
+      qc.invalidateQueries({ queryKey: ["v2", "certificates"] });
     },
+  });
+}
+export function useEnrollSkillTrack() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (trackId: number) => api.post(`/v2/skills/enroll/${trackId}`),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["v2", "skills"] });
+      qc.invalidateQueries({ queryKey: ["v2", "skill-passport"] });
+    },
+  });
+}
+export interface SkillPassportTrack {
+  id: number; title: string; category: string; difficulty: string;
+  totalLessons: number; completedLessons: number; progress: number;
+  level: string; status: "active" | "completed" | "not_started";
+  enrolledAt: string | null; completedAt: string | null; certificateCode: string | null;
+}
+export interface SkillPassportCertificate {
+  code: string; trackId: number; trackTitle: string; category: string;
+  difficulty: string; score: number; level: string; issuedAt: string;
+}
+export interface SkillPassport {
+  user: {
+    id: number; name: string; username: string; avatarUrl: string | null;
+    university: string | null; faculty: string | null; department: string | null;
+    level: number; email?: string; points?: number; memberSince: string;
+  };
+  level: string;
+  stats: {
+    enrolledTracks: number; activeTracks: number; completedTracks: number;
+    completedLessons: number; totalLessons: number; learningMinutes: number;
+    avgQuickCheck: number; certificates: number;
+  };
+  tracks: SkillPassportTrack[];
+  certificates: SkillPassportCertificate[];
+}
+export function useMySkillPassport(enabled = true) {
+  return useQuery<SkillPassport>({
+    queryKey: ["v2", "skill-passport", "me"],
+    queryFn: () => api.get("/v2/skills/passport/me"),
+    enabled,
+    retry: false,
+  });
+}
+export function useUserSkillPassport(userId: number | null) {
+  return useQuery<SkillPassport>({
+    queryKey: ["v2", "skill-passport", "user", userId],
+    queryFn: () => api.get(`/v2/users/${userId}/passport`),
+    enabled: !!userId,
+    retry: false,
+  });
+}
+export interface CertificateVerification {
+  valid: boolean; code: string; holderName: string; username: string;
+  trackTitle: string; trackCategory: string; difficulty: string;
+  score: number; level: string; issuedAt: string;
+}
+export function useVerifyCertificate(code: string | null) {
+  return useQuery<CertificateVerification>({
+    queryKey: ["v2", "certificate-verify", code],
+    queryFn: () => api.get(`/v2/certificates/verify/${encodeURIComponent(code!)}`),
+    enabled: !!code,
+    retry: false,
   });
 }
 export interface QuickCheckSubmitResult {
@@ -1187,7 +1256,7 @@ export function useAchievements() {
 
 // Certificate
 export interface CertificateData {
-  id: string; userName: string; trackTitle: string; trackCategory: string;
+  id: string; code?: string | null; userName: string; trackTitle: string; trackCategory: string;
   difficulty: string; lessonsCompleted: number; totalLessons: number;
   averageScore: number; mastery: string; totalXP: number; issuedAt: string;
 }

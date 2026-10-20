@@ -225,7 +225,9 @@ export default function Skills() {
 
       <div className="container mx-auto px-3 sm:px-4 py-4 sm:py-6">
         <div className="flex items-center justify-between mb-3">
-          <div />
+          <button onClick={() => setLocation("/passport")} className="flex items-center gap-1 text-xs font-bold text-amber-700 dark:text-amber-400 hover:text-amber-600 transition-colors">
+            <Award className="h-3.5 w-3.5" /> جواز المهارات
+          </button>
           <button onClick={() => setLocation("/skills/me")} className="flex items-center gap-1 text-xs text-primary hover:text-primary/80 transition-colors">
             <Medal className="h-3.5 w-3.5" /> ملفي
           </button>

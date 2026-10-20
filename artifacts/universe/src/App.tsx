@@ -25,6 +25,7 @@ import Talents from "@/pages/talents";
 import Skills from "@/pages/skills";
 import SkillsMe from "@/pages/skills-me";
 import SkillDetail from "@/pages/skill-detail";
+import SkillsPassportPage from "@/pages/skills-passport";
 import Complaints from "@/pages/complaints";
 import AiChat from "@/pages/ai-chat";
 import Profile from "@/pages/profile";
@@ -149,6 +150,8 @@ function Router() {
         <ProtectedRoute path="/skills" component={Skills} />
         <ProtectedRoute path="/skills/me" component={SkillsMe} />
         <ProtectedRoute path="/skills/:id" component={SkillDetail} />
+        <ProtectedRoute path="/passport" component={SkillsPassportPage} />
+        <Route path="/passport/:id" component={SkillsPassportPage} />
         <ProtectedRoute path="/complaints" component={Complaints} />
         <ProtectedRoute path="/games" component={Games} />
         <ProtectedRoute path="/games/profile" component={GameProfile} />

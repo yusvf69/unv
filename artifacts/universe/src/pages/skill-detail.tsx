@@ -12,7 +12,7 @@ import { saveSummaryOffline } from "@/lib/offline";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { Progress } from "@/components/ui/progress";
-import { useSkillTracks, useCompleteLesson, useSubmitQuickCheck, useLab, useLessonNote, useSaveLessonNote, useStreak, useVisualCard, useCertificate } from "@/lib/api";
+import { useSkillTracks, useCompleteLesson, useSubmitQuickCheck, useLab, useLessonNote, useSaveLessonNote, useStreak, useVisualCard, useCertificate, useEnrollSkillTrack } from "@/lib/api";
 import { useToast } from "@/hooks/use-toast";
 import { useTranslation, globalI18n } from "@/lib/i18n";
 import LabPlayer from "@/components/lab-player";
@@ -36,6 +36,16 @@ export default function SkillDetail() {
   const { data: labData } = useLab(activeLabId);
   const { data: visualData } = useVisualCard(activeVisualId);
   const { data: certificate } = useCertificate(id ? Number(id) : null);
+  const enroll = useEnrollSkillTrack();
+
+  const onEnroll = async () => {
+    try {
+      await enroll.mutateAsync(trackId);
+      toast({ title: "تم الانضمام للمسار", description: "أول درس في انتظارك — شهادتك هتتسجل في جواز المهارات." });
+    } catch (e) {
+      toast({ title: t("error"), description: (e as Error).message, variant: "destructive" });
+    }
+  };
 
   const onComplete = async (lessonId: number) => {
     setBusyId(lessonId);
@@ -192,6 +202,21 @@ export default function SkillDetail() {
                   </div>
                   <h1 className="text-xl sm:text-3xl font-serif font-bold">{track.title}</h1>
                   <p className="text-xs sm:text-sm text-muted-foreground mt-1 sm:mt-2">{track.description}</p>
+
+                  <div className="mt-2.5 flex flex-wrap items-center gap-2">
+                    {track.enrolled ? (
+                      <Badge variant="outline" className="text-[10px] gap-1 text-emerald-600 border-emerald-300 bg-emerald-50">
+                        <CheckCircle2 className="h-3 w-3" /> مسجّل في المسار
+                      </Badge>
+                    ) : (
+                      <Button size="sm" className="h-7 text-[11px] gap-1.5" onClick={onEnroll} disabled={enroll.isPending}>
+                        {enroll.isPending ? <Loader2 className="h-3 w-3 animate-spin" /> : <Target className="h-3 w-3" />} انضم للمسار
+                      </Button>
+                    )}
+                    <Link href="/passport" className="text-[10px] text-amber-700 dark:text-amber-400 hover:text-amber-600 transition inline-flex items-center gap-1">
+                      <Award className="h-3 w-3" /> جواز المهارات
+                    </Link>
+                  </div>
 
                   <div className="mt-3 sm:mt-4">
                     <div className="flex items-center justify-between text-xs sm:text-sm mb-1">
@@ -662,6 +687,9 @@ export default function SkillDetail() {
                   <div className="inline-block mt-1 bg-amber-100 dark:bg-amber-900/30 px-2 py-0.5 rounded-full text-[10px] font-bold text-amber-700 dark:text-amber-400">
                     {certificate.mastery}
                   </div>
+                  {certificate.code && (
+                    <div className="mt-1 text-[10px] text-muted-foreground font-mono" dir="ltr">{certificate.code}</div>
+                  )}
                   <div className="mt-1 text-[10px] text-muted-foreground">
                     {certificate.lessonsCompleted}/{certificate.totalLessons} دروس · {certificate.averageScore}% · {certificate.totalXP} XP
                   </div>

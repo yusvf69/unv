@@ -206,6 +206,9 @@ export default function Profile() {
               <span className="text-xs bg-secondary/10 text-secondary px-3 py-1 rounded-full font-bold">{t("level")} {me.level}</span>
               <span className="text-xs bg-amber-500/10 text-amber-700 px-3 py-1 rounded-full font-bold">🔥 {me.streak} {t("day")}</span>
               {me.groupName && <span className="text-xs bg-blue-500/10 text-blue-700 px-3 py-1 rounded-full font-bold">G{me.groupName}</span>}
+              <Link href="/passport" className="text-xs bg-emerald-500/10 text-emerald-700 px-3 py-1 rounded-full font-bold inline-flex items-center gap-1 hover:bg-emerald-500/20 transition">
+                <Award className="w-3 h-3" /> جواز المهارات
+              </Link>
             </div>
             <div className="flex flex-wrap gap-2 mt-2 justify-center sm:justify-start">
               <span className="text-xs bg-sky-500/10 text-sky-700 px-3 py-1 rounded-full font-bold">{t("followers")} {follows?.followers?.length ?? 0}</span>

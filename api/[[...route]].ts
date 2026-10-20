@@ -1,4 +1,5 @@
 import type { IncomingMessage, ServerResponse } from "node:http";
+import { randomUUID } from "node:crypto";
 import { sql } from "./lib/db.js";
 import { handle, jsonResponse, jsonError, corsResponse } from "./lib/handler.js";
 import { getUserId, getCurrentUser, requireAuth, requireRole, ensureSuper, generateToken } from "./lib/auth.js";
@@ -2856,6 +2857,8 @@ async function handleSitemap(): Promise<Response> {
   });
 }
 
+let skillAcademyBackfilled = false;
+
 async function ensureSkillTables() {
   await sql`
     CREATE TABLE IF NOT EXISTS user_skill_progress (
@@ -2911,6 +2914,68 @@ async function ensureSkillTables() {
     )
   `;
   try { await sql`CREATE INDEX IF NOT EXISTS idx_ln_user_lesson ON lesson_notes (user_id, lesson_id)`; } catch {}
+  await sql`
+    CREATE TABLE IF NOT EXISTS skill_enrollments (
+      id serial PRIMARY KEY,
+      user_id int NOT NULL,
+      track_id int NOT NULL REFERENCES skill_tracks(id) ON DELETE CASCADE,
+      status text NOT NULL DEFAULT 'active',
+      started_at timestamptz NOT NULL DEFAULT now(),
+      completed_at timestamptz,
+      UNIQUE(user_id, track_id)
+    )
+  `;
+  try { await sql`CREATE INDEX IF NOT EXISTS idx_se_user ON skill_enrollments (user_id)`; } catch {}
+  await sql`
+    CREATE TABLE IF NOT EXISTS skill_certificates (
+      id serial PRIMARY KEY,
+      user_id int NOT NULL,
+      track_id int NOT NULL REFERENCES skill_tracks(id) ON DELETE CASCADE,
+      code text NOT NULL UNIQUE,
+      score int NOT NULL DEFAULT 0,
+      level text NOT NULL DEFAULT 'beginner',
+      issued_at timestamptz NOT NULL DEFAULT now(),
+      UNIQUE(user_id, track_id)
+    )
+  `;
+  try { await sql`CREATE INDEX IF NOT EXISTS idx_sc_user ON skill_certificates (user_id)`; } catch {}
+  try { await sql`CREATE INDEX IF NOT EXISTS idx_sc_code ON skill_certificates (code)`; } catch {}
+
+  if (!skillAcademyBackfilled) {
+    try {
+      await sql`
+        INSERT INTO skill_enrollments (user_id, track_id, status, started_at, completed_at)
+        SELECT p.user_id, p.track_id,
+          CASE WHEN p.done >= t.total THEN 'completed' ELSE 'active' END,
+          p.started,
+          CASE WHEN p.done >= t.total THEN p.last_done ELSE NULL END
+        FROM (
+          SELECT user_id, track_id, count(DISTINCT lesson_id)::int AS done,
+                 MIN(completed_at) AS started, MAX(completed_at) AS last_done
+          FROM user_skill_progress GROUP BY user_id, track_id
+        ) p
+        JOIN (SELECT track_id, count(*)::int AS total FROM skill_lessons GROUP BY track_id) t
+          ON t.track_id = p.track_id
+        ON CONFLICT (user_id, track_id) DO NOTHING`;
+      await sql`
+        INSERT INTO skill_certificates (user_id, track_id, code, score, level, issued_at)
+        SELECT e.user_id, e.track_id,
+          'UNV-SK-' || upper(substr(md5(e.user_id::text || '-' || e.track_id::text || '-' || extract(epoch from clock_timestamp())::text), 1, 10)),
+          COALESCE((SELECT round(avg(p.quick_check_score))::int FROM user_skill_progress p WHERE p.user_id = e.user_id AND p.track_id = e.track_id), 0),
+          CASE
+            WHEN COALESCE((SELECT round(avg(p.quick_check_score))::int FROM user_skill_progress p WHERE p.user_id = e.user_id AND p.track_id = e.track_id), 0) >= 90 THEN 'mastered'
+            WHEN COALESCE((SELECT round(avg(p.quick_check_score))::int FROM user_skill_progress p WHERE p.user_id = e.user_id AND p.track_id = e.track_id), 0) >= 70 THEN 'practitioner'
+            ELSE 'learner'
+          END,
+          COALESCE(e.completed_at, now())
+        FROM skill_enrollments e
+        WHERE e.status = 'completed'
+        ON CONFLICT (user_id, track_id) DO NOTHING`;
+    } catch (e) {
+      console.error("[skillAcademyBackfill]", e);
+    }
+    skillAcademyBackfilled = true;
+  }
 }
 
 function computeSkillLevel(totalLessons: number, completed: number, avgQuickCheckScore: number): string {
@@ -2920,6 +2985,123 @@ function computeSkillLevel(totalLessons: number, completed: number, avgQuickChec
   if (pct >= 1 && avgQuickCheckScore >= 70) return "practitioner";
   if (pct >= 0.5) return "learner";
   return "beginner";
+}
+
+async function issueSkillCertificate(userId: number, trackId: number): Promise<any | null> {
+  const lessons = await sql`SELECT * FROM skill_lessons WHERE track_id = ${trackId}`;
+  if (!lessons.length) return null;
+  const progress = await sql`
+    SELECT * FROM user_skill_progress
+    WHERE user_id = ${userId} AND track_id = ${trackId} AND completed = true`;
+  if (progress.length < lessons.length) return null;
+  const avg = Math.round(progress.reduce((s: number, p: any) => s + (p.quick_check_score || 0), 0) / progress.length);
+  const level = computeSkillLevel(lessons.length, progress.length, avg);
+  const code = `UNV-SK-${randomUUID().replace(/-/g, "").slice(0, 10).toUpperCase()}`;
+  const [inserted] = await sql`
+    INSERT INTO skill_certificates (user_id, track_id, code, score, level)
+    VALUES (${userId}, ${trackId}, ${code}, ${avg}, ${level})
+    ON CONFLICT (user_id, track_id) DO NOTHING
+    RETURNING *`;
+  await sql`
+    INSERT INTO skill_enrollments (user_id, track_id, status, completed_at)
+    VALUES (${userId}, ${trackId}, 'completed', now())
+    ON CONFLICT (user_id, track_id) DO UPDATE
+      SET status = 'completed', completed_at = COALESCE(skill_enrollments.completed_at, now())`;
+  if (!inserted) {
+    const [existing] = await sql`
+      SELECT * FROM skill_certificates WHERE user_id = ${userId} AND track_id = ${trackId} LIMIT 1`;
+    return existing ? { ...existing, newlyIssued: false } : null;
+  }
+  return { ...inserted, newlyIssued: true };
+}
+
+async function buildSkillPassport(userId: number, publicView: boolean): Promise<any> {
+  const [user] = await sql`
+    SELECT u.*, uni.name_ar AS university_name, fac.name_ar AS faculty_name
+    FROM users u
+    LEFT JOIN universities uni ON uni.id = u.university_id
+    LEFT JOIN faculties fac ON fac.id = u.faculty_id
+    WHERE u.id = ${userId} LIMIT 1`;
+  if (!user) throw Object.assign(new Error("المستخدم غير موجود"), { status: 404 });
+
+  const [tracks, lessons, progress, enrollments, certificates] = await Promise.all([
+    sql`SELECT * FROM skill_tracks ORDER BY category, title`,
+    sql`SELECT * FROM skill_lessons ORDER BY ord, id`,
+    sql`SELECT * FROM user_skill_progress WHERE user_id = ${userId} AND completed = true`,
+    sql`SELECT * FROM skill_enrollments WHERE user_id = ${userId}`,
+    sql`
+      SELECT c.*, t.title AS track_title, t.category AS track_category, t.difficulty AS track_difficulty
+      FROM skill_certificates c JOIN skill_tracks t ON t.id = c.track_id
+      WHERE c.user_id = ${userId} ORDER BY c.issued_at DESC`,
+  ]);
+
+  const completedLessonIds = new Set(progress.map((p: any) => p.lesson_id));
+  const avgQuickCheck = progress.length
+    ? Math.round(progress.reduce((s: number, p: any) => s + (p.quick_check_score || 0), 0) / progress.length)
+    : 0;
+
+  const trackRows = tracks.map((t: any) => {
+    const trackLessons = lessons.filter((l: any) => l.track_id === t.id);
+    const doneLessons = trackLessons.filter((l: any) => completedLessonIds.has(l.id));
+    const enrollment = enrollments.find((e: any) => e.track_id === t.id);
+    const cert = certificates.find((c: any) => c.track_id === t.id);
+    const trackAvg = doneLessons.length
+      ? Math.round(doneLessons.reduce((s: number, l: any) => {
+          const p = progress.find((x: any) => x.lesson_id === l.id);
+          return s + (p?.quick_check_score || 0);
+        }, 0) / doneLessons.length)
+      : 0;
+    return {
+      id: t.id, title: t.title, category: t.category, difficulty: t.difficulty,
+      totalLessons: trackLessons.length, completedLessons: doneLessons.length,
+      progress: trackLessons.length ? doneLessons.length / trackLessons.length : 0,
+      level: computeSkillLevel(trackLessons.length, doneLessons.length, trackAvg),
+      status: cert ? "completed" : enrollment || doneLessons.length ? "active" : "not_started",
+      enrolledAt: enrollment?.started_at ?? null,
+      completedAt: cert?.issued_at ?? enrollment?.completed_at ?? null,
+      certificateCode: cert?.code ?? null,
+    };
+  }).filter((t: any) => (publicView ? t.status === "completed" : t.status !== "not_started"));
+
+  const visibleTracks = publicView ? trackRows : trackRows;
+  const completedTracks = visibleTracks.filter((t: any) => t.status === "completed");
+  const activeTracks = visibleTracks.filter((t: any) => t.status === "active");
+  const totalMinutes = lessons
+    .filter((l: any) => completedLessonIds.has(l.id))
+    .reduce((s: number, l: any) => s + (l.duration_minutes || 0), 0);
+  const overallLevel = computeSkillLevel(lessons.length, progress.length, avgQuickCheck);
+
+  return {
+    user: {
+      id: user.id,
+      name: user.name,
+      username: user.username,
+      avatarUrl: user.avatar_url,
+      university: user.university_name ?? null,
+      faculty: user.faculty_name ?? null,
+      department: user.department ?? null,
+      level: user.level ?? 1,
+      ...(publicView ? {} : { email: user.email, points: user.points ?? 0 }),
+      memberSince: user.created_at,
+    },
+    level: overallLevel,
+    stats: {
+      enrolledTracks: visibleTracks.length,
+      activeTracks: activeTracks.length,
+      completedTracks: completedTracks.length,
+      completedLessons: progress.length,
+      totalLessons: lessons.length,
+      learningMinutes: totalMinutes,
+      avgQuickCheck,
+      certificates: certificates.length,
+    },
+    tracks: visibleTracks,
+    certificates: certificates.map((c: any) => ({
+      code: c.code, trackId: c.track_id, trackTitle: c.track_title,
+      category: c.track_category, difficulty: c.track_difficulty,
+      score: c.score, level: c.level, issuedAt: c.issued_at,
+    })),
+  };
 }
 
 const LAB_TEMPLATES: Record<string, { title: string; description: string; kind: string; config: any }[]> = {
@@ -3018,6 +3200,8 @@ async function handleSkills(req: Request, parts: string[]): Promise<Response> {
       const lessons = await sql`SELECT * FROM skill_lessons WHERE track_id = ANY(${tracks.map((t: any) => t.id)}) ORDER BY ord, id`;
       const userProgress = await sql`SELECT * FROM user_skill_progress WHERE user_id = ${userId}`;
       const quickChecks = await sql`SELECT * FROM skill_quick_checks ORDER BY ord`;
+      const enrollments = await sql`SELECT * FROM skill_enrollments WHERE user_id = ${userId}`;
+      const certificates = await sql`SELECT * FROM skill_certificates WHERE user_id = ${userId}`;
 
       return tracks.map((t: any) => {
         const trackLessons = lessons.filter((l: any) => l.track_id === t.id);
@@ -3039,14 +3223,42 @@ async function handleSkills(req: Request, parts: string[]): Promise<Response> {
         const avgScore = trackQs.length ? trackQs.reduce((s: number, p: any) => s + p.quick_check_score, 0) / trackQs.length : 0;
         const level = computeSkillLevel(totalCount, doneCount, avgScore);
         const trackProgress = totalCount > 0 ? doneCount / totalCount : 0;
+        const enrollment = enrollments.find((e: any) => e.track_id === t.id);
+        const certificate = certificates.find((c: any) => c.track_id === t.id);
         return {
           id: t.id, title: t.title, category: t.category, description: t.description,
           difficulty: t.difficulty, coverUrl: t.cover_url, progress: trackProgress,
           level, lessons: enrichedLessons,
           yearInCollege: t.year_in_college ?? 0,
           prerequisites: t.prerequisites ?? [],
+          enrolled: !!enrollment,
+          certificateCode: certificate?.code ?? null,
+          certificateIssuedAt: certificate?.issued_at ?? null,
         };
       });
+    });
+  }
+
+  // POST /skills/enroll/:id — enroll in a track (independent from academic identity)
+  if (parts[1] === "enroll" && parts[2] && req.method === "POST") {
+    return handle(async () => {
+      const { userId } = requireAuth(req.headers);
+      const trackId = Number(parts[2]);
+      const [track] = await sql`SELECT * FROM skill_tracks WHERE id = ${trackId} LIMIT 1`;
+      if (!track) throw Object.assign(new Error("المسار غير موجود"), { status: 404 });
+      await sql`
+        INSERT INTO skill_enrollments (user_id, track_id, status)
+        VALUES (${userId}, ${trackId}, 'active')
+        ON CONFLICT (user_id, track_id) DO NOTHING`;
+      return { ok: true, trackId, enrolled: true };
+    });
+  }
+
+  // GET /skills/passport/me — my skills passport (skill identity, certificates)
+  if (parts[1] === "passport" && parts[2] === "me") {
+    return handle(async () => {
+      const { userId } = requireAuth(req.headers);
+      return buildSkillPassport(userId, false);
     });
   }
 
@@ -3326,6 +3538,8 @@ async function handleSkills(req: Request, parts: string[]): Promise<Response> {
       const lessons = await sql`SELECT * FROM skill_lessons WHERE track_id = ${id} ORDER BY ord, id`;
       const userProgress = await sql`SELECT * FROM user_skill_progress WHERE user_id = ${userId} AND track_id = ${id}`;
       const quickChecks = await sql`SELECT * FROM skill_quick_checks WHERE lesson_id = ANY(${lessons.map((l: any) => l.id)}) ORDER BY ord`;
+      const [enrollment] = await sql`SELECT * FROM skill_enrollments WHERE user_id = ${userId} AND track_id = ${id} LIMIT 1`;
+      const [certificate] = await sql`SELECT * FROM skill_certificates WHERE user_id = ${userId} AND track_id = ${id} LIMIT 1`;
 
       const enrichedLessons = lessons.map((l: any) => {
         const prog = userProgress.find((p: any) => p.lesson_id === l.id);
@@ -3352,6 +3566,9 @@ async function handleSkills(req: Request, parts: string[]): Promise<Response> {
         level, lessons: enrichedLessons,
         yearInCollege: track.year_in_college ?? 0,
         prerequisites: track.prerequisites ?? [],
+        enrolled: !!enrollment,
+        certificateCode: certificate?.code ?? null,
+        certificateIssuedAt: certificate?.issued_at ?? null,
       };
     });
   }
@@ -3363,6 +3580,11 @@ async function handleSkills(req: Request, parts: string[]): Promise<Response> {
       const id = Number(parts[2]);
       const [lesson] = await sql`SELECT * FROM skill_lessons WHERE id = ${id}`;
       if (!lesson) throw Object.assign(new Error("الدرس غير موجود"), { status: 404 });
+
+      await sql`
+        INSERT INTO skill_enrollments (user_id, track_id, status)
+        VALUES (${userId}, ${lesson.track_id}, 'active')
+        ON CONFLICT (user_id, track_id) DO NOTHING`;
 
       // Upsert per-user progress
       await sql`
@@ -3383,13 +3605,33 @@ async function handleSkills(req: Request, parts: string[]): Promise<Response> {
       const level = computeSkillLevel(all.length, userDone.length, avgScore);
       await sql`UPDATE user_skill_progress SET level = ${level} WHERE user_id = ${userId} AND track_id = ${lesson.track_id}`;
 
+      let certificate: any = null;
+      if (all.length > 0 && userDone.length >= all.length) {
+        try {
+          certificate = await issueSkillCertificate(userId, lesson.track_id);
+          if (certificate?.newlyIssued) {
+            const [track] = await sql`SELECT title FROM skill_tracks WHERE id = ${lesson.track_id} LIMIT 1`;
+            await sql`UPDATE users SET points = points + 50 WHERE id = ${userId}`;
+            await sql`
+              INSERT INTO notifications (user_id, title, body, type)
+              VALUES (${userId}, 'شهادة مهارة جديدة 🎓', ${`حصلت على شهادة إتمام مسار «${track?.title ?? ""}» — شهادتك متاحة في جواز المهارات.`}, 'success')`;
+            sendPushToUser(userId, "شهادة مهارة جديدة 🎓", `أكملت مسار «${track?.title ?? ""}»`, "/passport").catch(() => {});
+          }
+        } catch (e) {
+          console.error("[issueSkillCertificate]", e);
+        }
+      }
+
       // Award points
       await sql`UPDATE users SET points = points + 5 WHERE id = ${userId}`;
       try { await recalculateLevel(userId); } catch (e) { console.error("[recalculateLevel]", e); }
       try { await autoCompleteMissions(userId, "skill"); } catch (e) { console.error("[autoCompleteMissions skill]", e); }
-      try { await updateDailyStreak(userId); } catch (e) { console.error("[updateDailyStreak skill]", e); }
+      try { await updateDailyStreak(userId); } catch (e) { console.error("[updateDailyStreak]", e); }
 
-      return { ok: true, level, progress, xpEarned: 5 };
+      return {
+        ok: true, level, progress, xpEarned: 5,
+        certificate: certificate ? { code: certificate.code, issuedAt: certificate.issued_at, level: certificate.level } : null,
+      };
     });
   }
 
@@ -4306,6 +4548,7 @@ async function handleAchievements(req: Request): Promise<Response> {
 }
 
 async function handleCertificate(req: Request, parts: string[]): Promise<Response> {
+  await ensureSkillTables();
   return handle(async () => {
     const { userId } = requireAuth(req.headers);
     const trackId = Number(parts[1]);
@@ -4321,10 +4564,10 @@ async function handleCertificate(req: Request, parts: string[]): Promise<Respons
     const avgScore = userProgress.length ? Math.round(userProgress.reduce((s: number, p: any) => s + p.quick_check_score, 0) / userProgress.length) : 0;
     const mastery = avgScore >= 90 ? "متقن" : avgScore >= 70 ? "ممارس" : avgScore >= 50 ? "متعلم" : "مبتدئ";
     const totalXP = lessons.length * 5 + userProgress.filter((p: any) => p.quick_check_score > 0).length * 3;
-    // Generate certificate ID
-    const certId = `UV-CERT-${trackId}-${userId}-${Date.now().toString(36).toUpperCase()}`;
+    const persisted = await issueSkillCertificate(userId, trackId);
     return {
-      id: certId,
+      id: persisted?.code || `UV-CERT-${trackId}-${userId}`,
+      code: persisted?.code ?? null,
       userName: me?.name || "طالب",
       trackTitle: track.title,
       trackCategory: track.category,
@@ -4334,8 +4577,45 @@ async function handleCertificate(req: Request, parts: string[]): Promise<Respons
       averageScore: avgScore,
       mastery,
       totalXP,
-      issuedAt: new Date().toISOString(),
+      issuedAt: persisted?.issued_at ?? new Date().toISOString(),
     };
+  });
+}
+
+async function handleCertificateVerify(req: Request, parts: string[]): Promise<Response> {
+  await ensureSkillTables();
+  return handle(async () => {
+    const code = String(parts[3] || "").trim().toUpperCase();
+    if (!code) throw Object.assign(new Error("كود الشهادة مطلوب"), { status: 400 });
+    const [row] = await sql`
+      SELECT c.*, t.title AS track_title, t.category AS track_category, t.difficulty AS track_difficulty,
+             u.name AS user_name, u.username
+      FROM skill_certificates c
+      JOIN skill_tracks t ON t.id = c.track_id
+      JOIN users u ON u.id = c.user_id
+      WHERE upper(c.code) = ${code} LIMIT 1`;
+    if (!row) throw Object.assign(new Error("الشهادة غير موجودة أو الكود غير صحيح"), { status: 404 });
+    return {
+      valid: true,
+      code: row.code,
+      holderName: row.user_name,
+      username: row.username,
+      trackTitle: row.track_title,
+      trackCategory: row.track_category,
+      difficulty: row.track_difficulty,
+      score: row.score,
+      level: row.level,
+      issuedAt: row.issued_at,
+    };
+  });
+}
+
+async function handleUserPassport(req: Request, parts: string[]): Promise<Response> {
+  await ensureSkillTables();
+  return handle(async () => {
+    const userId = Number(parts[2]);
+    if (!userId || isNaN(userId)) throw Object.assign(new Error("معرف المستخدم غير صالح"), { status: 400 });
+    return buildSkillPassport(userId, true);
   });
 }
 
@@ -6657,6 +6937,7 @@ async function handleRequest(request: Request): Promise<Response> {
     "GET /users/:id": () => handleUsers(request, ["users", parts[1]]),
     "GET /v2/users/students": () => handleUsers(request, ["users", "students"]),
     "GET /v2/users/:id": () => handleUsers(request, ["users", parts[2]]),
+    "GET /v2/users/:id/passport": () => handleUserPassport(request, parts),
 
     // News
     "GET /news": () => handleNews(),
@@ -6675,12 +6956,16 @@ async function handleRequest(request: Request): Promise<Response> {
     "GET /skills/labs/:id": () => handleSkills(request, ["skills", "labs", parts[2]]),
     "GET /v2/skills/tracks": () => handleSkills(request, ["skills", "tracks"]),
     "GET /v2/skills/me": () => handleSkills(request, ["skills", "me"]),
+    "GET /v2/skills/passport/me": () => handleSkills(request, ["skills", "passport", "me"]),
+    "GET /skills/passport/me": () => handleSkills(request, ["skills", "passport", "me"]),
+    "POST /v2/skills/enroll/:id": () => handleSkills(request, ["skills", "enroll", parts[3]]),
+    "POST /skills/enroll/:id": () => handleSkills(request, ["skills", "enroll", parts[2]]),
     "GET /v2/skills/recommendations": () => handleSkills(request, ["skills", "recommendations"]),
     "GET /v2/skills/notes/:id": () => handleSkills(request, ["skills", "notes", parts[3]]),
     "POST /v2/skills/notes/:id": () => handleSkills(request, ["skills", "notes", parts[3]]),
     "GET /skills/notes/:id": () => handleSkills(request, ["skills", "notes", parts[2]]),
     "POST /skills/notes/:id": () => handleSkills(request, ["skills", "notes", parts[2]]),
-    "POST /v2/skills/lessons/:id/complete": () => handleSkills(request, ["skills", "lessons", parts[2], "complete"]),
+    "POST /v2/skills/lessons/:id/complete": () => handleSkills(request, ["skills", "lessons", parts[3], "complete"]),
     "POST /v2/skills/quick-checks/:id/submit": () => handleSkills(request, ["skills", "quick-checks", parts[3], "submit"]),
     "GET /v2/skills/labs/:id": () => handleSkills(request, ["skills", "labs", parts[3]]),
     "GET /v2/skills/capstone/:id": () => handleSkills(request, ["skills", "capstone", parts[3]]),
@@ -6751,7 +7036,8 @@ async function handleRequest(request: Request): Promise<Response> {
     "POST /v2/unlockables/equip": () => handleEquipUnlockable(request),
 
     // Certificates
-    "GET /v2/certificates/:trackId": () => handleCertificate(request, [parts[2]]),
+    "GET /v2/certificates/:trackId": () => handleCertificate(request, ["certificates", parts[2]]),
+    "GET /v2/certificates/verify/:code": () => handleCertificateVerify(request, parts),
 
     // Schedules
     "GET /group-schedule": () => handleGroupSchedule(request, ["group-schedule"]),
