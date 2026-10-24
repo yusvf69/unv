@@ -33,6 +33,7 @@ import { Sheet, SheetContent, SheetTrigger } from "@/components/ui/sheet";
 import NotificationsBell from "@/components/notifications-bell";
 import { useTheme } from "@/components/theme-provider";
 import OnboardingTour from "@/components/onboarding-tour";
+import PersonalizationPrompt from "@/components/personalization-prompt";
 import { useMeV2 } from "@/lib/api";
 
 export default function Layout({ children }: { children: ReactNode }) {
@@ -75,7 +76,18 @@ export default function Layout({ children }: { children: ReactNode }) {
     { href: "/talents", label: t("talents") },
   ];
 
+  const careerLinks = [
+    { href: "/portfolio", label: t("portfolio") },
+    { href: "/market", label: t("market") },
+    { href: "/teams", label: t("teams") },
+    { href: "/opportunities", label: t("opportunities") },
+    { href: "/league", label: t("league") },
+  ];
+  const careerActive = careerLinks.some((l) => location === l.href);
+
   if (isAdmin) appLinks.push({ href: "/admin", label: t("admin") });
+  // Admin link is rendered explicitly in NavLinks — avoid duplicating via appLinks spread
+  if (isAdmin) appLinks.pop();
 
   const links = user ? [...publicLinks, ...appLinks] : publicLinks;
 
@@ -86,11 +98,11 @@ export default function Layout({ children }: { children: ReactNode }) {
 
   const NavLinks = () => (
     <>
-      {links.map((link) => (
+      {publicLinks.map((link) => (
         <Link
           key={link.href}
           href={link.href}
-          className={`relative px-2.5 py-1.5 rounded-lg text-sm font-medium transition-all ${
+          className={`relative px-1.5 py-1.5 rounded-lg text-[13px] font-medium transition-all ${
             location === link.href ? "text-primary" : "text-foreground/70 hover:text-primary"
           }`}
         >
@@ -100,6 +112,59 @@ export default function Layout({ children }: { children: ReactNode }) {
           <span className="relative">{link.label}</span>
         </Link>
       ))}
+      {user && appLinks.map((link) => (
+        <Link
+          key={link.href}
+          href={link.href}
+          className={`relative px-1.5 py-1.5 rounded-lg text-[13px] font-medium transition-all ${
+            location === link.href ? "text-primary" : "text-foreground/70 hover:text-primary"
+          }`}
+        >
+          {location === link.href && (
+            <motion.div layoutId="activeNav" className="absolute inset-0 bg-primary/10 rounded-lg" transition={{ type: "spring", stiffness: 380, damping: 30 }} />
+          )}
+          <span className="relative">{link.label}</span>
+        </Link>
+      ))}
+      {user && (
+        <DropdownMenu>
+          <DropdownMenuTrigger asChild>
+            <button
+              className={`relative px-1.5 py-1.5 rounded-lg text-[13px] font-medium transition-all inline-flex items-center gap-1 ${
+                careerActive ? "text-primary" : "text-foreground/70 hover:text-primary"
+              }`}
+            >
+              {careerActive && (
+                <motion.div layoutId="activeNav" className="absolute inset-0 bg-primary/10 rounded-lg" transition={{ type: "spring", stiffness: 380, damping: 30 }} />
+              )}
+              <span className="relative">{t("careerHub")}</span>
+              <span className="relative text-[9px] rounded-full bg-primary/15 text-primary px-1.5 py-0.5">{careerLinks.length}</span>
+            </button>
+          </DropdownMenuTrigger>
+          <DropdownMenuContent align="start" side="bottom" className="w-52">
+            {careerLinks.map((link) => (
+              <DropdownMenuItem key={link.href} asChild>
+                <Link href={link.href} className={`cursor-pointer w-full flex items-center ${location === link.href ? "text-primary font-bold" : ""}`}>
+                  {link.label}
+                </Link>
+              </DropdownMenuItem>
+            ))}
+          </DropdownMenuContent>
+        </DropdownMenu>
+      )}
+      {isAdmin && (
+        <Link
+          href="/admin"
+          className={`relative px-1.5 py-1.5 rounded-lg text-[13px] font-medium transition-all ${
+            location === "/admin" ? "text-primary" : "text-foreground/70 hover:text-primary"
+          }`}
+        >
+          {location === "/admin" && (
+            <motion.div layoutId="activeNav" className="absolute inset-0 bg-primary/10 rounded-lg" transition={{ type: "spring", stiffness: 380, damping: 30 }} />
+          )}
+          <span className="relative">{t("admin")}</span>
+        </Link>
+      )}
     </>
   );
 
@@ -107,7 +172,7 @@ export default function Layout({ children }: { children: ReactNode }) {
     <div className="min-h-screen flex flex-col bg-background font-sans">
       <header className="sticky top-0 z-40 w-full border-b bg-background/80 backdrop-blur-xl supports-[backdrop-filter]:bg-background/60">
         <div className="container mx-auto px-3 sm:px-4 h-16 flex items-center justify-between">
-          <div className="flex items-center gap-3 sm:gap-5">
+          <div className="flex items-center gap-2 sm:gap-3 min-w-0">
             <Sheet>
               <SheetTrigger asChild>
                 <Button variant="ghost" size="icon" className="lg:hidden h-9 w-9 sm:h-10 sm:w-10"><Menu className="h-5 w-5" /></Button>
@@ -124,7 +189,7 @@ export default function Layout({ children }: { children: ReactNode }) {
               <span className="font-serif font-bold text-lg sm:text-xl tracking-tight bg-gradient-to-r from-primary to-secondary bg-clip-text text-transparent">UniVerse</span>
             </Link>
 
-            <nav className="hidden lg:flex items-center gap-0.5 overflow-x-auto scrollbar-hide"><NavLinks /></nav>
+            <nav className="hidden lg:flex items-center gap-0.5 overflow-x-auto scrollbar-hide min-w-0"><NavLinks /></nav>
           </div>
 
           <div className="flex items-center gap-1 sm:gap-1.5">
@@ -206,6 +271,7 @@ export default function Layout({ children }: { children: ReactNode }) {
       )}
 
       {user && <OnboardingTour />}
+      <PersonalizationPrompt enabled={!!user} />
 
       <footer className="border-t bg-gradient-to-b from-background to-muted/40 mt-8 sm:mt-12">
         <div className="container mx-auto px-3 sm:px-4 py-6 sm:py-8 flex flex-col sm:flex-row items-center justify-between gap-4 text-xs sm:text-sm text-muted-foreground">

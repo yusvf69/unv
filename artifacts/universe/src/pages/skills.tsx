@@ -4,7 +4,7 @@ import { useLocation } from "wouter";
 import {
   Sparkles, CheckCircle2, Circle, Clock, Loader2, ArrowRight,
   GraduationCap, FlaskConical, Briefcase, UserCheck, Target,
-  Trophy, Zap, Flame, BookOpen, Star, ChevronDown, Filter, Award, Medal, Lock,
+  Trophy, Zap, Flame, BookOpen, Star, ChevronDown, Filter, Award, Medal, Lock, ShieldCheck,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -228,9 +228,14 @@ export default function Skills() {
           <button onClick={() => setLocation("/passport")} className="flex items-center gap-1 text-xs font-bold text-amber-700 dark:text-amber-400 hover:text-amber-600 transition-colors">
             <Award className="h-3.5 w-3.5" /> جواز المهارات
           </button>
-          <button onClick={() => setLocation("/skills/me")} className="flex items-center gap-1 text-xs text-primary hover:text-primary/80 transition-colors">
-            <Medal className="h-3.5 w-3.5" /> ملفي
-          </button>
+          <div className="flex items-center gap-3">
+            <button onClick={() => setLocation("/verify-certificate")} className="flex items-center gap-1 text-xs text-emerald-700 dark:text-emerald-400 hover:text-emerald-600 transition-colors">
+              <ShieldCheck className="h-3.5 w-3.5" /> تحقق من شهادة
+            </button>
+            <button onClick={() => setLocation("/skills/me")} className="flex items-center gap-1 text-xs text-primary hover:text-primary/80 transition-colors">
+              <Medal className="h-3.5 w-3.5" /> ملفي
+            </button>
+          </div>
         </div>
         {/* ===== TOP STATS SNAPSHOT ===== */}
         <motion.div

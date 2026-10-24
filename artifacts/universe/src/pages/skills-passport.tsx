@@ -2,8 +2,8 @@ import { useState } from "react";
 import { Link, useParams } from "wouter";
 import { motion } from "framer-motion";
 import {
-  Award, BookOpen, Building2, Check, Clock, Copy, GraduationCap, Loader2,
-  Printer, Share2, ShieldCheck, Sparkles, Target, Trophy,
+  Award, BookOpen, Building2, Check, Clock, Copy, ExternalLink, FolderKanban,
+  Github, GraduationCap, Loader2, Printer, Share2, ShieldCheck, Sparkles, Target, Trophy,
 } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -172,6 +172,8 @@ function PassportBody({ passport, isPublic }: { passport: SkillPassport; isPubli
           <span className="text-muted-foreground">·</span>
           <Link href="/skills/me" className="text-xs text-primary hover:text-primary/80 transition">ملفي التدريبي</Link>
           <span className="text-muted-foreground">·</span>
+          <Link href="/portfolio" className="text-xs text-primary hover:text-primary/80 transition">معرض أعمالي</Link>
+          <span className="text-muted-foreground">·</span>
           <Button size="sm" variant="outline" className="h-7 text-[10px] gap-1" onClick={() => window.print()}>
             <Printer className="h-3 w-3" /> طباعة / حفظ PDF
           </Button>
@@ -211,7 +213,61 @@ function PassportBody({ passport, isPublic }: { passport: SkillPassport; isPubli
                 </div>
                 <div className="mt-1.5 flex items-center justify-between">
                   <CopyButton value={cert.code} label="نسخ كود التحقق" />
-                  <Link href={`/passport/${passport.user.id}`} className="text-[10px] text-primary hover:text-primary/80 transition">عرض الجواز</Link>
+                  <Link href={`/verify-certificate/${cert.code}`} className="text-[10px] text-primary hover:text-primary/80 transition">تحقق من الشهادة</Link>
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
+
+      <div>
+        <div className="flex items-center gap-2 mb-2">
+          <FolderKanban className="h-4 w-4 text-teal-600" />
+          <h2 className="font-bold text-sm sm:text-base">معرض الأعمال</h2>
+          <span className="text-[10px] text-muted-foreground">({passport.projects?.length ?? 0})</span>
+          {!isPublic && (
+            <Link href="/portfolio" className="ms-auto text-[10px] text-primary hover:text-primary/80 transition">إدارة المشاريع</Link>
+          )}
+        </div>
+        {!passport.projects?.length ? (
+          <div className="border-2 border-dashed rounded-xl p-6 text-center text-xs text-muted-foreground">
+            {isPublic ? "لا توجد مشاريع معلنة بعد." : "لسه مفيش مشاريع — ضيف أول مشروع ليك في معرض الأعمال."}
+          </div>
+        ) : (
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 sm:gap-3">
+            {passport.projects.map((project) => (
+              <div key={project.id} className="border rounded-xl overflow-hidden bg-card">
+                {project.imageUrl && (
+                  <img src={project.imageUrl} alt={project.title} className="w-full h-28 object-cover" />
+                )}
+                <div className="p-3">
+                  <div className="flex items-start justify-between gap-2">
+                    <div className="font-bold text-xs sm:text-sm min-w-0 break-words">{project.title}</div>
+                    {project.role && <span className="text-[9px] text-muted-foreground shrink-0">{project.role}</span>}
+                  </div>
+                  {project.description && (
+                    <p className="text-[10px] text-muted-foreground mt-1 line-clamp-2 whitespace-pre-line">{project.description}</p>
+                  )}
+                  {!!project.tags?.length && (
+                    <div className="flex flex-wrap gap-1 mt-2">
+                      {project.tags.map((tag) => (
+                        <span key={tag} className="text-[9px] rounded-full bg-muted px-1.5 py-0.5 text-muted-foreground">#{tag}</span>
+                      ))}
+                    </div>
+                  )}
+                  <div className="flex items-center gap-3 mt-2">
+                    {project.projectUrl && (
+                      <a href={project.projectUrl} target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-1 text-[10px] text-primary hover:underline">
+                        <ExternalLink className="h-3 w-3" /> المشروع
+                      </a>
+                    )}
+                    {project.repoUrl && (
+                      <a href={project.repoUrl} target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-1 text-[10px] text-primary hover:underline">
+                        <Github className="h-3 w-3" /> الكود
+                      </a>
+                    )}
+                  </div>
                 </div>
               </div>
             ))}
@@ -262,9 +318,14 @@ export default function SkillsPassportPage() {
         <Link href={isPublic ? "/" : "/skills"} className="text-xs text-muted-foreground hover:text-primary transition">
           ← {isPublic ? "الرئيسية" : "المهارات"}
         </Link>
-        {!isPublic && (
-          <Link href="/profile" className="text-xs text-primary hover:text-primary/80 transition">تعديل بياناتي</Link>
-        )}
+        <div className="flex items-center gap-3">
+          <Link href="/verify-certificate" className="text-xs text-emerald-700 dark:text-emerald-400 hover:text-emerald-600 transition inline-flex items-center gap-1">
+            <ShieldCheck className="h-3.5 w-3.5" /> تحقق من شهادة
+          </Link>
+          {!isPublic && (
+            <Link href="/profile" className="text-xs text-primary hover:text-primary/80 transition">تعديل بياناتي</Link>
+          )}
+        </div>
       </div>
 
       {query.isLoading && (

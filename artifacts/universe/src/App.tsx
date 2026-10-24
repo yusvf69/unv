@@ -26,6 +26,13 @@ import Skills from "@/pages/skills";
 import SkillsMe from "@/pages/skills-me";
 import SkillDetail from "@/pages/skill-detail";
 import SkillsPassportPage from "@/pages/skills-passport";
+import VerifyCertificatePage from "@/pages/verify-certificate";
+import OpportunitiesPage from "@/pages/opportunities";
+import OpportunityDetailPage from "@/pages/opportunity-detail";
+import PortfolioPage from "@/pages/portfolio";
+import MarketPage from "@/pages/market";
+import TeamProjectsPage from "@/pages/team-projects";
+import LeaguePage from "@/pages/league";
 import Complaints from "@/pages/complaints";
 import AiChat from "@/pages/ai-chat";
 import Profile from "@/pages/profile";
@@ -152,6 +159,14 @@ function Router() {
         <ProtectedRoute path="/skills/:id" component={SkillDetail} />
         <ProtectedRoute path="/passport" component={SkillsPassportPage} />
         <Route path="/passport/:id" component={SkillsPassportPage} />
+        <Route path="/verify-certificate" component={VerifyCertificatePage} />
+        <Route path="/verify-certificate/:code" component={VerifyCertificatePage} />
+        <Route path="/opportunities" component={OpportunitiesPage} />
+        <Route path="/opportunities/:id" component={OpportunityDetailPage} />
+        <ProtectedRoute path="/portfolio" component={PortfolioPage} />
+        <ProtectedRoute path="/market" component={MarketPage} />
+        <ProtectedRoute path="/teams" component={TeamProjectsPage} />
+        <Route path="/league" component={LeaguePage} />
         <ProtectedRoute path="/complaints" component={Complaints} />
         <ProtectedRoute path="/games" component={Games} />
         <ProtectedRoute path="/games/profile" component={GameProfile} />

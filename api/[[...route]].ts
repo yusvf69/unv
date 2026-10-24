@@ -2858,8 +2858,30 @@ async function handleSitemap(): Promise<Response> {
 }
 
 let skillAcademyBackfilled = false;
+let skillTablesPromise: Promise<void> | null = null;
 
-async function ensureSkillTables() {
+async function ensureSkillTables(): Promise<void> {
+  if (!skillTablesPromise) {
+    skillTablesPromise = ensureSkillTablesOnce().catch((e) => {
+      skillTablesPromise = null;
+      throw e;
+    });
+  }
+  return skillTablesPromise;
+}
+
+async function ensureSkillTablesOnce(): Promise<void> {
+  const [state] = await sql`
+    SELECT to_regclass('public.user_skill_progress') IS NOT NULL
+       AND to_regclass('public.skill_quick_checks') IS NOT NULL
+       AND to_regclass('public.lab_steps') IS NOT NULL
+       AND to_regclass('public.lesson_notes') IS NOT NULL
+       AND to_regclass('public.skill_enrollments') IS NOT NULL
+       AND to_regclass('public.skill_certificates') IS NOT NULL
+       AND EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name = 'skill_tracks' AND column_name = 'year_in_college')
+       AND EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name = 'skill_tracks' AND column_name = 'prerequisites')
+       AND EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name = 'users' AND column_name = 'coins') AS ready`;
+  if (!state?.ready) {
   await sql`
     CREATE TABLE IF NOT EXISTS user_skill_progress (
       id SERIAL PRIMARY KEY,
@@ -2940,6 +2962,7 @@ async function ensureSkillTables() {
   `;
   try { await sql`CREATE INDEX IF NOT EXISTS idx_sc_user ON skill_certificates (user_id)`; } catch {}
   try { await sql`CREATE INDEX IF NOT EXISTS idx_sc_code ON skill_certificates (code)`; } catch {}
+  }
 
   if (!skillAcademyBackfilled) {
     try {
@@ -3035,6 +3058,15 @@ async function buildSkillPassport(userId: number, publicView: boolean): Promise<
       WHERE c.user_id = ${userId} ORDER BY c.issued_at DESC`,
   ]);
 
+  let projects: any[] = [];
+  try {
+    await ensurePortfolioTables();
+    projects = await sql`
+      SELECT * FROM portfolio_projects
+      WHERE user_id = ${userId} AND (${publicView} = false OR visibility = 'public')
+      ORDER BY created_at DESC`;
+  } catch { projects = []; }
+
   const completedLessonIds = new Set(progress.map((p: any) => p.lesson_id));
   const avgQuickCheck = progress.length
     ? Math.round(progress.reduce((s: number, p: any) => s + (p.quick_check_score || 0), 0) / progress.length)
@@ -3094,6 +3126,7 @@ async function buildSkillPassport(userId: number, publicView: boolean): Promise<
       learningMinutes: totalMinutes,
       avgQuickCheck,
       certificates: certificates.length,
+      projects: projects.length,
     },
     tracks: visibleTracks,
     certificates: certificates.map((c: any) => ({
@@ -3101,6 +3134,7 @@ async function buildSkillPassport(userId: number, publicView: boolean): Promise<
       category: c.track_category, difficulty: c.track_difficulty,
       score: c.score, level: c.level, issuedAt: c.issued_at,
     })),
+    projects: projects.map(serializePortfolioProject),
   };
 }
 
@@ -3189,7 +3223,12 @@ async function seedVisualCards(lessonId: number, lessonTitle: string) {
 }
 
 async function handleSkills(req: Request, parts: string[]): Promise<Response> {
-  await ensureSkillTables();
+  try {
+    await ensureSkillTables();
+  } catch (e) {
+    console.error("[ensureSkillTables]", e);
+    return jsonError("تعذر تحميل بيانات المهارات، حاول تاني", 503);
+  }
 
   // GET /skills/tracks or GET /v2/skills/tracks — list all tracks with lessons + per-user progress
   if (parts[1] === "tracks") {
@@ -3215,6 +3254,9 @@ async function handleSkills(req: Request, parts: string[]): Promise<Response> {
             quickCheckScore: prog ? prog.quick_check_score : 0,
             ord: l.ord,
             quickCheckCount: lessonQCs.length,
+            quickChecks: lessonQCs.map((qc: any) => ({
+              id: qc.id, question: qc.question, options: qc.options,
+            })),
           };
         });
         const doneCount = enrichedLessons.filter((l: any) => l.completed).length;
@@ -3652,6 +3694,28 @@ async function handleSkills(req: Request, parts: string[]): Promise<Response> {
       if (existing) {
         const newScore = Math.max(existing.quick_check_score, score);
         await sql`UPDATE user_skill_progress SET quick_check_score = ${newScore} WHERE id = ${existing.id}`;
+      }
+
+      // Keep an already-issued certificate in sync with the latest quick-check scores
+      try {
+        await sql`
+          UPDATE skill_certificates c
+          SET score = s.avg_score,
+              level = CASE WHEN s.avg_score >= 90 THEN 'mastered' WHEN s.avg_score >= 70 THEN 'practitioner' ELSE 'learner' END
+          FROM (
+            SELECT round(avg(quick_check_score))::int AS avg_score
+            FROM user_skill_progress
+            WHERE user_id = ${userId}
+              AND track_id = (SELECT track_id FROM skill_lessons WHERE id = ${lessonId})
+              AND completed = true
+          ) s
+          WHERE c.user_id = ${userId}
+            AND c.track_id = (SELECT track_id FROM skill_lessons WHERE id = ${lessonId})
+            AND (SELECT count(*) FROM user_skill_progress
+                 WHERE user_id = ${userId} AND track_id = c.track_id AND completed = true)
+                >= (SELECT count(*) FROM skill_lessons WHERE track_id = c.track_id)`;
+      } catch (e) {
+        console.error("[syncSkillCertificate]", e);
       }
 
       if (correct) {
@@ -4137,23 +4201,21 @@ async function handleLeaderboard(req: Request): Promise<Response> {
     const url = new URL(req.url, "http://localhost");
     const period = url.searchParams.get("period") || "weekly";
     try {
-      let whereClause: ReturnType<typeof sql>;
+      let since: Date | null = null;
       const now = new Date();
       if (period === "daily") {
-        const start = new Date(now.getFullYear(), now.getMonth(), now.getDate());
-        whereClause = sql`created_at >= ${start}`;
+        since = new Date(now.getFullYear(), now.getMonth(), now.getDate());
       } else if (period === "weekly") {
-        const start = new Date(now);
-        start.setDate(start.getDate() - 7);
-        whereClause = sql`created_at >= ${start}`;
+        since = new Date(now);
+        since.setDate(since.getDate() - 7);
       } else if (period === "monthly") {
-        const start = new Date(now);
-        start.setMonth(start.getMonth() - 1);
-        whereClause = sql`created_at >= ${start}`;
-      } else {
-        whereClause = sql`1=1`;
+        since = new Date(now);
+        since.setMonth(since.getMonth() - 1);
       }
-      const rows = await sql`SELECT user_id, SUM(points) AS points FROM user_activity_log WHERE ${whereClause} GROUP BY user_id ORDER BY points DESC LIMIT 50`;
+      const rows = await sql`
+        SELECT user_id, SUM(points) AS points FROM user_activity_log
+        WHERE (${since}::timestamptz IS NULL OR created_at >= ${since})
+        GROUP BY user_id ORDER BY points DESC LIMIT 50`;
       const userIds = rows.map((r: any) => r.user_id);
       const users = userIds.length ? await sql`SELECT * FROM users WHERE id = ANY(${userIds}) AND role = 'student'` : [];
       const byId = new Map(users.map((u: any) => [u.id, u]));
@@ -4548,7 +4610,12 @@ async function handleAchievements(req: Request): Promise<Response> {
 }
 
 async function handleCertificate(req: Request, parts: string[]): Promise<Response> {
-  await ensureSkillTables();
+  try {
+    await ensureSkillTables();
+  } catch (e) {
+    console.error("[ensureSkillTables]", e);
+    return jsonError("تعذر تحميل بيانات المهارات، حاول تاني", 503);
+  }
   return handle(async () => {
     const { userId } = requireAuth(req.headers);
     const trackId = Number(parts[1]);
@@ -4583,7 +4650,12 @@ async function handleCertificate(req: Request, parts: string[]): Promise<Respons
 }
 
 async function handleCertificateVerify(req: Request, parts: string[]): Promise<Response> {
-  await ensureSkillTables();
+  try {
+    await ensureSkillTables();
+  } catch (e) {
+    console.error("[ensureSkillTables]", e);
+    return jsonError("تعذر تحميل بيانات المهارات، حاول تاني", 503);
+  }
   return handle(async () => {
     const code = String(parts[3] || "").trim().toUpperCase();
     if (!code) throw Object.assign(new Error("كود الشهادة مطلوب"), { status: 400 });
@@ -4598,6 +4670,7 @@ async function handleCertificateVerify(req: Request, parts: string[]): Promise<R
     return {
       valid: true,
       code: row.code,
+      userId: row.user_id,
       holderName: row.user_name,
       username: row.username,
       trackTitle: row.track_title,
@@ -4611,7 +4684,12 @@ async function handleCertificateVerify(req: Request, parts: string[]): Promise<R
 }
 
 async function handleUserPassport(req: Request, parts: string[]): Promise<Response> {
-  await ensureSkillTables();
+  try {
+    await ensureSkillTables();
+  } catch (e) {
+    console.error("[ensureSkillTables]", e);
+    return jsonError("تعذر تحميل بيانات المهارات، حاول تاني", 503);
+  }
   return handle(async () => {
     const userId = Number(parts[2]);
     if (!userId || isNaN(userId)) throw Object.assign(new Error("معرف المستخدم غير صالح"), { status: 400 });
@@ -4619,6 +4697,1735 @@ async function handleUserPassport(req: Request, parts: string[]): Promise<Respon
   });
 }
 
+/* ---------- Opportunities / Career Center ---------- */
+
+let opportunityTablesPromise: Promise<void> | null = null;
+
+function ensureOpportunityTables(): Promise<void> {
+  if (!opportunityTablesPromise) {
+    opportunityTablesPromise = ensureOpportunityTablesOnce().catch((e) => {
+      opportunityTablesPromise = null;
+      throw e;
+    });
+  }
+  return opportunityTablesPromise;
+}
+
+async function ensureOpportunityTablesOnce(): Promise<void> {
+  const [state] = await sql`
+    SELECT to_regclass('public.opportunities') IS NOT NULL
+       AND to_regclass('public.opportunity_applications') IS NOT NULL AS ready`;
+  if (!state?.ready) {
+    await sql`
+      CREATE TABLE IF NOT EXISTS opportunities (
+        id serial PRIMARY KEY,
+        title text NOT NULL,
+        description text NOT NULL DEFAULT '',
+        type text NOT NULL DEFAULT 'internship',
+        company text NOT NULL,
+        location text,
+        remote boolean NOT NULL DEFAULT false,
+        category text,
+        required_skills text[] NOT NULL DEFAULT '{}',
+        salary text,
+        deadline timestamptz,
+        apply_url text,
+        contact_email text,
+        status text NOT NULL DEFAULT 'active',
+        created_by int REFERENCES users(id) ON DELETE SET NULL,
+        created_at timestamptz NOT NULL DEFAULT now()
+      )`;
+    await sql`
+      CREATE TABLE IF NOT EXISTS opportunity_applications (
+        id serial PRIMARY KEY,
+        opportunity_id int NOT NULL REFERENCES opportunities(id) ON DELETE CASCADE,
+        user_id int NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+        status text NOT NULL DEFAULT 'pending',
+        cover_letter text,
+        passport_snapshot jsonb NOT NULL DEFAULT '{}',
+        created_at timestamptz NOT NULL DEFAULT now(),
+        updated_at timestamptz NOT NULL DEFAULT now(),
+        UNIQUE(opportunity_id, user_id)
+      )`;
+    await sql`CREATE INDEX IF NOT EXISTS idx_opp_app_opp ON opportunity_applications (opportunity_id)`;
+    await sql`CREATE INDEX IF NOT EXISTS idx_opp_app_user ON opportunity_applications (user_id)`;
+  }
+}
+
+const OPPORTUNITY_TYPES = ["job", "internship", "training", "volunteer"];
+const APPLICATION_STATUSES = ["pending", "reviewing", "accepted", "rejected"];
+
+function serializeOpportunity(row: any, myApplication: any | null, canManage: boolean) {
+  return {
+    id: row.id,
+    title: row.title,
+    description: row.description,
+    type: row.type,
+    company: row.company,
+    location: row.location,
+    remote: row.remote,
+    category: row.category,
+    requiredSkills: row.required_skills ?? [],
+    salary: row.salary,
+    deadline: row.deadline ? new Date(row.deadline).toISOString() : null,
+    applyUrl: row.apply_url,
+    contactEmail: row.contact_email,
+    status: row.status,
+    createdAt: row.created_at ? new Date(row.created_at).toISOString() : null,
+    applicantsCount: Number(row.applicants_count || 0),
+    myApplication: myApplication
+      ? {
+          id: myApplication.id,
+          status: myApplication.status,
+          createdAt: myApplication.created_at ? new Date(myApplication.created_at).toISOString() : null,
+        }
+      : null,
+    canManage,
+  };
+}
+
+async function handleOpportunities(req: Request, parts: string[]): Promise<Response> {
+  try {
+    await ensureOpportunityTables();
+  } catch (e) {
+    console.error("[ensureOpportunityTables]", e);
+    return jsonError("تعذر تحميل الفرص، حاول تاني", 503);
+  }
+
+  const authHeader = req.headers.get("authorization");
+  const token = authHeader?.startsWith("Bearer ") ? authHeader.slice(7) : undefined;
+  const optionalUserId = await getUserId(token);
+  const me = optionalUserId ? await getCurrentUser(optionalUserId) : null;
+  const isAdmin = !!me && ["admin", "super_admin"].includes(me.role);
+
+  // GET /v2/opportunities — list
+  if (req.method === "GET" && parts.length === 2) {
+    return handle(async () => {
+      const rows = await sql`
+        SELECT o.*,
+          (SELECT count(*)::int FROM opportunity_applications a WHERE a.opportunity_id = o.id) AS applicants_count
+        FROM opportunities o
+        ORDER BY o.created_at DESC`;
+      const myApps = me
+        ? await sql`SELECT * FROM opportunity_applications WHERE user_id = ${me.id}`
+        : [];
+      return rows
+        .filter((r: any) => isAdmin || r.created_by === me?.id || r.status === "active")
+        .map((r: any) =>
+          serializeOpportunity(
+            r,
+            myApps.find((a: any) => a.opportunity_id === r.id) ?? null,
+            isAdmin || r.created_by === me?.id,
+          )
+        );
+    });
+  }
+
+  // POST /v2/opportunities — create (admin)
+  if (req.method === "POST" && parts.length === 2) {
+    return handle(async () => {
+      if (!me) throw Object.assign(new Error("غير مسجل"), { status: 401 });
+      requireRole(me, ["admin", "super_admin"]);
+      const body = await req.json().catch(() => ({}));
+      const title = String(body.title || "").trim();
+      const company = String(body.company || "").trim();
+      const description = String(body.description || "").trim();
+      if (!title || !company || !description) {
+        throw Object.assign(new Error("العنوان والشركة والوصف مطلوبين"), { status: 400 });
+      }
+      const type = OPPORTUNITY_TYPES.includes(body.type) ? body.type : "internship";
+      const skills = Array.isArray(body.requiredSkills)
+        ? body.requiredSkills.map((s: any) => String(s).trim()).filter(Boolean)
+        : String(body.requiredSkills || "").split(",").map((s) => s.trim()).filter(Boolean);
+      const deadline = body.deadline ? new Date(body.deadline) : null;
+      const [row] = await sql`
+        INSERT INTO opportunities (title, description, type, company, location, remote, category, required_skills, salary, deadline, apply_url, contact_email, created_by)
+        VALUES (${title}, ${description}, ${type}, ${company}, ${body.location || null}, ${!!body.remote}, ${body.category || null}, ${skills}, ${body.salary || null}, ${deadline}, ${body.applyUrl || null}, ${body.contactEmail || null}, ${me.id})
+        RETURNING *`;
+      return serializeOpportunity({ ...row, applicants_count: 0 }, null, true);
+    });
+  }
+
+  // GET /v2/opportunities/:id — detail
+  if (req.method === "GET" && parts.length === 3) {
+    return handle(async () => {
+      const id = Number(parts[2]);
+      if (!id || isNaN(id)) throw Object.assign(new Error("معرف الفرصة غير صالح"), { status: 400 });
+      const [row] = await sql`
+        SELECT o.*,
+          (SELECT count(*)::int FROM opportunity_applications a WHERE a.opportunity_id = o.id) AS applicants_count
+        FROM opportunities o WHERE o.id = ${id} LIMIT 1`;
+      if (!row) throw Object.assign(new Error("الفرصة غير موجودة"), { status: 404 });
+      const canManage = isAdmin || row.created_by === me?.id;
+      const [app] = me
+        ? await sql`SELECT * FROM opportunity_applications WHERE opportunity_id = ${id} AND user_id = ${me.id} LIMIT 1`
+        : [];
+      return serializeOpportunity(row, app ?? null, canManage);
+    });
+  }
+
+  // POST /v2/opportunities/:id/apply
+  if (req.method === "POST" && parts.length === 4 && parts[3] === "apply") {
+    return handle(async () => {
+      if (!me) throw Object.assign(new Error("غير مسجل"), { status: 401 });
+      const id = Number(parts[2]);
+      const [op] = await sql`SELECT * FROM opportunities WHERE id = ${id} LIMIT 1`;
+      if (!op) throw Object.assign(new Error("الفرصة غير موجودة"), { status: 404 });
+      if (op.status !== "active") throw Object.assign(new Error("الفرصة مغلقة"), { status: 400 });
+      if (op.deadline && new Date(op.deadline).getTime() < Date.now()) {
+        throw Object.assign(new Error("انتهت مدة التقديم على الفرصة"), { status: 400 });
+      }
+      const [existing] = await sql`SELECT id FROM opportunity_applications WHERE opportunity_id = ${id} AND user_id = ${me.id} LIMIT 1`;
+      if (existing) throw Object.assign(new Error("قدمت على الفرصة دي قبل كذا"), { status: 409 });
+      const body = await req.json().catch(() => ({}));
+      const coverLetter = String(body.coverLetter || "").trim().slice(0, 4000);
+      const certs = await sql`
+        SELECT c.code, c.score, c.level, c.issued_at, t.title AS track_title, t.category AS track_category
+        FROM skill_certificates c JOIN skill_tracks t ON t.id = c.track_id
+        WHERE c.user_id = ${me.id} ORDER BY c.issued_at DESC`;
+      const snapshot = {
+        name: me.name,
+        username: me.username,
+        points: me.points,
+        verifiedCertificates: certs.map((c: any) => ({
+          code: c.code,
+          trackTitle: c.track_title,
+          trackCategory: c.track_category,
+          score: c.score,
+          level: c.level,
+          issuedAt: c.issued_at ? new Date(c.issued_at).toISOString() : null,
+        })),
+        capturedAt: new Date().toISOString(),
+      };
+      const [app] = await sql`
+        INSERT INTO opportunity_applications (opportunity_id, user_id, cover_letter, passport_snapshot)
+        VALUES (${id}, ${me.id}, ${coverLetter || null}, ${JSON.stringify(snapshot)}::jsonb)
+        RETURNING *`;
+      if (op.created_by) {
+        await sql`
+          INSERT INTO notifications (user_id, title, body, type)
+          VALUES (${op.created_by}, ${"متقدم جديد"}, ${`${me.name} قدم على "${op.title}"`}, ${"info"})`;
+      }
+      return { id: app.id, status: app.status, createdAt: app.created_at, passport: snapshot };
+    });
+  }
+
+  // GET /v2/opportunities/:id/applicants — admin/creator
+  if (req.method === "GET" && parts.length === 4 && parts[3] === "applicants") {
+    return handle(async () => {
+      if (!me) throw Object.assign(new Error("غير مسجل"), { status: 401 });
+      const id = Number(parts[2]);
+      const [op] = await sql`SELECT * FROM opportunities WHERE id = ${id} LIMIT 1`;
+      if (!op) throw Object.assign(new Error("الفرصة غير موجودة"), { status: 404 });
+      if (!(isAdmin || op.created_by === me.id)) throw Object.assign(new Error("غير مصرح"), { status: 403 });
+      const rows = await sql`
+        SELECT a.*, u.name, u.username, u.email, u.avatar_url
+        FROM opportunity_applications a JOIN users u ON u.id = a.user_id
+        WHERE a.opportunity_id = ${id}
+        ORDER BY a.created_at DESC`;
+      return Promise.all(rows.map(async (r: any) => {
+        let live: any = null;
+        try {
+          const passport = await buildSkillPassport(r.user_id, false);
+          live = {
+            level: passport.level,
+            stats: passport.stats,
+            tracks: passport.tracks.map((t: any) => ({
+              id: t.id,
+              title: t.title,
+              category: t.category,
+              completedLessons: t.completedLessons,
+              totalLessons: t.totalLessons,
+              progress: t.progress,
+              status: t.status,
+              certificateCode: t.certificateCode,
+            })),
+            certificates: passport.certificates,
+            projects: passport.projects,
+          };
+        } catch {}
+        return {
+          id: r.id,
+          opportunityId: r.opportunity_id,
+          userId: r.user_id,
+          status: r.status,
+          coverLetter: r.cover_letter,
+          createdAt: r.created_at,
+          updatedAt: r.updated_at,
+          name: r.name,
+          username: r.username,
+          email: r.email,
+          avatarUrl: r.avatar_url,
+          passport: r.passport_snapshot ?? {},
+          live,
+        };
+      }));
+    });
+  }
+
+  // PATCH /v2/opportunities/:id/applications/:appId — update status
+  if (req.method === "PATCH" && parts.length === 5 && parts[3] === "applications") {
+    return handle(async () => {
+      if (!me) throw Object.assign(new Error("غير مسجل"), { status: 401 });
+      const id = Number(parts[2]);
+      const appId = Number(parts[4]);
+      const [op] = await sql`SELECT * FROM opportunities WHERE id = ${id} LIMIT 1`;
+      if (!op) throw Object.assign(new Error("الفرصة غير موجودة"), { status: 404 });
+      if (!(isAdmin || op.created_by === me.id)) throw Object.assign(new Error("غير مصرح"), { status: 403 });
+      const body = await req.json().catch(() => ({}));
+      if (!APPLICATION_STATUSES.includes(body.status)) {
+        throw Object.assign(new Error("حالة غير صالحة"), { status: 400 });
+      }
+      const [app] = await sql`
+        UPDATE opportunity_applications SET status = ${body.status}, updated_at = now()
+        WHERE id = ${appId} AND opportunity_id = ${id} RETURNING *`;
+      if (!app) throw Object.assign(new Error("الطلب غير موجود"), { status: 404 });
+      const labels: Record<string, string> = {
+        pending: "قيد الانتظار",
+        reviewing: "تحت المراجعة",
+        accepted: "مقبول",
+        rejected: "مرفوض",
+      };
+      await sql`
+        INSERT INTO notifications (user_id, title, body, type)
+        VALUES (${app.user_id}, ${"تحديث على طلبك"}, ${`${op.title}: ${labels[body.status]}`}, ${body.status === "accepted" ? "success" : "info"})`;
+      return { id: app.id, status: app.status, updatedAt: app.updated_at };
+    });
+  }
+
+  // PATCH /v2/opportunities/:id — close/reopen (admin)
+  if (req.method === "PATCH" && parts.length === 3) {
+    return handle(async () => {
+      if (!me) throw Object.assign(new Error("غير مسجل"), { status: 401 });
+      requireRole(me, ["admin", "super_admin"]);
+      const id = Number(parts[2]);
+      const body = await req.json().catch(() => ({}));
+      const status = body.status === "closed" ? "closed" : "active";
+      const [row] = await sql`UPDATE opportunities SET status = ${status} WHERE id = ${id} RETURNING *`;
+      if (!row) throw Object.assign(new Error("الفرصة غير موجودة"), { status: 404 });
+      return serializeOpportunity({ ...row, applicants_count: 0 }, null, true);
+    });
+  }
+
+  // DELETE /v2/opportunities/:id — admin
+  if (req.method === "DELETE" && parts.length === 3) {
+    return handle(async () => {
+      if (!me) throw Object.assign(new Error("غير مسجل"), { status: 401 });
+      requireRole(me, ["admin", "super_admin"]);
+      await sql`DELETE FROM opportunities WHERE id = ${Number(parts[2])}`;
+      return { ok: true };
+    });
+  }
+
+  return jsonError("Not Found", 404);
+}
+
+/* ---------- Interests, goals & recommendations ---------- */
+
+const INTEREST_CATALOG: { key: string; label: string }[] = [
+  { key: "technology", label: "التقنية والبرمجة" },
+  { key: "business", label: "ريادة الأعمال" },
+  { key: "design", label: "التصميم والإبداع" },
+  { key: "health", label: "الصحة والطب" },
+  { key: "agriculture", label: "الزراعة والبيئة" },
+  { key: "education", label: "التعليم والتدريب" },
+  { key: "media", label: "الإعلام والمحتوى" },
+  { key: "law", label: "القانون والحقوق" },
+  { key: "arts", label: "الفنون والثقافة" },
+  { key: "sports", label: "الرياضة" },
+  { key: "volunteering", label: "العمل التطوعي" },
+  { key: "languages", label: "اللغات" },
+];
+
+const GOAL_CATALOG: { key: string; label: string }[] = [
+  { key: "skills", label: "تطوير مهاراتي" },
+  { key: "career", label: "وظيفة أو تدريب" },
+  { key: "volunteering", label: "فرص تطوعية" },
+  { key: "entrepreneurship", label: "مشروع خاص" },
+  { key: "networking", label: "بناء شبكة علاقات" },
+  { key: "academic", label: "تفوق دراسي" },
+];
+
+const INTEREST_TRACK_CATEGORIES: Record<string, string[]> = {
+  technology: ["practical", "career"],
+  business: ["career"],
+  design: ["practical", "soft_skills"],
+  health: ["academic"],
+  agriculture: ["academic", "practical"],
+  education: ["soft_skills", "career"],
+  media: ["soft_skills", "practical"],
+  law: ["academic"],
+  arts: ["soft_skills"],
+  sports: ["soft_skills"],
+  volunteering: ["soft_skills"],
+  languages: ["academic", "soft_skills"],
+};
+
+const INTEREST_OPPORTUNITY_KEYWORDS: Record<string, string[]> = {
+  technology: ["تقني", "برمج", "ويب", "بيانات", "software", "data", "web", "tech"],
+  business: ["ريادة", "أعمال", "تسويق", "business", "startup", "marketing"],
+  design: ["تصميم", "design", "ui", "ux"],
+  health: ["صحة", "طب", "health", "medical"],
+  agriculture: ["زراع", "بيئة", "agriculture", "environment"],
+  education: ["تعليم", "تدريب", "education", "training"],
+  media: ["إعلام", "محتوى", "media", "content"],
+  law: ["قانون", "حقوق", "law", "legal"],
+  arts: ["فن", "ثقاف", "art", "culture"],
+  sports: ["رياض", "sport"],
+  volunteering: ["تطوع", "volunteer"],
+  languages: ["لغ", "ترجم", "language", "translation"],
+};
+
+const GOAL_OPPORTUNITY_TYPES: Record<string, string[]> = {
+  career: ["job", "internship"],
+  volunteering: ["volunteer"],
+  entrepreneurship: ["training", "internship"],
+};
+
+async function ensurePersonalizationTablesOnce(): Promise<void> {
+  await sql`
+    CREATE TABLE IF NOT EXISTS user_personalization (
+      user_id int PRIMARY KEY REFERENCES users(id) ON DELETE CASCADE,
+      interests text[] NOT NULL DEFAULT '{}',
+      goals text[] NOT NULL DEFAULT '{}',
+      updated_at timestamptz NOT NULL DEFAULT now()
+    )`;
+}
+
+let personalizationTablesPromise: Promise<void> | null = null;
+
+function ensurePersonalizationTables(): Promise<void> {
+  if (!personalizationTablesPromise) {
+    personalizationTablesPromise = (async () => {
+      const [state] = await sql`
+        SELECT to_regclass('public.user_personalization') IS NOT NULL AS ready`;
+      if (!state?.ready) await ensurePersonalizationTablesOnce();
+    })().catch((e) => {
+      personalizationTablesPromise = null;
+      throw e;
+    });
+  }
+  return personalizationTablesPromise;
+}
+
+function cleanKeys(input: any, allowed: Set<string>, max: number): string[] {
+  const arr = Array.isArray(input) ? input : [];
+  const out: string[] = [];
+  for (const raw of arr) {
+    const key = String(raw || "").trim();
+    if (allowed.has(key) && !out.includes(key)) out.push(key);
+    if (out.length >= max) break;
+  }
+  return out;
+}
+
+async function handlePersonalization(req: Request, parts: string[]): Promise<Response> {
+  return handle(async () => {
+    const { userId } = requireAuth(req.headers);
+    await ensurePersonalizationTables();
+    if (req.method === "PUT" || req.method === "POST") {
+      const body = await req.json().catch(() => ({}));
+      const allowedInterests = new Set(INTEREST_CATALOG.map((i) => i.key));
+      const allowedGoals = new Set(GOAL_CATALOG.map((g) => g.key));
+      const interests = cleanKeys(body.interests, allowedInterests, 6);
+      const goals = cleanKeys(body.goals, allowedGoals, 3);
+      const [row] = await sql`
+        INSERT INTO user_personalization (user_id, interests, goals, updated_at)
+        VALUES (${userId}, ${interests}, ${goals}, now())
+        ON CONFLICT (user_id) DO UPDATE
+          SET interests = EXCLUDED.interests, goals = EXCLUDED.goals, updated_at = now()
+        RETURNING *`;
+      return {
+        interests: row?.interests ?? [],
+        goals: row?.goals ?? [],
+        completed: (row?.interests?.length ?? 0) > 0,
+        updatedAt: row?.updated_at ? new Date(row.updated_at).toISOString() : null,
+        catalog: { interests: INTEREST_CATALOG, goals: GOAL_CATALOG },
+      };
+    }
+    const [row] = await sql`SELECT * FROM user_personalization WHERE user_id = ${userId} LIMIT 1`;
+    return {
+      interests: row?.interests ?? [],
+      goals: row?.goals ?? [],
+      completed: (row?.interests?.length ?? 0) > 0,
+      updatedAt: row?.updated_at ? new Date(row.updated_at).toISOString() : null,
+      catalog: { interests: INTEREST_CATALOG, goals: GOAL_CATALOG },
+    };
+  });
+}
+
+async function handleRecommendations(req: Request): Promise<Response> {
+  return handle(async () => {
+    const { userId } = requireAuth(req.headers);
+    await ensurePersonalizationTables();
+    await ensureSkillTables().catch(() => {});
+    await ensureOpportunityTables().catch(() => {});
+    const [profile] = await sql`SELECT * FROM user_personalization WHERE user_id = ${userId} LIMIT 1`;
+    const interests: string[] = profile?.interests ?? [];
+    const goals: string[] = profile?.goals ?? [];
+    const interestLabels = new Map(INTEREST_CATALOG.map((i) => [i.key, i.label]));
+    const goalLabels = new Map(GOAL_CATALOG.map((g) => [g.key, g.label]));
+
+    const trackRows = await sql`
+      SELECT t.*,
+        (SELECT count(*)::int FROM skill_lessons l WHERE l.track_id = t.id) AS lessons_count,
+        (SELECT count(*)::int FROM user_skill_progress p WHERE p.track_id = t.id AND p.user_id = ${userId}) AS done_lessons
+      FROM skill_tracks t`;
+    const scoredTracks = trackRows
+      .filter((t: any) => Number(t.lessons_count || 0) === 0 || Number(t.done_lessons || 0) < Number(t.lessons_count || 0))
+      .map((t: any) => {
+        let score = Number(t.done_lessons || 0) > 0 ? 2 : 0;
+        let reason = "مهارة جديدة تستاهل تجربتها";
+        for (const key of interests) {
+          if ((INTEREST_TRACK_CATEGORIES[key] ?? []).includes(t.category)) {
+            score += 3;
+            reason = `مناسب لاهتمامك بـ${interestLabels.get(key)}`;
+            break;
+          }
+        }
+        if (goals.includes("skills") || goals.includes("academic")) score += 1;
+        return { ...t, score, reason };
+      })
+      .sort((a: any, b: any) => b.score - a.score || a.id - b.id)
+      .slice(0, 3)
+      .map((t: any) => ({
+        id: t.id,
+        title: t.title,
+        category: t.category,
+        difficulty: t.difficulty,
+        coverUrl: t.cover_url,
+        lessonsCount: Number(t.lessons_count || 0),
+        doneLessons: Number(t.done_lessons || 0),
+        reason: t.reason,
+      }));
+
+    const oppRows = await sql`
+      SELECT o.*,
+        (SELECT count(*)::int FROM opportunity_applications a WHERE a.opportunity_id = o.id) AS applicants_count
+      FROM opportunities o
+      WHERE o.status = 'active' AND (o.deadline IS NULL OR o.deadline > now())
+        AND NOT EXISTS (SELECT 1 FROM opportunity_applications a WHERE a.opportunity_id = o.id AND a.user_id = ${userId})
+      ORDER BY o.created_at DESC`;
+    const scoredOpps = oppRows
+      .map((o: any) => {
+        const haystack = [o.title, o.description, o.category, ...(o.required_skills ?? [])]
+          .filter(Boolean).join(" ").toLowerCase();
+        let score = 0;
+        let reason = "فرصة جديدة على المنصة";
+        for (const goal of goals) {
+          if ((GOAL_OPPORTUNITY_TYPES[goal] ?? []).includes(o.type)) {
+            score += 4;
+            reason = `مناسب لهدفك: ${goalLabels.get(goal)}`;
+            break;
+          }
+        }
+        for (const key of interests) {
+          const matched = (INTEREST_OPPORTUNITY_KEYWORDS[key] ?? []).some((kw) => haystack.includes(kw.toLowerCase()));
+          if (matched) {
+            score += 2;
+            if (score <= 4) reason = `قريب من اهتمامك بـ${interestLabels.get(key)}`;
+          }
+        }
+        return { ...o, score, reason };
+      })
+      .sort((a: any, b: any) => b.score - a.score || b.id - a.id)
+      .slice(0, 3)
+      .map((o: any) => ({
+        id: o.id,
+        title: o.title,
+        type: o.type,
+        company: o.company,
+        category: o.category,
+        location: o.location,
+        remote: o.remote,
+        deadline: o.deadline ? new Date(o.deadline).toISOString() : null,
+        reason: o.reason,
+      }));
+
+    return {
+      personalized: interests.length > 0 || goals.length > 0,
+      interests,
+      goals,
+      tracks: scoredTracks,
+      opportunities: scoredOpps,
+    };
+  });
+}
+
+/* ---------- AI Learning Coach ---------- */
+
+async function handleCoachPlan(req: Request): Promise<Response> {
+  return handle(async () => {
+    const { userId } = requireAuth(req.headers);
+    await ensurePersonalizationTables();
+    await ensureSkillTables().catch(() => {});
+    await ensureOpportunityTables().catch(() => {});
+
+    const [profile] = await sql`SELECT * FROM user_personalization WHERE user_id = ${userId} LIMIT 1`;
+    const interests: string[] = profile?.interests ?? [];
+    const goals: string[] = profile?.goals ?? [];
+    const interestLabels = new Map(INTEREST_CATALOG.map((i) => [i.key, i.label]));
+
+    const [tracks, lessons, progress, enrollments, certificates] = await Promise.all([
+      sql`SELECT * FROM skill_tracks`,
+      sql`SELECT * FROM skill_lessons ORDER BY ord, id`,
+      sql`SELECT * FROM user_skill_progress WHERE user_id = ${userId}`,
+      sql`SELECT * FROM skill_enrollments WHERE user_id = ${userId}`,
+      sql`SELECT c.*, t.title AS track_title FROM skill_certificates c JOIN skill_tracks t ON t.id = c.track_id WHERE c.user_id = ${userId}`,
+    ]);
+    const apps = await sql`SELECT opportunity_id FROM opportunity_applications WHERE user_id = ${userId}`;
+    const appliedIds = new Set(apps.map((a: any) => a.opportunity_id as number));
+
+    const doneLessonIds = new Set(progress.filter((p: any) => p.completed).map((p: any) => p.lesson_id as number));
+    const certTrackIds = new Set(certificates.map((c: any) => c.track_id as number));
+    const activeEnrollments = enrollments.filter((e: any) => e.status === "active" && !certTrackIds.has(e.track_id));
+
+    const steps: any[] = [];
+
+    // 1) كمّل اللي بدأته — أول درس غير مكتمل في المسارات النشطة
+    for (const e of activeEnrollments.slice(0, 2)) {
+      const track = tracks.find((t: any) => t.id === e.track_id);
+      if (!track) continue;
+      const trackLessons = lessons.filter((l: any) => l.track_id === track.id);
+      const nextLesson = trackLessons.find((l: any) => !doneLessonIds.has(l.id));
+      if (nextLesson) {
+        steps.push({
+          kind: "lesson",
+          refId: track.id,
+          title: nextLesson.title,
+          subtitle: track.title,
+          reason: `كمّل اللي بدأته في «${track.title}»`,
+          link: `/skills/${track.id}`,
+          etaMinutes: nextLesson.duration_minutes || 10,
+        });
+      } else if (trackLessons.length) {
+        steps.push({
+          kind: "certificate",
+          refId: track.id,
+          title: `اقفل مسار «${track.title}» بشهادة موثقة`,
+          reason: "خلصت الدروس — حوّلهم لشهادة في جوازك",
+          link: `/skills/${track.id}`,
+        });
+      }
+      if (steps.length >= 3) break;
+    }
+
+    // 2) مسارات جديدة على حسب الاهتمامات
+    if (steps.length < 5) {
+      const candidates = tracks
+        .filter((t: any) => !certTrackIds.has(t.id) && !enrollments.some((e: any) => e.track_id === t.id))
+        .map((t: any) => {
+          let score = 0;
+          let reason = "مسار جديد يوسّع مهاراتك";
+          for (const key of interests) {
+            if ((INTEREST_TRACK_CATEGORIES[key] ?? []).includes(t.category)) {
+              score += 3;
+              reason = `فيه صلة باهتمامك بـ${interestLabels.get(key)}`;
+              break;
+            }
+          }
+          return { ...t, score, reason };
+        })
+        .sort((a: any, b: any) => b.score - a.score);
+      for (const t of candidates.slice(0, 2)) {
+        const trackLessons = lessons.filter((l: any) => l.track_id === t.id);
+        const first = trackLessons.find((l: any) => !doneLessonIds.has(l.id)) ?? trackLessons[0];
+        if (!first) continue;
+        steps.push({
+          kind: "track",
+          refId: t.id,
+          title: first.title,
+          subtitle: t.title,
+          reason: t.reason,
+          link: `/skills/${t.id}`,
+          etaMinutes: first.duration_minutes || 10,
+        });
+        if (steps.length >= 5) break;
+      }
+    }
+
+    // 3) فرصة مناسبة للهدف (لو فيه خطوات فاضية)
+    if (steps.length < 6 && goals.length) {
+      const goalLabels = new Map(GOAL_CATALOG.map((g) => [g.key, g.label]));
+      const oppRows = await sql`
+        SELECT * FROM opportunities WHERE status = 'active' AND (deadline IS NULL OR deadline > now())
+        ORDER BY created_at DESC`;
+      const match = oppRows.find((o: any) =>
+        !appliedIds.has(o.id) && goals.some((g) => (GOAL_OPPORTUNITY_TYPES[g] ?? []).includes(o.type)));
+      if (match) {
+        const goalKey = goals.find((g) => (GOAL_OPPORTUNITY_TYPES[g] ?? []).includes(match.type))!;
+        steps.push({
+          kind: "opportunity",
+          refId: match.id,
+          title: match.title,
+          subtitle: match.company,
+          reason: `فرصة ${goalLabels.get(goalKey)} مفتوحة حاليًا — قدّم قبل ما تقفل`,
+          link: `/opportunities/${match.id}`,
+        });
+      }
+    }
+
+    if (!steps.length) {
+      steps.push({
+        kind: "explore",
+        refId: null,
+        title: "استكشف مسارات المهارات",
+        reason: "اختار مسار تبدأ بيه — كل درس 10 دقايق",
+        link: "/skills",
+      });
+    }
+
+    const doneTotal = doneLessonIds.size;
+    const totalLessons = lessons.length;
+    const summary = totalLessons
+      ? `كمّلت ${doneTotal} من ${totalLessons} درس${certificates.length ? ` وعندك ${certificates.length} شهادة موثقة` : " ولسه مفيش شهادات"}${interests.length ? " — خطة مظبوطة على اهتماماتك" : ""}`
+      : "ابدأ رحلتك في المهارات من النهاردة";
+
+    const weeklyGoal = activeEnrollments.length
+      ? `كمّل 3 دروس في «${tracks.find((t: any) => t.id === activeEnrollments[0].track_id)?.title ?? ""}» خلال الأسبوع ده`
+      : interests.length
+        ? `ابدأ مسار من ${interestLabels.get(interests[0])} وخُد أول شهادة ليك`
+        : "كمّل درسين وخُد أول خطوة في معرض أعمالك";
+
+    let coachMessage: string | null = null;
+    const apiKey = process.env.OPENROUTER_API_KEY;
+    if (apiKey) {
+      try {
+        const [user] = await sql`SELECT name FROM users WHERE id = ${userId}`;
+        const prompt = `أنت "المدرّب الذكي" في تطبيق طلابي مصري اسمه UniVerse. اكتب رسالة تحفيزية من سطرين بالعامية المصرية للطالب: ${user?.name ?? ""}. اهتماماته: ${interests.join("، ") || "لسه مختارش"}. كمّل ${doneTotal}/${totalLessons} درس و${certificates.length} شهادة. خطته: ${steps.map((s: any, i: number) => `${i + 1}) ${s.title}`).join(" ، ")}. رد بالنص العربي فقط بدون ترقيم أو إيضاحات.`;
+        const res = await fetch("https://openrouter.ai/api/v1/chat/completions", {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            "Authorization": `Bearer ${apiKey}`,
+            "HTTP-Referer": "https://unv-api.vercel.app",
+            "X-Title": "UniVerse",
+          },
+          body: JSON.stringify({
+            model: "google/gemini-2.0-flash-lite-001",
+            messages: [{ role: "user", content: prompt }],
+            temperature: 0.8,
+            max_tokens: 220,
+          }),
+        });
+        if (res.ok) {
+          const data = await res.json();
+          coachMessage = String(data.choices?.[0]?.message?.content || "").trim().slice(0, 400) || null;
+        }
+      } catch { coachMessage = null; }
+    }
+
+    return {
+      personalized: interests.length > 0 || goals.length > 0,
+      summary,
+      coachMessage,
+      weeklyGoal,
+      stats: { completedLessons: doneTotal, totalLessons, certificates: certificates.length },
+      steps,
+    };
+  });
+}
+
+/* ---------- Portfolio ---------- */
+
+const PORTFOLIO_VISIBILITIES = ["public", "private"];
+
+let portfolioTablesPromise: Promise<void> | null = null;
+
+function ensurePortfolioTables(): Promise<void> {
+  if (!portfolioTablesPromise) {
+    portfolioTablesPromise = ensurePortfolioTablesOnce().catch((e) => {
+      portfolioTablesPromise = null;
+      throw e;
+    });
+  }
+  return portfolioTablesPromise;
+}
+
+async function ensurePortfolioTablesOnce(): Promise<void> {
+  const [state] = await sql`SELECT to_regclass('public.portfolio_projects') IS NOT NULL AS ready`;
+  if (!state?.ready) {
+    await sql`
+      CREATE TABLE IF NOT EXISTS portfolio_projects (
+        id serial PRIMARY KEY,
+        user_id int NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+        title text NOT NULL,
+        description text NOT NULL DEFAULT '',
+        project_url text,
+        repo_url text,
+        image_url text,
+        role text,
+        tags text[] NOT NULL DEFAULT '{}',
+        visibility text NOT NULL DEFAULT 'public',
+        created_at timestamptz NOT NULL DEFAULT now(),
+        updated_at timestamptz NOT NULL DEFAULT now()
+      )`;
+    await sql`CREATE INDEX IF NOT EXISTS idx_portfolio_user ON portfolio_projects (user_id)`;
+  }
+}
+
+function cleanPortfolioUrl(value: any): string | null {
+  const s = String(value ?? "").trim();
+  if (!s) return null;
+  if (!/^https?:\/\//i.test(s)) return null;
+  return s.slice(0, 500);
+}
+
+function cleanPortfolioTags(input: any): string[] {
+  const arr = Array.isArray(input) ? input : String(input ?? "").split(",");
+  const out: string[] = [];
+  for (const raw of arr) {
+    const tag = String(raw ?? "").trim().replace(/^#/, "").slice(0, 30);
+    if (tag && !out.some((t) => t.toLowerCase() === tag.toLowerCase())) out.push(tag);
+    if (out.length >= 8) break;
+  }
+  return out;
+}
+
+function serializePortfolioProject(row: any) {
+  return {
+    id: row.id,
+    userId: row.user_id,
+    title: row.title,
+    description: row.description,
+    projectUrl: row.project_url,
+    repoUrl: row.repo_url,
+    imageUrl: row.image_url,
+    role: row.role,
+    tags: row.tags ?? [],
+    visibility: row.visibility,
+    createdAt: row.created_at,
+    updatedAt: row.updated_at,
+  };
+}
+
+async function handlePortfolio(req: Request, parts: string[]): Promise<Response> {
+  return handle(async () => {
+    await ensurePortfolioTables();
+
+    const authHeader = req.headers.get("authorization");
+    const token = authHeader?.startsWith("Bearer ") ? authHeader.slice(7) : undefined;
+    const optionalUserId = await getUserId(token);
+    const me = optionalUserId ? await getCurrentUser(optionalUserId) : null;
+
+    // GET /portfolio/me — all my projects
+    if (req.method === "GET" && parts[1] === "me") {
+      if (!me) throw Object.assign(new Error("غير مسجل"), { status: 401 });
+      const rows = await sql`
+        SELECT * FROM portfolio_projects
+        WHERE user_id = ${me.id}
+        ORDER BY created_at DESC`;
+      return rows.map(serializePortfolioProject);
+    }
+
+    // GET /portfolio/user/:userId — public projects of a student
+    if (req.method === "GET" && parts[1] === "user") {
+      const userId = Number(parts[2]);
+      if (!userId || isNaN(userId)) throw Object.assign(new Error("معرف المستخدم غير صالح"), { status: 400 });
+      const rows = await sql`
+        SELECT * FROM portfolio_projects
+        WHERE user_id = ${userId} AND visibility = 'public'
+        ORDER BY created_at DESC`;
+      return rows.map(serializePortfolioProject);
+    }
+
+    // POST /portfolio — create
+    if (req.method === "POST" && parts.length === 1) {
+      if (!me) throw Object.assign(new Error("غير مسجل"), { status: 401 });
+      const body = await req.json().catch(() => ({}));
+      const title = String(body.title || "").trim().slice(0, 120);
+      if (title.length < 2) throw Object.assign(new Error("عنوان المشروع مطلوب"), { status: 400 });
+      const description = String(body.description || "").trim().slice(0, 3000);
+      const role = String(body.role || "").trim().slice(0, 80) || null;
+      const rawProjectUrl = String(body.projectUrl || "").trim();
+      const rawRepoUrl = String(body.repoUrl || "").trim();
+      const rawImageUrl = String(body.imageUrl || "").trim();
+      const projectUrl = cleanPortfolioUrl(rawProjectUrl);
+      const repoUrl = cleanPortfolioUrl(rawRepoUrl);
+      const imageUrl = cleanPortfolioUrl(rawImageUrl);
+      if (rawProjectUrl && !projectUrl) throw Object.assign(new Error("رابط المشروع لازم يبدأ بـhttp"), { status: 400 });
+      if (rawRepoUrl && !repoUrl) throw Object.assign(new Error("رابط الكود لازم يبدأ بـhttp"), { status: 400 });
+      if (rawImageUrl && !imageUrl) throw Object.assign(new Error("رابط الصورة لازم يبدأ بـhttp"), { status: 400 });
+      const tags = cleanPortfolioTags(body.tags);
+      const visibility = PORTFOLIO_VISIBILITIES.includes(body.visibility) ? body.visibility : "public";
+      const [row] = await sql`
+        INSERT INTO portfolio_projects (user_id, title, description, project_url, repo_url, image_url, role, tags, visibility)
+        VALUES (${me.id}, ${title}, ${description}, ${projectUrl}, ${repoUrl}, ${imageUrl}, ${role}, ${tags}, ${visibility})
+        RETURNING *`;
+      return serializePortfolioProject(row);
+    }
+
+    // PATCH /portfolio/:id — update my project
+    if (req.method === "PATCH" && parts.length === 2) {
+      if (!me) throw Object.assign(new Error("غير مسجل"), { status: 401 });
+      const id = Number(parts[1]);
+      const [existing] = await sql`SELECT * FROM portfolio_projects WHERE id = ${id} LIMIT 1`;
+      if (!existing) throw Object.assign(new Error("المشروع غير موجود"), { status: 404 });
+      if (existing.user_id !== me.id) throw Object.assign(new Error("غير مصرح"), { status: 403 });
+      const body = await req.json().catch(() => ({}));
+      const title = body.title !== undefined ? String(body.title || "").trim().slice(0, 120) : existing.title;
+      if (title.length < 2) throw Object.assign(new Error("عنوان المشروع مطلوب"), { status: 400 });
+      const description = body.description !== undefined ? String(body.description || "").trim().slice(0, 3000) : existing.description;
+      const role = body.role !== undefined ? (String(body.role || "").trim().slice(0, 80) || null) : existing.role;
+      const rawProjectUrl = body.projectUrl !== undefined ? String(body.projectUrl || "").trim() : (existing.project_url ?? "");
+      const rawRepoUrl = body.repoUrl !== undefined ? String(body.repoUrl || "").trim() : (existing.repo_url ?? "");
+      const rawImageUrl = body.imageUrl !== undefined ? String(body.imageUrl || "").trim() : (existing.image_url ?? "");
+      const projectUrl = cleanPortfolioUrl(rawProjectUrl);
+      const repoUrl = cleanPortfolioUrl(rawRepoUrl);
+      const imageUrl = cleanPortfolioUrl(rawImageUrl);
+      if (rawProjectUrl && !projectUrl) throw Object.assign(new Error("رابط المشروع لازم يبدأ بـhttp"), { status: 400 });
+      if (rawRepoUrl && !repoUrl) throw Object.assign(new Error("رابط الكود لازم يبدأ بـhttp"), { status: 400 });
+      if (rawImageUrl && !imageUrl) throw Object.assign(new Error("رابط الصورة لازم يبدأ بـhttp"), { status: 400 });
+      const tags = body.tags !== undefined ? cleanPortfolioTags(body.tags) : existing.tags;
+      const visibility = PORTFOLIO_VISIBILITIES.includes(body.visibility) ? body.visibility : existing.visibility;
+      const [row] = await sql`
+        UPDATE portfolio_projects
+        SET title = ${title}, description = ${description}, project_url = ${projectUrl},
+            repo_url = ${repoUrl}, image_url = ${imageUrl}, role = ${role},
+            tags = ${tags}, visibility = ${visibility}, updated_at = now()
+        WHERE id = ${id}
+        RETURNING *`;
+      return serializePortfolioProject(row);
+    }
+
+    // DELETE /portfolio/:id — delete my project
+    if (req.method === "DELETE" && parts.length === 2) {
+      if (!me) throw Object.assign(new Error("غير مسجل"), { status: 401 });
+      const id = Number(parts[1]);
+      const [existing] = await sql`SELECT * FROM portfolio_projects WHERE id = ${id} LIMIT 1`;
+      if (!existing) throw Object.assign(new Error("المشروع غير موجود"), { status: 404 });
+      if (existing.user_id !== me.id) throw Object.assign(new Error("غير مصرح"), { status: 403 });
+      await sql`DELETE FROM portfolio_projects WHERE id = ${id}`;
+      return { ok: true };
+    }
+
+    throw Object.assign(new Error("Route not found"), { status: 404 });
+  });
+}
+
+/* ---------- Knowledge Marketplace (سوق المعرفة) ---------- */
+
+const MARKET_KINDS = ["note", "video", "link"];
+
+let marketTablesPromise: Promise<void> | null = null;
+
+function ensureMarketTables(): Promise<void> {
+  if (!marketTablesPromise) {
+    marketTablesPromise = ensureMarketTablesOnce().catch((e) => {
+      marketTablesPromise = null;
+      throw e;
+    });
+  }
+  return marketTablesPromise;
+}
+
+async function ensureMarketTablesOnce(): Promise<void> {
+  const [listingsReady] = await sql`SELECT to_regclass('public.market_listings') IS NOT NULL AS ready`;
+  if (!listingsReady?.ready) {
+    await sql`
+      CREATE TABLE IF NOT EXISTS market_listings (
+        id serial PRIMARY KEY,
+        user_id int NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+        kind text NOT NULL DEFAULT 'note',
+        title text NOT NULL,
+        description text NOT NULL DEFAULT '',
+        url text NOT NULL,
+        category text,
+        tags text[] NOT NULL DEFAULT '{}',
+        price_points int NOT NULL DEFAULT 0,
+        created_at timestamptz NOT NULL DEFAULT now(),
+        updated_at timestamptz NOT NULL DEFAULT now()
+      )`;
+    await sql`CREATE INDEX IF NOT EXISTS idx_market_owner ON market_listings (user_id)`;
+  }
+  const [purchasesReady] = await sql`SELECT to_regclass('public.market_purchases') IS NOT NULL AS ready`;
+  if (!purchasesReady?.ready) {
+    await sql`
+      CREATE TABLE IF NOT EXISTS market_purchases (
+        id serial PRIMARY KEY,
+        listing_id int NOT NULL REFERENCES market_listings(id) ON DELETE CASCADE,
+        buyer_id int NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+        seller_id int NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+        points_spent int NOT NULL DEFAULT 0,
+        created_at timestamptz NOT NULL DEFAULT now()
+      )`;
+    await sql`CREATE UNIQUE INDEX IF NOT EXISTS idx_market_purchase_unique ON market_purchases (listing_id, buyer_id)`;
+  }
+}
+
+function serializeMarketListing(row: any, viewerId: number | null, purchased = false) {
+  const mine = viewerId !== null && Number(row.user_id) === viewerId;
+  return {
+    id: row.id,
+    userId: row.user_id,
+    kind: row.kind,
+    title: row.title,
+    description: row.description,
+    url: mine || purchased ? row.url : null,
+    category: row.category,
+    tags: row.tags ?? [],
+    pricePoints: row.price_points,
+    mine,
+    purchased,
+    createdAt: row.created_at,
+    owner: row.owner_name !== undefined ? {
+      id: row.user_id,
+      name: row.owner_name,
+      username: row.owner_username,
+      avatarUrl: row.owner_avatar || null,
+      faculty: row.owner_faculty || null,
+      university: row.owner_university || null,
+      level: Number(row.owner_level) || 1,
+    } : undefined,
+  };
+}
+
+async function handleMarket(req: Request, parts: string[]): Promise<Response> {
+  return handle(async () => {
+    await ensureMarketTables();
+
+    const authHeader = req.headers.get("authorization");
+    const token = authHeader?.startsWith("Bearer ") ? authHeader.slice(7) : undefined;
+    const optionalUserId = await getUserId(token);
+    const me = optionalUserId ? await getCurrentUser(optionalUserId) : null;
+    if (!me) throw Object.assign(new Error("غير مسجل"), { status: 401 });
+
+    // GET /market — browse all listings
+    if (req.method === "GET" && parts.length === 1) {
+      const rows = await sql`
+        SELECT l.*, u.name AS owner_name, u.username AS owner_username,
+               u.avatar_url AS owner_avatar, fac.name_ar AS owner_faculty,
+               uni.name_ar AS owner_university, u.level AS owner_level
+        FROM market_listings l
+        JOIN users u ON u.id = l.user_id
+        LEFT JOIN universities uni ON uni.id = u.university_id
+        LEFT JOIN faculties fac ON fac.id = u.faculty_id
+        ORDER BY l.created_at DESC
+        LIMIT 300`;
+      const purRows = await sql`SELECT listing_id FROM market_purchases WHERE buyer_id = ${me.id}`;
+      const purchasedIds = new Set(purRows.map((r: any) => Number(r.listing_id)));
+      let listings = rows.map((r: any) => serializeMarketListing(r, me.id, purchasedIds.has(Number(r.id))));
+      const url = new URL(req.url);
+      const kind = url.searchParams.get("kind");
+      const category = url.searchParams.get("category");
+      const q = url.searchParams.get("q");
+      if (kind && MARKET_KINDS.includes(kind)) listings = listings.filter((l: any) => l.kind === kind);
+      if (category) listings = listings.filter((l: any) => (l.category || "").toLowerCase() === category.toLowerCase());
+      if (q) {
+        const needle = q.toLowerCase();
+        listings = listings.filter((l: any) =>
+          l.title.toLowerCase().includes(needle) ||
+          (l.description || "").toLowerCase().includes(needle) ||
+          (l.tags || []).some((t: string) => t.toLowerCase().includes(needle)));
+      }
+      return { listings, myPoints: me.points ?? 0 };
+    }
+
+    // GET /market/me — my listings + my purchases (مكتبتي)
+    if (req.method === "GET" && parts.length === 2 && parts[1] === "me") {
+      const mineRows = await sql`
+        SELECT l.*, u.name AS owner_name, u.username AS owner_username,
+               u.avatar_url AS owner_avatar, fac.name_ar AS owner_faculty,
+               uni.name_ar AS owner_university, u.level AS owner_level
+        FROM market_listings l
+        JOIN users u ON u.id = l.user_id
+        LEFT JOIN universities uni ON uni.id = u.university_id
+        LEFT JOIN faculties fac ON fac.id = u.faculty_id
+        WHERE l.user_id = ${me.id}
+        ORDER BY l.created_at DESC`;
+      const buyRows = await sql`
+        SELECT l.*, mp.created_at AS purchased_at,
+               u.name AS owner_name, u.username AS owner_username,
+               u.avatar_url AS owner_avatar, fac.name_ar AS owner_faculty,
+               uni.name_ar AS owner_university, u.level AS owner_level
+        FROM market_purchases mp
+        JOIN market_listings l ON l.id = mp.listing_id
+        JOIN users u ON u.id = l.user_id
+        LEFT JOIN universities uni ON uni.id = u.university_id
+        LEFT JOIN faculties fac ON fac.id = u.faculty_id
+        WHERE mp.buyer_id = ${me.id}
+        ORDER BY mp.created_at DESC`;
+      return {
+        listings: mineRows.map((r: any) => serializeMarketListing(r, me.id)),
+        purchases: buyRows.map((r: any) => ({ ...serializeMarketListing(r, me.id, true), purchasedAt: r.purchased_at })),
+        myPoints: me.points ?? 0,
+      };
+    }
+
+    // POST /market — create listing
+    if (req.method === "POST" && parts.length === 1) {
+      const body = await req.json().catch(() => ({}));
+      const title = String(body.title || "").trim().slice(0, 120);
+      if (title.length < 2) throw Object.assign(new Error("العنوان مطلوب"), { status: 400 });
+      const description = String(body.description || "").trim().slice(0, 2000);
+      const kind = MARKET_KINDS.includes(body.kind) ? body.kind : null;
+      if (!kind) throw Object.assign(new Error("نوع المحتوى مطلوب"), { status: 400 });
+      const rawUrl = String(body.url || "").trim();
+      const listingUrl = cleanPortfolioUrl(rawUrl);
+      if (!listingUrl) throw Object.assign(new Error("الرابط مطلوب ولازم يبدأ بـhttp"), { status: 400 });
+      const category = String(body.category || "").trim().slice(0, 40) || null;
+      const tags = cleanPortfolioTags(body.tags);
+      let pricePoints = Math.floor(Number(body.pricePoints));
+      if (isNaN(pricePoints) || pricePoints < 0) pricePoints = 0;
+      if (pricePoints > 500) pricePoints = 500;
+      const [row] = await sql`
+        INSERT INTO market_listings (user_id, kind, title, description, url, category, tags, price_points)
+        VALUES (${me.id}, ${kind}, ${title}, ${description}, ${listingUrl}, ${category}, ${tags}, ${pricePoints})
+        RETURNING *`;
+      return serializeMarketListing(row, me.id);
+    }
+
+    // DELETE /market/:id — remove my listing
+    if (req.method === "DELETE" && parts.length === 2) {
+      const id = Number(parts[1]);
+      const [existing] = await sql`SELECT * FROM market_listings WHERE id = ${id} LIMIT 1`;
+      if (!existing) throw Object.assign(new Error("الإعلان غير موجود"), { status: 404 });
+      if (existing.user_id !== me.id) throw Object.assign(new Error("غير مصرح"), { status: 403 });
+      await sql`DELETE FROM market_purchases WHERE listing_id = ${id}`;
+      await sql`DELETE FROM market_listings WHERE id = ${id}`;
+      return { ok: true };
+    }
+
+    // POST /market/:id/buy — unlock with points (or claim free)
+    if (req.method === "POST" && parts.length === 3 && parts[2] === "buy") {
+      const id = Number(parts[1]);
+      const [listing] = await sql`SELECT * FROM market_listings WHERE id = ${id} LIMIT 1`;
+      if (!listing) throw Object.assign(new Error("الإعلان غير موجود"), { status: 404 });
+      if (Number(listing.user_id) === me.id) throw Object.assign(new Error("ده إعلانك انت"), { status: 400 });
+
+      const [already] = await sql`SELECT id FROM market_purchases WHERE listing_id = ${id} AND buyer_id = ${me.id} LIMIT 1`;
+      if (already) return { purchased: true, pointsSpent: 0, url: listing.url };
+
+      const price = Number(listing.price_points) || 0;
+      if (price === 0) {
+        const [row] = await sql`
+          INSERT INTO market_purchases (listing_id, buyer_id, seller_id, points_spent)
+          VALUES (${id}, ${me.id}, ${listing.user_id}, 0)
+          ON CONFLICT (listing_id, buyer_id) DO NOTHING
+          RETURNING id`;
+        return { purchased: true, pointsSpent: 0, url: listing.url, claimed: !!row || false };
+      }
+
+      // Reserve the purchase first (unique per listing+buyer), then move points
+      const [claimed] = await sql`
+        INSERT INTO market_purchases (listing_id, buyer_id, seller_id, points_spent)
+        VALUES (${id}, ${me.id}, ${listing.user_id}, ${price})
+        ON CONFLICT (listing_id, buyer_id) DO NOTHING
+        RETURNING id`;
+      if (claimed) {
+        const [buyerUpd] = await sql`
+          UPDATE users SET points = points - ${price}
+          WHERE id = ${me.id} AND points >= ${price}
+          RETURNING points`;
+        if (!buyerUpd) {
+          await sql`DELETE FROM market_purchases WHERE id = ${claimed.id}`;
+          throw Object.assign(new Error(`نقاطك مش كفاية — محتاج ${price} نقطة`), { status: 400 });
+        }
+        await sql`UPDATE users SET points = points + ${price} WHERE id = ${listing.user_id}`;
+        return { purchased: true, pointsSpent: price, myPoints: buyerUpd.points, url: listing.url };
+      }
+      return { purchased: true, pointsSpent: 0, url: listing.url };
+    }
+
+    throw Object.assign(new Error("Route not found"), { status: 404 });
+  });
+}
+
+/* ---------- Cross-College Team Projects (فرق المشاريع) ---------- */
+
+let teamTablesPromise: Promise<void> | null = null;
+
+function ensureTeamTables(): Promise<void> {
+  if (!teamTablesPromise) {
+    teamTablesPromise = ensureTeamTablesOnce().catch((e) => {
+      teamTablesPromise = null;
+      throw e;
+    });
+  }
+  return teamTablesPromise;
+}
+
+async function ensureTeamTablesOnce(): Promise<void> {
+  const [projectsReady] = await sql`SELECT to_regclass('public.team_projects') IS NOT NULL AS ready`;
+  if (!projectsReady?.ready) {
+    await sql`
+      CREATE TABLE IF NOT EXISTS team_projects (
+        id serial PRIMARY KEY,
+        owner_id int NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+        title text NOT NULL,
+        description text NOT NULL DEFAULT '',
+        looking_for text[] NOT NULL DEFAULT '{}',
+        tags text[] NOT NULL DEFAULT '{}',
+        status text NOT NULL DEFAULT 'open',
+        created_at timestamptz NOT NULL DEFAULT now(),
+        updated_at timestamptz NOT NULL DEFAULT now()
+      )`;
+    await sql`CREATE INDEX IF NOT EXISTS idx_team_owner ON team_projects (owner_id)`;
+  }
+  const [requestsReady] = await sql`SELECT to_regclass('public.team_requests') IS NOT NULL AS ready`;
+  if (!requestsReady?.ready) {
+    await sql`
+      CREATE TABLE IF NOT EXISTS team_requests (
+        id serial PRIMARY KEY,
+        project_id int NOT NULL REFERENCES team_projects(id) ON DELETE CASCADE,
+        user_id int NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+        role text,
+        message text NOT NULL DEFAULT '',
+        status text NOT NULL DEFAULT 'pending',
+        created_at timestamptz NOT NULL DEFAULT now(),
+        updated_at timestamptz NOT NULL DEFAULT now()
+      )`;
+    await sql`CREATE UNIQUE INDEX IF NOT EXISTS idx_team_request_unique ON team_requests (project_id, user_id)`;
+  }
+}
+
+function serializeTeamProject(
+  row: any,
+  viewerId: number | null,
+  memberRows: any[],
+  myRequest: any | undefined,
+): any {
+  const members = memberRows
+    .filter((m: any) => Number(m.project_id) === Number(row.id) && m.status === "accepted")
+    .map((m: any) => ({
+      userId: m.user_id,
+      name: m.member_name,
+      avatarUrl: m.member_avatar || null,
+      faculty: m.member_faculty || null,
+      university: m.member_university || null,
+      role: m.role,
+    }));
+  const pending = memberRows.filter(
+    (m: any) => Number(m.project_id) === Number(row.id) && m.status === "pending",
+  ).length;
+  const takenRoles = members.map((m: any) => (m.role || "").toLowerCase()).filter(Boolean);
+  const lookingFor = (row.looking_for ?? []).map((r: string) => ({
+    role: r,
+    filled: takenRoles.includes(r.toLowerCase()),
+  }));
+  return {
+    id: row.id,
+    ownerId: row.owner_id,
+    title: row.title,
+    description: row.description,
+    lookingFor: lookingFor,
+    tags: row.tags ?? [],
+    status: row.status,
+    mine: viewerId !== null && Number(row.owner_id) === viewerId,
+    createdAt: row.created_at,
+    owner: {
+      id: row.owner_id,
+      name: row.owner_name,
+      username: row.owner_username,
+      avatarUrl: row.owner_avatar || null,
+      faculty: row.owner_faculty || null,
+      university: row.owner_university || null,
+      level: Number(row.owner_level) || 1,
+    },
+    members,
+    pendingCount: pending,
+    myRequest: myRequest
+      ? { id: myRequest.id, status: myRequest.status, role: myRequest.role, message: myRequest.message }
+      : null,
+  };
+}
+
+async function handleTeamProjects(req: Request, parts: string[]): Promise<Response> {
+  return handle(async () => {
+    await ensureTeamTables();
+
+    const authHeader = req.headers.get("authorization");
+    const token = authHeader?.startsWith("Bearer ") ? authHeader.slice(7) : undefined;
+    const optionalUserId = await getUserId(token);
+    const me = optionalUserId ? await getCurrentUser(optionalUserId) : null;
+    if (!me) throw Object.assign(new Error("غير مسجل"), { status: 401 });
+
+    // Shared list helpers
+    const listQuery = () => sql`
+      SELECT t.*, u.name AS owner_name, u.username AS owner_username,
+             u.avatar_url AS owner_avatar, fac.name_ar AS owner_faculty,
+             uni.name_ar AS owner_university, u.level AS owner_level
+      FROM team_projects t
+      JOIN users u ON u.id = t.owner_id
+      LEFT JOIN universities uni ON uni.id = u.university_id
+      LEFT JOIN faculties fac ON fac.id = u.faculty_id
+      ORDER BY t.created_at DESC
+      LIMIT 200`;
+    const memberQuery = () => sql`
+      SELECT r.*, u.name AS member_name, u.avatar_url AS member_avatar,
+             fac.name_ar AS member_faculty, uni.name_ar AS member_university
+      FROM team_requests r
+      JOIN users u ON u.id = r.user_id
+      LEFT JOIN universities uni ON uni.id = u.university_id
+      LEFT JOIN faculties fac ON fac.id = u.faculty_id
+      ORDER BY r.created_at ASC`;
+
+    // GET /team-projects — browse
+    if (req.method === "GET" && parts.length === 1) {
+      const rows = await listQuery();
+      const mRows = await memberQuery();
+      let projects = rows.map((r: any) => serializeTeamProject(
+        r, me.id, mRows,
+        mRows.find((r2: any) => Number(r2.project_id) === Number(r.id) && Number(r2.user_id) === me.id),
+      ));
+      const url = new URL(req.url);
+      const q = url.searchParams.get("q");
+      const openOnly = url.searchParams.get("openOnly");
+      if (q) {
+        const needle = q.toLowerCase();
+        projects = projects.filter((p: any) =>
+          p.title.toLowerCase().includes(needle) ||
+          (p.description || "").toLowerCase().includes(needle) ||
+          (p.tags || []).some((t: string) => t.toLowerCase().includes(needle)));
+      }
+      if (openOnly === "1") projects = projects.filter((p: any) => p.status === "open");
+      return { projects };
+    }
+
+    // POST /team-projects — create
+    if (req.method === "POST" && parts.length === 1) {
+      const body = await req.json().catch(() => ({}));
+      const title = String(body.title || "").trim().slice(0, 120);
+      if (title.length < 2) throw Object.assign(new Error("عنوان المشروع مطلوب"), { status: 400 });
+      const description = String(body.description || "").trim().slice(0, 3000);
+      const rawRoles = Array.isArray(body.lookingFor) ? body.lookingFor : String(body.lookingFor ?? "").split(",");
+      const lookingFor: string[] = [];
+      for (const raw of rawRoles) {
+        const role = String(raw ?? "").trim().slice(0, 40);
+        if (role && !lookingFor.some((r) => r.toLowerCase() === role.toLowerCase())) lookingFor.push(role);
+        if (lookingFor.length >= 6) break;
+      }
+      const tags = cleanPortfolioTags(body.tags);
+      const [row] = await sql`
+        INSERT INTO team_projects (owner_id, title, description, looking_for, tags)
+        VALUES (${me.id}, ${title}, ${description}, ${lookingFor}, ${tags})
+        RETURNING *`;
+      return serializeTeamProject(row, me.id, [], null);
+    }
+
+    // DELETE /team-projects/:id — owner only (requests cascade)
+    if (req.method === "DELETE" && parts.length === 2) {
+      const id = Number(parts[1]);
+      const [existing] = await sql`SELECT * FROM team_projects WHERE id = ${id} LIMIT 1`;
+      if (!existing) throw Object.assign(new Error("المشروع غير موجود"), { status: 404 });
+      if (Number(existing.owner_id) !== me.id) throw Object.assign(new Error("غير مصرح"), { status: 403 });
+      await sql`DELETE FROM team_requests WHERE project_id = ${id}`;
+      await sql`DELETE FROM team_projects WHERE id = ${id}`;
+      return { ok: true };
+    }
+
+    // PATCH /team-projects/:id — owner edits title/description/roles or toggles status
+    if (req.method === "PATCH" && parts.length === 2 && parts[1] !== "requests") {
+      const id = Number(parts[1]);
+      const [existing] = await sql`SELECT * FROM team_projects WHERE id = ${id} LIMIT 1`;
+      if (!existing) throw Object.assign(new Error("المشروع غير موجود"), { status: 404 });
+      if (Number(existing.owner_id) !== me.id) throw Object.assign(new Error("غير مصرح"), { status: 403 });
+      const body = await req.json().catch(() => ({}));
+      const title = body.title !== undefined ? String(body.title || "").trim().slice(0, 120) : existing.title;
+      if (title.length < 2) throw Object.assign(new Error("عنوان المشروع مطلوب"), { status: 400 });
+      const description = body.description !== undefined ? String(body.description || "").trim().slice(0, 3000) : existing.description;
+      let lookingFor = existing.looking_for;
+      if (body.lookingFor !== undefined) {
+        const rawRoles = Array.isArray(body.lookingFor) ? body.lookingFor : String(body.lookingFor ?? "").split(",");
+        const next: string[] = [];
+        for (const raw of rawRoles) {
+          const role = String(raw ?? "").trim().slice(0, 40);
+          if (role && !next.some((r) => r.toLowerCase() === role.toLowerCase())) next.push(role);
+          if (next.length >= 6) break;
+        }
+        lookingFor = next;
+      }
+      const tags = body.tags !== undefined ? cleanPortfolioTags(body.tags) : existing.tags;
+      const status = body.status !== undefined && ["open", "closed"].includes(body.status) ? body.status : existing.status;
+      const [row] = await sql`
+        UPDATE team_projects
+        SET title = ${title}, description = ${description}, looking_for = ${lookingFor},
+            tags = ${tags}, status = ${status}, updated_at = now()
+        WHERE id = ${id}
+        RETURNING *`;
+      return serializeTeamProject(row, me.id, [], null);
+    }
+
+    // POST /team-projects/:id/join — request to join
+    if (req.method === "POST" && parts.length === 3 && parts[2] === "join") {
+      const id = Number(parts[1]);
+      const [project] = await sql`SELECT * FROM team_projects WHERE id = ${id} LIMIT 1`;
+      if (!project) throw Object.assign(new Error("المشروع غير موجود"), { status: 404 });
+      if (Number(project.owner_id) === me.id) throw Object.assign(new Error("دي مشروعك انت"), { status: 400 });
+      if (project.status !== "open") throw Object.assign(new Error("المشروع مقفول"), { status: 400 });
+      const [existing] = await sql`SELECT * FROM team_requests WHERE project_id = ${id} AND user_id = ${me.id} LIMIT 1`;
+      if (existing) throw Object.assign(
+        new Error(existing.status === "pending" ? "طلبك معلّق بالفعل" : existing.status === "accepted" ? "انت عضو في الفريق بالفعل" : "طلبك اترفض — مش متاح التقدم تاني"),
+        { status: 400 });
+      const body = await req.json().catch(() => ({}));
+      const role = String(body.role || "").trim().slice(0, 40) || null;
+      const message = String(body.message || "").trim().slice(0, 500);
+      const [row] = await sql`
+        INSERT INTO team_requests (project_id, user_id, role, message)
+        VALUES (${id}, ${me.id}, ${role}, ${message})
+        RETURNING *`;
+      return { id: row.id, projectId: row.project_id, status: row.status, role: row.role };
+    }
+
+    // PATCH /team-projects/requests/:reqId — owner accepts/rejects
+    if (req.method === "PATCH" && parts.length === 3 && parts[1] === "requests") {
+      const reqId = Number(parts[2]);
+      const [request] = await sql`SELECT * FROM team_requests WHERE id = ${reqId} LIMIT 1`;
+      if (!request) throw Object.assign(new Error("الطلب غير موجود"), { status: 404 });
+      const [project] = await sql`SELECT * FROM team_projects WHERE id = ${request.project_id} LIMIT 1`;
+      if (!project || Number(project.owner_id) !== me.id) throw Object.assign(new Error("غير مصرح"), { status: 403 });
+      if (request.status !== "pending") throw Object.assign(new Error("الطلبة اتحسمت خلاص"), { status: 400 });
+      const body = await req.json().catch(() => ({}));
+      const action = body.action === "accept" ? "accepted" : body.action === "reject" ? "rejected" : null;
+      if (!action) throw Object.assign(new Error("أكشن غير معروف"), { status: 400 });
+      const [row] = await sql`
+        UPDATE team_requests SET status = ${action}, updated_at = now()
+        WHERE id = ${reqId} RETURNING *`;
+      return { id: row.id, status: row.status, role: row.role, userId: row.user_id };
+    }
+
+    // GET /team-projects/requests — my incoming requests (owner inbox)
+    if (req.method === "GET" && parts.length === 2 && parts[1] === "requests") {
+      const mRows = await memberQuery();
+      const rows = await sql`
+        SELECT t.* FROM team_projects t WHERE t.owner_id = ${me.id}`;
+      const myProjectIds = new Set(rows.map((r: any) => Number(r.id)));
+      const incoming = mRows.filter((r: any) => myProjectIds.has(Number(r.project_id)) && r.status === "pending");
+      return incoming.map((r: any) => ({
+        id: r.id, projectId: r.project_id, userId: r.user_id, role: r.role, message: r.message,
+        memberName: r.member_name, memberAvatar: r.member_avatar || null,
+        memberFaculty: r.member_faculty || null, memberUniversity: r.member_university || null,
+        createdAt: r.created_at,
+      }));
+    }
+
+    throw Object.assign(new Error("Route not found"), { status: 404 });
+  });
+}
+
+/* ---------- UniVerse League ---------- */
+
+let leagueTablesPromise: Promise<void> | null = null;
+
+function ensureLeagueTables(): Promise<void> {
+  if (!leagueTablesPromise) {
+    leagueTablesPromise = ensureLeagueTablesOnce().catch((e) => {
+      leagueTablesPromise = null;
+      throw e;
+    });
+  }
+  return leagueTablesPromise;
+}
+
+async function ensureLeagueTablesOnce(): Promise<void> {
+  const [state] = await sql`
+    SELECT to_regclass('public.league_seasons') IS NOT NULL
+       AND to_regclass('public.league_opening_balances') IS NOT NULL AS ready`;
+  if (!state?.ready) {
+    await sql`
+      CREATE TABLE IF NOT EXISTS league_seasons (
+        id serial PRIMARY KEY,
+        name text NOT NULL,
+        starts_at timestamptz NOT NULL DEFAULT now(),
+        ends_at timestamptz NOT NULL,
+        status text NOT NULL DEFAULT 'active',
+        final_standings jsonb,
+        created_at timestamptz NOT NULL DEFAULT now()
+      )`;
+    await sql`
+      CREATE TABLE IF NOT EXISTS league_opening_balances (
+        season_id int NOT NULL REFERENCES league_seasons(id) ON DELETE CASCADE,
+        user_id int NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+        points int NOT NULL DEFAULT 0,
+        PRIMARY KEY (season_id, user_id)
+      )`;
+    await sql`CREATE UNIQUE INDEX IF NOT EXISTS idx_league_one_active ON league_seasons (status) WHERE status = 'active'`;
+  }
+}
+
+async function getActiveLeagueSeason(): Promise<any> {
+  let [season] = await sql`SELECT * FROM league_seasons WHERE status = 'active' ORDER BY id DESC LIMIT 1`;
+  if (!season) {
+    const [countRow] = await sql`SELECT count(*)::int AS n FROM league_seasons`;
+    const firstSeason = Number(countRow?.n || 0) === 0;
+    try {
+      [season] = await sql`
+        INSERT INTO league_seasons (name, ends_at) VALUES (${"موسم UniVerse League"}, now() + make_interval(days => 90))
+        RETURNING *`;
+    } catch {
+      [season] = await sql`SELECT * FROM league_seasons WHERE status = 'active' ORDER BY id DESC LIMIT 1`;
+    }
+    if (season) {
+      if (firstSeason) {
+        await sql`
+          INSERT INTO league_opening_balances (season_id, user_id, points)
+          SELECT ${season.id}, id, 0 FROM users ON CONFLICT DO NOTHING`;
+      } else {
+        await sql`
+          INSERT INTO league_opening_balances (season_id, user_id, points)
+          SELECT ${season.id}, id, points FROM users ON CONFLICT DO NOTHING`;
+      }
+    }
+  }
+  if (season) {
+    await sql`
+      INSERT INTO league_opening_balances (season_id, user_id, points)
+      SELECT ${season.id}, id, 0 FROM users u
+      WHERE NOT EXISTS (SELECT 1 FROM league_opening_balances b WHERE b.season_id = ${season.id} AND b.user_id = u.id)
+      ON CONFLICT DO NOTHING`;
+  }
+  return season;
+}
+
+function seasonInfo(season: any) {
+  const ends = season?.ends_at ? new Date(season.ends_at) : null;
+  const daysLeft = ends ? Math.max(0, Math.ceil((ends.getTime() - Date.now()) / 86400000)) : 0;
+  return {
+    id: season.id,
+    name: season.name,
+    startsAt: season.starts_at,
+    endsAt: season.ends_at,
+    status: season.status,
+    daysLeft,
+  };
+}
+
+async function computeLeagueData(season: any, me: any) {
+  const students = await sql`
+    SELECT u.id, u.name, u.username, u.avatar_url, u.points,
+           GREATEST(u.points - COALESCE(b.points, 0), 0) AS season_points,
+           f.name_ar AS faculty_name, un.name_ar AS university_name
+    FROM users u
+    LEFT JOIN league_opening_balances b ON b.season_id = ${season.id} AND b.user_id = u.id
+    LEFT JOIN faculties f ON f.id = u.faculty_id
+    LEFT JOIN universities un ON un.id = u.university_id
+    WHERE u.role = 'student'
+    ORDER BY season_points DESC, u.points DESC, u.id ASC
+    LIMIT 50`;
+
+  const studentRows = students.map((s: any, i: number) => ({
+    rank: i + 1,
+    userId: s.id,
+    name: s.name,
+    username: s.username,
+    avatarUrl: s.avatar_url,
+    seasonPoints: Number(s.season_points || 0),
+    allTimePoints: Number(s.points || 0),
+    faculty: s.faculty_name,
+    university: s.university_name,
+  }));
+
+  const facultyRows = await sql`
+    SELECT f.id, f.name_ar AS name, un.name_ar AS university_name,
+      COUNT(u.id)::int AS total_students,
+      COUNT(u.id) FILTER (WHERE GREATEST(u.points - COALESCE(b.points, 0), 0) > 0)::int AS active_students,
+      COALESCE(SUM(GREATEST(u.points - COALESCE(b.points, 0), 0)), 0)::int AS total_points
+    FROM faculties f
+    JOIN universities un ON un.id = f.university_id
+    LEFT JOIN users u ON u.faculty_id = f.id AND u.role = 'student'
+    LEFT JOIN league_opening_balances b ON b.season_id = ${season.id} AND b.user_id = u.id
+    GROUP BY f.id, f.name_ar, un.name_ar
+    HAVING COUNT(u.id) > 0`;
+
+  const universityRows = await sql`
+    SELECT un.id, un.name_ar AS name,
+      COUNT(u.id)::int AS total_students,
+      COUNT(u.id) FILTER (WHERE GREATEST(u.points - COALESCE(b.points, 0), 0) > 0)::int AS active_students,
+      COALESCE(SUM(GREATEST(u.points - COALESCE(b.points, 0), 0)), 0)::int AS total_points
+    FROM universities un
+    LEFT JOIN users u ON u.university_id = un.id AND u.role = 'student'
+    LEFT JOIN league_opening_balances b ON b.season_id = ${season.id} AND b.user_id = u.id
+    GROUP BY un.id, un.name_ar
+    HAVING COUNT(u.id) > 0`;
+
+  const entityRows = (rows: any[]) =>
+    rows
+      .map((r: any) => {
+        const total = Number(r.total_points || 0);
+        const active = Number(r.active_students || 0);
+        const studentsCount = Number(r.total_students || 0);
+        return {
+          id: r.id,
+          name: r.name,
+          universityName: r.university_name ?? null,
+          totalPoints: total,
+          activeStudents: active,
+          totalStudents: studentsCount,
+          avgPointsPerActive: active > 0 ? Math.round(total / active) : 0,
+          activeRatio: studentsCount > 0 ? active / studentsCount : 0,
+        };
+      })
+      .sort((a, b) => b.totalPoints - a.totalPoints || b.activeStudents - a.activeStudents || a.name.localeCompare(b.name))
+      .map((row, i) => ({ rank: i + 1, ...row }));
+
+  const facultyRanking = entityRows(facultyRows);
+  const universityRanking = entityRows(universityRows);
+
+  const skillRows = await sql`
+    SELECT t.category,
+      u.id AS user_id, u.name, u.username, u.avatar_url,
+      COUNT(p.id)::int AS completed_lessons,
+      COALESCE(ROUND(AVG(p.quick_check_score)), 0)::int AS avg_score,
+      (SELECT COUNT(*)::int FROM skill_certificates c
+        JOIN skill_tracks t2 ON t2.id = c.track_id
+        WHERE c.user_id = u.id AND t2.category = t.category) AS certificates
+    FROM user_skill_progress p
+    JOIN skill_tracks t ON t.id = p.track_id
+    JOIN users u ON u.id = p.user_id
+    WHERE p.completed = true AND u.role = 'student'
+    GROUP BY t.category, u.id, u.name, u.username, u.avatar_url
+    ORDER BY completed_lessons DESC, avg_score DESC, certificates DESC, u.id ASC`;
+
+  const categories = [
+    { key: "academic", label: "أكاديمية" },
+    { key: "practical", label: "عملية" },
+    { key: "career", label: "سوق العمل" },
+    { key: "soft_skills", label: "شخصية" },
+  ];
+
+  const skills = categories.map((cat) => ({
+    category: cat.key,
+    label: cat.label,
+    entries: skillRows
+      .filter((r: any) => r.category === cat.key)
+      .slice(0, 10)
+      .map((r: any, i: number) => ({
+        rank: i + 1,
+        userId: r.user_id,
+        name: r.name,
+        username: r.username,
+        avatarUrl: r.avatar_url,
+        completedLessons: Number(r.completed_lessons || 0),
+        avgScore: Number(r.avg_score || 0),
+        certificates: Number(r.certificates || 0),
+      })),
+  }));
+
+  let myRank: any = null;
+  if (me) {
+    const [meSeason] = await sql`
+      SELECT GREATEST(u.points - COALESCE(b.points, 0), 0) AS season_points, u.points,
+             u.faculty_id, u.university_id
+      FROM users u
+      LEFT JOIN league_opening_balances b ON b.season_id = ${season.id} AND b.user_id = u.id
+      WHERE u.id = ${me.id} LIMIT 1`;
+    const [studentRankRow] = await sql`
+      SELECT rank FROM (
+        SELECT u.id,
+          RANK() OVER (ORDER BY GREATEST(u.points - COALESCE(b.points, 0), 0) DESC, u.points DESC, u.id ASC) AS rank
+        FROM users u
+        LEFT JOIN league_opening_balances b ON b.season_id = ${season.id} AND b.user_id = u.id
+        WHERE u.role = 'student'
+      ) x WHERE x.id = ${me.id}`;
+    const facultyMine = meSeason?.faculty_id
+      ? facultyRanking.find((f: any) => f.id === meSeason.faculty_id) ?? null
+      : null;
+    const universityMine = meSeason?.university_id
+      ? universityRanking.find((u: any) => u.id === meSeason.university_id) ?? null
+      : null;
+    myRank = {
+      seasonPoints: Number(meSeason?.season_points || 0),
+      allTimePoints: Number(meSeason?.points || 0),
+      studentRank: studentRankRow ? Number(studentRankRow.rank) : null,
+      faculty: facultyMine ? { id: facultyMine.id, name: facultyMine.name, rank: facultyMine.rank } : null,
+      university: universityMine ? { id: universityMine.id, name: universityMine.name, rank: universityMine.rank } : null,
+    };
+  }
+
+  const seasons = await sql`
+    SELECT id, name, starts_at, ends_at, status FROM league_seasons ORDER BY id DESC LIMIT 6`;
+
+  return {
+    season: seasonInfo(season),
+    students: studentRows,
+    faculties: facultyRanking,
+    universities: universityRanking,
+    skills,
+    myRank,
+    seasons: seasons.map((s: any) => ({
+      id: s.id,
+      name: s.name,
+      startsAt: s.starts_at,
+      endsAt: s.ends_at,
+      status: s.status,
+    })),
+  };
+}
+
+async function handleLeague(req: Request, parts: string[]): Promise<Response> {
+  try {
+    await ensureLeagueTables();
+  } catch (e) {
+    console.error("[ensureLeagueTables]", e);
+    return jsonError("تعذر تحميل بيانات الدوري، حاول تاني", 503);
+  }
+
+  const authHeader = req.headers.get("authorization");
+  const token = authHeader?.startsWith("Bearer ") ? authHeader.slice(7) : undefined;
+  const optionalUserId = await getUserId(token);
+  const me = optionalUserId ? await getCurrentUser(optionalUserId) : null;
+
+  if (req.method === "GET" && parts.length === 2) {
+    return handle(async () => {
+      const season = await getActiveLeagueSeason();
+      if (!season) throw Object.assign(new Error("لا يوجد موسم نشط"), { status: 404 });
+      return computeLeagueData(season, me);
+    });
+  }
+
+  if (req.method === "GET" && parts.length === 3 && parts[2] === "seasons") {
+    return handle(async () => {
+      const rows = await sql`SELECT * FROM league_seasons ORDER BY id DESC LIMIT 20`;
+      return rows.map((s: any) => ({
+        id: s.id,
+        name: s.name,
+        startsAt: s.starts_at,
+        endsAt: s.ends_at,
+        status: s.status,
+        finalStandings: s.final_standings ?? null,
+      }));
+    });
+  }
+
+  if (req.method === "POST" && parts.length === 3 && parts[2] === "seasons") {
+    return handle(async () => {
+      if (!me) throw Object.assign(new Error("غير مسجل"), { status: 401 });
+      requireRole(me, ["admin", "super_admin"]);
+      const body = await req.json().catch(() => ({}));
+      const name = String(body.name || "").trim();
+      const durationDays = Number(body.durationDays || 90);
+      if (!name) throw Object.assign(new Error("اسم الموسم مطلوب"), { status: 400 });
+      if (!Number.isFinite(durationDays) || durationDays < 7 || durationDays > 365) {
+        throw Object.assign(new Error("مدة الموسم لازم تكون بين 7 و365 يوم"), { status: 400 });
+      }
+
+      const [active] = await sql`SELECT * FROM league_seasons WHERE status = 'active' ORDER BY id DESC LIMIT 1`;
+      if (active) {
+        const snapshot = await computeLeagueData(active, null);
+        const finalStandings = {
+          students: snapshot.students.slice(0, 10),
+          faculties: snapshot.faculties.slice(0, 5),
+          universities: snapshot.universities.slice(0, 5),
+          capturedAt: new Date().toISOString(),
+        };
+        await sql`
+          UPDATE league_seasons SET status = 'ended', final_standings = ${JSON.stringify(finalStandings)}::jsonb
+          WHERE id = ${active.id}`;
+      }
+
+      const [season] = await sql`
+        INSERT INTO league_seasons (name, ends_at)
+        VALUES (${name}, now() + make_interval(days => ${durationDays}))
+        RETURNING *`;
+      await sql`
+        INSERT INTO league_opening_balances (season_id, user_id, points)
+        SELECT ${season.id}, id, points FROM users ON CONFLICT DO NOTHING`;
+      return { ...seasonInfo(season), previousSeasonId: active?.id ?? null };
+    });
+  }
+
+  return jsonError("Not Found", 404);
+}
 async function handleGroupSchedule(req: Request, parts: string[]): Promise<Response> {
   const { userId } = requireAuth(req.headers);
   const user = await getCurrentUser(userId);
@@ -7038,6 +8845,51 @@ async function handleRequest(request: Request): Promise<Response> {
     // Certificates
     "GET /v2/certificates/:trackId": () => handleCertificate(request, ["certificates", parts[2]]),
     "GET /v2/certificates/verify/:code": () => handleCertificateVerify(request, parts),
+
+    // Opportunities (career center)
+    "GET /v2/opportunities": () => handleOpportunities(request, parts),
+    "POST /v2/opportunities": () => handleOpportunities(request, parts),
+    "GET /v2/opportunities/:id": () => handleOpportunities(request, parts),
+    "PATCH /v2/opportunities/:id": () => handleOpportunities(request, parts),
+    "DELETE /v2/opportunities/:id": () => handleOpportunities(request, parts),
+    "POST /v2/opportunities/:id/apply": () => handleOpportunities(request, parts),
+    "GET /v2/opportunities/:id/applicants": () => handleOpportunities(request, parts),
+    "PATCH /v2/opportunities/:id/applications/:appId": () => handleOpportunities(request, parts),
+
+    // UniVerse League
+    "GET /v2/league": () => handleLeague(request, parts),
+    "GET /v2/league/seasons": () => handleLeague(request, parts),
+    "POST /v2/league/seasons": () => handleLeague(request, parts),
+    "GET /v2/me/personalization": () => handlePersonalization(request, parts),
+    "PUT /v2/me/personalization": () => handlePersonalization(request, parts),
+    "POST /v2/me/personalization": () => handlePersonalization(request, parts),
+    "GET /v2/me/recommendations": () => handleRecommendations(request),
+
+    // AI Learning Coach
+    "GET /v2/coach/plan": () => handleCoachPlan(request),
+
+    // Knowledge Marketplace (سوق المعرفة)
+    "GET /v2/market": () => handleMarket(request, ["market"]),
+    "GET /v2/market/me": () => handleMarket(request, ["market", "me"]),
+    "POST /v2/market": () => handleMarket(request, ["market"]),
+    "DELETE /v2/market/:id": () => handleMarket(request, ["market", parts[2]]),
+    "POST /v2/market/:id/buy": () => handleMarket(request, ["market", parts[2], "buy"]),
+
+    // Cross-college Team Projects (فرق المشاريع)
+    "GET /v2/team-projects": () => handleTeamProjects(request, ["team-projects"]),
+    "POST /v2/team-projects": () => handleTeamProjects(request, ["team-projects"]),
+    "GET /v2/team-projects/requests": () => handleTeamProjects(request, ["team-projects", "requests"]),
+    "DELETE /v2/team-projects/:id": () => handleTeamProjects(request, ["team-projects", parts[2]]),
+    "PATCH /v2/team-projects/:id": () => handleTeamProjects(request, ["team-projects", parts[2]]),
+    "POST /v2/team-projects/:id/join": () => handleTeamProjects(request, ["team-projects", parts[2], "join"]),
+    "PATCH /v2/team-projects/requests/:reqId": () => handleTeamProjects(request, ["team-projects", "requests", parts[3]]),
+
+    // Portfolio (معرض الأعمال)
+    "GET /v2/portfolio/me": () => handlePortfolio(request, ["portfolio", "me"]),
+    "GET /v2/portfolio/user/:userId": () => handlePortfolio(request, ["portfolio", "user", parts[3]]),
+    "POST /v2/portfolio": () => handlePortfolio(request, ["portfolio"]),
+    "PATCH /v2/portfolio/:id": () => handlePortfolio(request, ["portfolio", parts[2]]),
+    "DELETE /v2/portfolio/:id": () => handlePortfolio(request, ["portfolio", parts[2]]),
 
     // Schedules
     "GET /group-schedule": () => handleGroupSchedule(request, ["group-schedule"]),

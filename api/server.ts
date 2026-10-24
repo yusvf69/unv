@@ -14,18 +14,28 @@ const server = createServer(async (req, res) => {
     body: body || undefined,
   });
 
-  const response = await handler(request);
-  res.writeHead(response.status, Object.fromEntries(response.headers.entries()));
+  try {
+    const response = await handler(request);
+    res.writeHead(response.status, Object.fromEntries(response.headers.entries()));
 
-  if (response.body) {
-    const reader = response.body.getReader();
-    while (true) {
-      const { done, value } = await reader.read();
-      if (done) break;
-      res.write(value);
+    if (response.body) {
+      const reader = response.body.getReader();
+      while (true) {
+        const { done, value } = await reader.read();
+        if (done) break;
+        res.write(value);
+      }
+    }
+    res.end();
+  } catch (err: any) {
+    console.error("[server]", err);
+    if (!res.headersSent) {
+      res.writeHead(err?.status || 500, { "Content-Type": "application/json" });
+      res.end(JSON.stringify({ error: err?.message || "Internal Server Error" }));
+    } else {
+      res.end();
     }
   }
-  res.end();
 });
 
 server.listen(PORT, () => {

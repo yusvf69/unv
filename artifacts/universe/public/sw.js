@@ -1,4 +1,4 @@
-const CACHE = "unv-v5";
+const CACHE = "unv-v6";
 const SHELL = ["/", "/skills", "/games", "/missions", "/achievements", "/skills/me"];
 self.addEventListener("install", (e) => {
   e.waitUntil(
@@ -42,22 +42,18 @@ self.addEventListener("fetch", (e) => {
     return;
   }
 
-    e.respondWith(
-      caches.match(e.request).then(
-        (cached) =>
-          cached ||
-          fetch(e.request)
-            .then((res) => {
-              if (res.ok && res.type === "basic") {
-                const clone = res.clone();
-                caches.open(CACHE).then((c) => c.put(e.request, clone));
-              }
-              return res;
-            })
-            .catch(() => Response.error())
-      )
-    );
-  });
+  e.respondWith(
+    fetch(e.request)
+      .then((res) => {
+        if (res.ok && res.type === "basic") {
+          const clone = res.clone();
+          caches.open(CACHE).then((c) => c.put(e.request, clone));
+        }
+        return res;
+      })
+      .catch(async () => (await caches.match(e.request)) || Response.error())
+  );
+});
 
   self.addEventListener("push", (e) => {
     const data = e.data?.json() ?? { title: "UniVerse", body: "إشعار جديد" };

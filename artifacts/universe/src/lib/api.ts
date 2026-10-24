@@ -784,6 +784,32 @@ export function useEnrollSkillTrack() {
     },
   });
 }
+export interface PortfolioProject {
+  id: number;
+  userId: number;
+  title: string;
+  description: string;
+  projectUrl: string | null;
+  repoUrl: string | null;
+  imageUrl: string | null;
+  role: string | null;
+  tags: string[];
+  visibility: "public" | "private";
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface PortfolioProjectInput {
+  title: string;
+  description?: string;
+  projectUrl?: string;
+  repoUrl?: string;
+  imageUrl?: string;
+  role?: string;
+  tags?: string[];
+  visibility?: "public" | "private";
+}
+
 export interface SkillPassportTrack {
   id: number; title: string; category: string; difficulty: string;
   totalLessons: number; completedLessons: number; progress: number;
@@ -804,10 +830,11 @@ export interface SkillPassport {
   stats: {
     enrolledTracks: number; activeTracks: number; completedTracks: number;
     completedLessons: number; totalLessons: number; learningMinutes: number;
-    avgQuickCheck: number; certificates: number;
+    avgQuickCheck: number; certificates: number; projects: number;
   };
   tracks: SkillPassportTrack[];
   certificates: SkillPassportCertificate[];
+  projects: PortfolioProject[];
 }
 export function useMySkillPassport(enabled = true) {
   return useQuery<SkillPassport>({
@@ -825,8 +852,280 @@ export function useUserSkillPassport(userId: number | null) {
     retry: false,
   });
 }
+export function useMyPortfolio(enabled = true) {
+  return useQuery<PortfolioProject[]>({
+    queryKey: ["v2", "portfolio", "me"],
+    queryFn: () => api.get("/v2/portfolio/me"),
+    enabled,
+    retry: false,
+  });
+}
+
+export function useUserPortfolio(userId: number | null) {
+  return useQuery<PortfolioProject[]>({
+    queryKey: ["v2", "portfolio", "user", userId],
+    queryFn: () => api.get(`/v2/portfolio/user/${userId}`),
+    enabled: !!userId,
+    retry: false,
+  });
+}
+
+export function useCreatePortfolioProject() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (body: PortfolioProjectInput) => api.post<PortfolioProject>("/v2/portfolio", body),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["v2", "portfolio"] });
+      qc.invalidateQueries({ queryKey: ["v2", "skill-passport"] });
+    },
+  });
+}
+
+export function useUpdatePortfolioProject() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: ({ id, ...body }: PortfolioProjectInput & { id: number }) =>
+      api.patch<PortfolioProject>(`/v2/portfolio/${id}`, body),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["v2", "portfolio"] });
+      qc.invalidateQueries({ queryKey: ["v2", "skill-passport"] });
+    },
+  });
+}
+
+export function useDeletePortfolioProject() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (id: number) => api.del<{ ok: boolean }>(`/v2/portfolio/${id}`),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["v2", "portfolio"] });
+      qc.invalidateQueries({ queryKey: ["v2", "skill-passport"] });
+    },
+  });
+}
+
+export interface MarketOwner {
+  id: number;
+  name: string;
+  username?: string | null;
+  avatarUrl?: string | null;
+  faculty?: string | null;
+  university?: string | null;
+  level?: number;
+}
+
+export interface MarketListing {
+  id: number;
+  userId: number;
+  kind: "note" | "video" | "link";
+  title: string;
+  description: string;
+  url: string | null;
+  category: string | null;
+  tags: string[];
+  pricePoints: number;
+  mine: boolean;
+  purchased: boolean;
+  createdAt: string;
+  purchasedAt?: string;
+  owner?: MarketOwner;
+}
+
+export interface MarketListingInput {
+  kind: string;
+  title: string;
+  description?: string;
+  url: string;
+  category?: string;
+  tags?: string[];
+  pricePoints?: number;
+}
+
+export interface MarketBrowse {
+  listings: MarketListing[];
+  myPoints: number;
+}
+
+export interface MarketMine {
+  listings: MarketListing[];
+  purchases: MarketListing[];
+  myPoints: number;
+}
+
+export interface MarketBuyResult {
+  purchased: boolean;
+  pointsSpent: number;
+  myPoints?: number;
+  url: string;
+}
+
+export function useMarket(enabled = true) {
+  return useQuery<MarketBrowse>({
+    queryKey: ["v2", "market"],
+    queryFn: () => api.get("/v2/market"),
+    enabled,
+    retry: false,
+  });
+}
+
+export function useMyMarket(enabled = true) {
+  return useQuery<MarketMine>({
+    queryKey: ["v2", "market", "me"],
+    queryFn: () => api.get("/v2/market/me"),
+    enabled,
+    retry: false,
+  });
+}
+
+export function useCreateMarketListing() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (body: MarketListingInput) => api.post<MarketListing>("/v2/market", body),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["v2", "market"] });
+    },
+  });
+}
+
+export function useDeleteMarketListing() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (id: number) => api.del<{ ok: boolean }>(`/v2/market/${id}`),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["v2", "market"] });
+    },
+  });
+}
+
+export function useBuyMarketListing() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (id: number) => api.post<MarketBuyResult>(`/v2/market/${id}/buy`, {}),
+    onSuccess: (_data) => {
+      qc.invalidateQueries({ queryKey: ["v2", "market"] });
+      qc.invalidateQueries({ queryKey: ["/api/me"] });
+    },
+  });
+}
+
+export interface TeamMember {
+  userId: number;
+  name: string;
+  avatarUrl?: string | null;
+  faculty?: string | null;
+  university?: string | null;
+  role?: string | null;
+}
+
+export interface TeamProject {
+  id: number;
+  ownerId: number;
+  title: string;
+  description: string;
+  lookingFor: { role: string; filled: boolean }[];
+  tags: string[];
+  status: "open" | "closed";
+  mine: boolean;
+  createdAt: string;
+  owner: {
+    id: number;
+    name: string;
+    username?: string | null;
+    avatarUrl?: string | null;
+    faculty?: string | null;
+    university?: string | null;
+    level?: number;
+  };
+  members: TeamMember[];
+  pendingCount: number;
+  myRequest: { id: number; status: string; role?: string | null; message?: string } | null;
+}
+
+export interface TeamProjectInput {
+  title?: string;
+  description?: string;
+  lookingFor?: string[];
+  tags?: string[];
+  status?: string;
+}
+
+export interface JoinRequestRow {
+  id: number;
+  projectId: number;
+  userId: number;
+  role?: string | null;
+  message: string;
+  memberName: string;
+  memberAvatar?: string | null;
+  memberFaculty?: string | null;
+  memberUniversity?: string | null;
+  createdAt: string;
+}
+
+export function useTeamProjects(enabled = true) {
+  return useQuery<{ projects: TeamProject[] }>({
+    queryKey: ["v2", "team-projects"],
+    queryFn: () => api.get("/v2/team-projects"),
+    enabled,
+    retry: false,
+  });
+}
+
+export function useCreateTeamProject() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (body: TeamProjectInput) => api.post<TeamProject>("/v2/team-projects", body),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["v2", "team-projects"] });
+    },
+  });
+}
+
+export function useUpdateTeamProject() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: ({ id, ...body }: TeamProjectInput & { id: number }) =>
+      api.patch<TeamProject>(`/v2/team-projects/${id}`, body),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["v2", "team-projects"] });
+    },
+  });
+}
+
+export function useDeleteTeamProject() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (id: number) => api.del<{ ok: boolean }>(`/v2/team-projects/${id}`),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["v2", "team-projects"] });
+    },
+  });
+}
+
+export function useJoinTeamProject() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: ({ id, role, message }: { id: number; role: string; message: string }) =>
+      api.post<{ id: number; status: string }>(`/v2/team-projects/${id}/join`, { role, message }),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["v2", "team-projects"] });
+    },
+  });
+}
+
+export function useDecideJoinRequest() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: ({ reqId, action }: { reqId: number; action: "accept" | "reject" }) =>
+      api.patch<{ id: number; status: string }>(`/v2/team-projects/requests/${reqId}`, { action }),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["v2", "team-projects"] });
+    },
+  });
+}
+
 export interface CertificateVerification {
-  valid: boolean; code: string; holderName: string; username: string;
+  valid: boolean; code: string; userId: number; holderName: string; username: string;
   trackTitle: string; trackCategory: string; difficulty: string;
   score: number; level: string; issuedAt: string;
 }
@@ -2409,5 +2708,362 @@ export function useDeleteCommunityComment(postId: number, communityId: number) {
       qc.invalidateQueries({ queryKey: ["v2", "community-post", postId, "comments"] });
       qc.invalidateQueries({ queryKey: ["v2", "communities", communityId, "posts"] });
     },
+  });
+}
+
+// ===== Opportunities (career center) =====
+export type OpportunityType = "job" | "internship" | "training" | "volunteer";
+
+export interface OpportunityApplicationRef {
+  id: number;
+  status: string;
+  createdAt: string | null;
+}
+
+export interface Opportunity {
+  id: number;
+  title: string;
+  description: string;
+  type: OpportunityType;
+  company: string;
+  location: string | null;
+  remote: boolean;
+  category: string | null;
+  requiredSkills: string[];
+  salary: string | null;
+  deadline: string | null;
+  applyUrl: string | null;
+  contactEmail: string | null;
+  status: "active" | "closed";
+  createdAt: string | null;
+  applicantsCount: number;
+  myApplication: OpportunityApplicationRef | null;
+  canManage: boolean;
+}
+
+export interface OpportunityCertificateSnapshot {
+  code: string;
+  trackTitle: string;
+  trackCategory: string;
+  score: number;
+  level: string;
+  issuedAt: string | null;
+}
+
+export interface OpportunityPassportSnapshot {
+  name: string;
+  username: string;
+  points?: number;
+  verifiedCertificates: OpportunityCertificateSnapshot[];
+  capturedAt: string;
+}
+
+export interface OpportunityApplicantLiveTrack {
+  id: number;
+  title: string;
+  category: string;
+  completedLessons: number;
+  totalLessons: number;
+  progress: number;
+  status: string;
+  certificateCode: string | null;
+}
+
+export interface OpportunityApplicantLive {
+  level: string;
+  stats: {
+    enrolledTracks: number;
+    activeTracks: number;
+    completedTracks: number;
+    completedLessons: number;
+    totalLessons: number;
+    learningMinutes: number;
+    avgQuickCheck: number;
+    certificates: number;
+  };
+  tracks: OpportunityApplicantLiveTrack[];
+  certificates: OpportunityCertificateSnapshot[];
+  projects: PortfolioProject[];
+}
+
+export interface OpportunityApplicant {
+  id: number;
+  opportunityId: number;
+  userId: number;
+  status: string;
+  coverLetter: string | null;
+  createdAt: string;
+  updatedAt: string;
+  name: string;
+  username: string;
+  email: string;
+  avatarUrl: string | null;
+  passport: OpportunityPassportSnapshot;
+  live: OpportunityApplicantLive | null;
+}
+
+export function useOpportunities() {
+  return useQuery<Opportunity[]>({
+    queryKey: ["v2", "opportunities"],
+    queryFn: () => api.get("/v2/opportunities"),
+    retry: false,
+  });
+}
+
+export function useOpportunity(id: number | null) {
+  return useQuery<Opportunity>({
+    queryKey: ["v2", "opportunities", id],
+    queryFn: () => api.get(`/v2/opportunities/${id}`),
+    enabled: !!id,
+    retry: false,
+  });
+}
+
+export function useApplyToOpportunity(opportunityId: number) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (coverLetter: string) =>
+      api.post<{ id: number; status: string }>(`/v2/opportunities/${opportunityId}/apply`, { coverLetter }),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["v2", "opportunities"] });
+      qc.invalidateQueries({ queryKey: ["v2", "opportunities", opportunityId] });
+    },
+  });
+}
+
+export function useOpportunityApplicants(opportunityId: number | null, enabled = true) {
+  return useQuery<OpportunityApplicant[]>({
+    queryKey: ["v2", "opportunities", opportunityId, "applicants"],
+    queryFn: () => api.get(`/v2/opportunities/${opportunityId}/applicants`),
+    enabled: !!opportunityId && enabled,
+    retry: false,
+  });
+}
+
+export function useUpdateApplicationStatus(opportunityId: number) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: ({ applicationId, status }: { applicationId: number; status: string }) =>
+      api.patch<{ id: number; status: string }>(`/v2/opportunities/${opportunityId}/applications/${applicationId}`, { status }),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["v2", "opportunities", opportunityId, "applicants"] });
+    },
+  });
+}
+
+export function useCreateOpportunity() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (body: Partial<Opportunity> & { title: string; company: string; description: string }) =>
+      api.post<Opportunity>("/v2/opportunities", body),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["v2", "opportunities"] });
+    },
+  });
+}
+
+export function useToggleOpportunityStatus() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: ({ id, status }: { id: number; status: "active" | "closed" }) =>
+      api.patch<Opportunity>(`/v2/opportunities/${id}`, { status }),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["v2", "opportunities"] });
+    },
+  });
+}
+
+export function useDeleteOpportunity() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (id: number) => api.del<{ ok: boolean }>(`/v2/opportunities/${id}`),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["v2", "opportunities"] });
+    },
+  });
+}
+
+// ===== UniVerse League =====
+export interface LeagueSeasonInfo {
+  id: number;
+  name: string;
+  startsAt: string;
+  endsAt: string;
+  status: string;
+  daysLeft: number;
+}
+
+export interface LeagueStudent {
+  rank: number;
+  userId: number;
+  name: string;
+  username: string | null;
+  avatarUrl: string | null;
+  seasonPoints: number;
+  allTimePoints: number;
+  faculty: string | null;
+  university: string | null;
+}
+
+export interface LeagueEntity {
+  rank: number;
+  id: number;
+  name: string;
+  universityName: string | null;
+  totalPoints: number;
+  activeStudents: number;
+  totalStudents: number;
+  avgPointsPerActive: number;
+  activeRatio: number;
+}
+
+export interface LeagueSkillEntry {
+  rank: number;
+  userId: number;
+  name: string;
+  username: string | null;
+  avatarUrl: string | null;
+  completedLessons: number;
+  avgScore: number;
+  certificates: number;
+}
+
+export interface LeagueSkillCategory {
+  category: string;
+  label: string;
+  entries: LeagueSkillEntry[];
+}
+
+export interface LeagueData {
+  season: LeagueSeasonInfo;
+  students: LeagueStudent[];
+  faculties: LeagueEntity[];
+  universities: LeagueEntity[];
+  skills: LeagueSkillCategory[];
+  myRank: {
+    seasonPoints: number;
+    allTimePoints: number;
+    studentRank: number | null;
+    faculty: { id: number; name: string; rank: number } | null;
+    university: { id: number; name: string; rank: number } | null;
+  } | null;
+  seasons: { id: number; name: string; startsAt: string; endsAt: string; status: string }[];
+}
+
+export function useLeague() {
+  return useQuery<LeagueData>({
+    queryKey: ["v2", "league"],
+    queryFn: () => api.get("/v2/league"),
+    retry: false,
+  });
+}
+
+export function useCreateLeagueSeason() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (body: { name: string; durationDays: number }) =>
+      api.post<LeagueSeasonInfo>("/v2/league/seasons", body),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["v2", "league"] });
+    },
+  });
+}
+
+// ===== Interests, goals & recommendations =====
+export interface CatalogItem { key: string; label: string }
+export interface PersonalizationData {
+  interests: string[];
+  goals: string[];
+  completed: boolean;
+  updatedAt: string | null;
+  catalog: { interests: CatalogItem[]; goals: CatalogItem[] };
+}
+
+export interface RecommendationTrack {
+  id: number;
+  title: string;
+  category: string;
+  difficulty: string;
+  coverUrl: string | null;
+  lessonsCount: number;
+  doneLessons: number;
+  reason: string;
+}
+
+export interface RecommendationOpportunity {
+  id: number;
+  title: string;
+  type: string;
+  company: string;
+  category: string | null;
+  location: string | null;
+  remote: boolean;
+  deadline: string | null;
+  reason: string;
+}
+
+export interface RecommendationsData {
+  personalized: boolean;
+  interests: string[];
+  goals: string[];
+  tracks: RecommendationTrack[];
+  opportunities: RecommendationOpportunity[];
+}
+
+export function usePersonalization(enabled = true) {
+  return useQuery<PersonalizationData>({
+    queryKey: ["v2", "personalization"],
+    queryFn: () => api.get("/v2/me/personalization"),
+    enabled,
+    retry: false,
+    staleTime: 30_000,
+  });
+}
+
+export function useSavePersonalization() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (body: { interests: string[]; goals: string[] }) =>
+      api.put<PersonalizationData>("/v2/me/personalization", body),
+    onSuccess: (data) => {
+      qc.setQueryData(["v2", "personalization"], data);
+      qc.invalidateQueries({ queryKey: ["v2", "recommendations"] });
+    },
+  });
+}
+
+export function useRecommendations() {
+  return useQuery<RecommendationsData>({
+    queryKey: ["v2", "me", "recommendations"],
+    queryFn: () => api.get("/v2/me/recommendations"),
+    retry: false,
+  });
+}
+
+export interface CoachStep {
+  kind: "lesson" | "track" | "certificate" | "opportunity" | "explore";
+  refId: number | null;
+  title: string;
+  subtitle?: string | null;
+  reason: string;
+  link: string;
+  etaMinutes?: number;
+}
+
+export interface CoachPlan {
+  personalized: boolean;
+  summary: string;
+  coachMessage: string | null;
+  weeklyGoal: string;
+  stats: { completedLessons: number; totalLessons: number; certificates: number };
+  steps: CoachStep[];
+}
+
+export function useCoachPlan(enabled = true) {
+  return useQuery<CoachPlan>({
+    queryKey: ["v2", "coach", "plan"],
+    queryFn: () => api.get("/v2/coach/plan"),
+    enabled,
+    retry: false,
   });
 }

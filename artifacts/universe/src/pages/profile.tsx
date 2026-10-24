@@ -10,6 +10,7 @@ import { useMeV2, useUpdateProfile, useAchievements, useMyGroupSchedule, useMyEx
 import { useGetDashboard } from "@workspace/api-client-react";
 import FileUpload from "@/components/file-upload";
 import ShareButtons from "@/components/share-buttons";
+import PersonalizationCard from "@/components/personalization-card";
 import { Link, useSearch } from "wouter";
 import { useTranslation, globalI18n } from "@/lib/i18n";
 
@@ -243,6 +244,8 @@ export default function Profile() {
           </div>
         </motion.div>
       )}
+
+      <PersonalizationCard />
 
       {/* Tabs */}
       <div className="flex gap-1.5 sm:gap-2 mb-4 sm:mb-6 overflow-x-auto pb-2 scrollbar-hide">
